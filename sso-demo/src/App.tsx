@@ -33,9 +33,7 @@ interface InternalUser {
   entra_oid?: string;
   name?: string;
   email?: string;
-  job_title?: string;
-  department?: string;
-  app_roles?: string[];
+  roles?: string[];
   is_active?: boolean;
 }
 
@@ -74,14 +72,14 @@ function RoleGuard({
     return (
       <div className="spinner-wrap">
         <div className="spinner" />
-        <p style={{ color: "var(--neutral-500)", fontFamily: "Inter, sans-serif" }}>
+        <p style={{ color: "var(--neutral-50)", fontFamily: "Inter, sans-serif" }}>
           Loading session…
         </p>
       </div>
     );
   }
 
-  const roles = internalUser.app_roles || [];
+  const roles = internalUser.roles || [];
   const isAdmin = roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin");
 
   if (isAdmin || allowed(roles)) {
@@ -97,14 +95,14 @@ function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
 
   useEffect(() => {
     if (!internalUser) return;
-    const roles = internalUser.app_roles || [];
+    const roles = internalUser.roles || [];
     navigate(getRedirectPath(roles), { replace: true });
   }, [internalUser, navigate]);
 
   return (
     <div className="spinner-wrap">
       <div className="spinner" />
-      <p style={{ color: "var(--neutral-500)", fontFamily: "Inter, sans-serif" }}>
+      <p style={{ color: "var(--neutral-50)", fontFamily: "Inter, sans-serif" }}>
         Redirecting to your dashboard…
       </p>
     </div>

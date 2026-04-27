@@ -219,7 +219,7 @@ PostgreSQL
 ### Profile Sync Rules
 
 - Sync on every successful login
-- Update cached name, email, title, department, avatar, and manager mapping
+- Update cached name, email, and manager mapping
 - If Graph temporarily fails and the user already exists, allow login with cached profile and log a warning
 
 ---
@@ -451,14 +451,11 @@ PostgreSQL
 
 #### `users`
 
-- `id`
-- `entra_oid`
+- `id` (PK)
+- `entra_oid` (Unique)
 - `email`
 - `name`
-- `job_title`
-- `department`
-- `manager_id`
-- `role`
+- `manager_entra_oid`
 - `is_active`
 - `created_at`
 - `last_login`

@@ -59,7 +59,7 @@ app.get("/api/admin/users", requireAuth, requireRole(["SipraHub-SystemAdmin"]), 
 
 // HR Check Route
 app.get("/api/hr-check", requireAuth, (req, res) => {
-  const userRoles = (req as any).user?.app_roles || [];
+  const userRoles = (req as any).user?.roles || [];
   if (!userRoles.includes("SipraHub-HR") && !userRoles.includes("HR")) {
     return res.status(403).json({ message: "Access Denied" });
   }
@@ -68,7 +68,7 @@ app.get("/api/hr-check", requireAuth, (req, res) => {
 
 // Employee Check Route
 app.get("/api/employee-check", requireAuth, (req, res) => {
-  const userRoles = (req as any).user?.app_roles || [];
+  const userRoles = (req as any).user?.roles || [];
   if (!userRoles.includes("SipraHub-Employee") && !userRoles.includes("Employee")) {
     return res.status(403).json({ message: "Access Denied" });
   }
@@ -77,7 +77,7 @@ app.get("/api/employee-check", requireAuth, (req, res) => {
 
 // Manager Check Route
 app.get("/api/manager-check", requireAuth, (req, res) => {
-  const userRoles = (req as any).user?.app_roles || [];
+  const userRoles = (req as any).user?.roles || [];
   if (!userRoles.includes("SipraHub-Manager") && !userRoles.includes("Manager")) {
     return res.status(403).json({ message: "Access Denied" });
   }
@@ -100,7 +100,7 @@ const isAdmin = (roles: string[]): boolean =>
 
 // GET /api/manager-dashboard-check
 app.get("/api/manager-dashboard-check", requireAuth, (req, res) => {
-  const userRoles: string[] = (req as any).user?.app_roles || [];
+  const userRoles: string[] = (req as any).user?.roles || [];
   if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-Manager") && !userRoles.includes("Manager")) {
     return res.status(403).json({ message: "Access Denied" });
   }
@@ -109,7 +109,7 @@ app.get("/api/manager-dashboard-check", requireAuth, (req, res) => {
 
 // GET /api/hr-dashboard-check
 app.get("/api/hr-dashboard-check", requireAuth, (req, res) => {
-  const userRoles: string[] = (req as any).user?.app_roles || [];
+  const userRoles: string[] = (req as any).user?.roles || [];
   if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-HR") && !userRoles.includes("HR")) {
     return res.status(403).json({ message: "Access Denied" });
   }
@@ -118,7 +118,7 @@ app.get("/api/hr-dashboard-check", requireAuth, (req, res) => {
 
 // GET /api/employee-dashboard-check
 app.get("/api/employee-dashboard-check", requireAuth, (req, res) => {
-  const userRoles: string[] = (req as any).user?.app_roles || [];
+  const userRoles: string[] = (req as any).user?.roles || [];
   const hasEmployeeAccess =
     isAdmin(userRoles) ||
     userRoles.includes("SipraHub-Employee") ||
