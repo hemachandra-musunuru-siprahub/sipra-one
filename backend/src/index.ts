@@ -89,6 +89,47 @@ app.get("/api/admin-check", requireAuth, requireRole(["Admin", "SipraHub-SystemA
   res.json({ message: "Admin Access Success" });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard Check Endpoints
+// These validate role access for each dashboard page.
+// Admins bypass all role restrictions (top-level access).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const isAdmin = (roles: string[]): boolean =>
+  roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin");
+
+// GET /api/manager-dashboard-check
+app.get("/api/manager-dashboard-check", requireAuth, (req, res) => {
+  const userRoles: string[] = (req as any).user?.app_roles || [];
+  if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-Manager") && !userRoles.includes("Manager")) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+  res.json({ message: "Access Success" });
+});
+
+// GET /api/hr-dashboard-check
+app.get("/api/hr-dashboard-check", requireAuth, (req, res) => {
+  const userRoles: string[] = (req as any).user?.app_roles || [];
+  if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-HR") && !userRoles.includes("HR")) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+  res.json({ message: "Access Success" });
+});
+
+// GET /api/employee-dashboard-check
+app.get("/api/employee-dashboard-check", requireAuth, (req, res) => {
+  const userRoles: string[] = (req as any).user?.app_roles || [];
+  const hasEmployeeAccess =
+    isAdmin(userRoles) ||
+    userRoles.includes("SipraHub-Employee") ||
+    userRoles.includes("Employee") ||
+    userRoles.includes("Default Access");
+  if (!hasEmployeeAccess) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+  res.json({ message: "Access Success" });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

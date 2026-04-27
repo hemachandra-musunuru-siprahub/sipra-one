@@ -1,649 +1,259 @@
 import { useMsal } from "@azure/msal-react";
 import { useState, useEffect } from "react";
-import { loginRequest, graphConfig } from "./authConfig";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ManagerDashboard } from "./components/ManagerDashboard";
+import { HRDashboard } from "./components/HRDashboard";
+import { EmployeeDashboard } from "./components/EmployeeDashboard";
+import { AccessDenied } from "./components/AccessDenied";
+import { DashboardLayout } from "./components/DashboardLayout";
+import { 
+  Shield, 
+  Activity, 
+  Server, 
+  Users, 
+  Settings, 
+  Lock,
+  ArrowRight,
+  Database,
+  Globe,
+  PieChart,
+  HardDrive
+} from "lucide-react";
 
-const Dashboard = ({ internalUser }: { internalUser: any }) => {
-  const { instance, accounts } = useMsal();
-  const [driveFiles, setDriveFiles] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
+// ─── Types ────────────────────────────────────────────────────────
+interface InternalUser {
+  id?: number;
+  entra_oid?: string;
+  name?: string;
+  email?: string;
+  job_title?: string;
+  department?: string;
+  app_roles?: string[];
+  is_active?: boolean;
+}
 
-  const handleLogout = () => {
-    // First logout from our backend to clear the cookie
-    fetch("http://localhost:3000/api/auth/logout", {
-      method: "POST",
-      credentials: "include"
-    }).finally(() => {
-      // Then logout from MSAL
-      instance.logoutRedirect({
-        postLogoutRedirectUri: "/",
-      }).catch((e) => {
-        console.error(e);
-      });
-    });
-  };
+// ─── Role-based redirect helper ──────────────────────────────────
+function getRedirectPath(roles: string[]): string {
+  if (roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin")) {
+    return "/admin-dashboard";
+  }
+  if (roles.includes("HR") || roles.includes("SipraHub-HR")) {
+    return "/hr-dashboard";
+  }
+  if (roles.includes("Manager") || roles.includes("SipraHub-Manager")) {
+    return "/manager-dashboard";
+  }
+  if (
+    roles.includes("Employee") ||
+    roles.includes("SipraHub-Employee") ||
+    roles.includes("Default Access")
+  ) {
+    return "/employee-dashboard";
+  }
+  return "/access-denied";
+}
 
-  const handleExternalLink = (baseUrl: string) => {
-    const account = instance.getAllAccounts()[0];
+// ─── Role guard HOC ──────────────────────────────────────────────
+function RoleGuard({
+  children,
+  allowed,
+  internalUser,
+}: {
+  children: React.ReactNode;
+  allowed: (roles: string[]) => boolean;
+  internalUser: InternalUser | null;
+}) {
+  if (!internalUser) {
+    return (
+      <div className="spinner-wrap">
+        <div className="spinner" />
+        <p style={{ color: "var(--neutral-500)", fontFamily: "Inter, sans-serif" }}>
+          Loading session…
+        </p>
+      </div>
+    );
+  }
 
-    if (account) {
-      const email = encodeURIComponent(account.username);
-      const separator = baseUrl.includes("?") ? "&" : "?";
-      window.open(`${baseUrl}${separator}login_hint=${email}`, "_blank");
-    } else {
-      instance.loginRedirect(loginRequest).catch((e) => {
-        console.error("Login redirect failed:", e);
-      });
-    }
-  };
+  const roles = internalUser.app_roles || [];
+  const isAdmin = roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin");
 
-  const fetchWithToken = async (endpoint: string) => {
-    const resp = await instance.acquireTokenSilent({
-      ...loginRequest,
-      account: accounts[0],
-    });
-    
-    const response = await fetch(endpoint, {
-      headers: {
-        Authorization: `Bearer ${resp.accessToken}`,
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Graph API returned ${response.status}`);
-    }
-    
-    return response.json();
-  };
+  if (isAdmin || allowed(roles)) {
+    return <>{children}</>;
+  }
 
-  const wrapLoading = async (key: string, task: () => Promise<void>) => {
-    setLoading(prev => ({ ...prev, [key]: true }));
-    setError(null);
-    try {
-      await task();
-    } catch (e: any) {
-      setError(`Error in ${key}: ` + (e.message || "Unknown error"));
-    } finally {
-      setLoading(prev => ({ ...prev, [key]: false }));
-    }
-  };
+  return <Navigate to="/access-denied" replace />;
+}
 
-  const fetchOneDriveFiles = () => wrapLoading("OneDriveFiles", async () => {
-    const data = await fetchWithToken(graphConfig.graphOneDriveEndpoint);
-    if (data.value) {
-      setDriveFiles(data.value);
-    } else {
-      setError("No files found or unexpected response structure.");
-    }
-  });
+// ─── Root redirect ───────────────────────────────────────────────
+function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
+  const navigate = useNavigate();
 
-  const sendConfirmationEmail = () => wrapLoading("Email", async () => {
-    const resp = await instance.acquireTokenSilent({
-      ...loginRequest,
-      account: accounts[0],
-    });
-
-    const emailPayload = {
-      message: {
-        subject: "SSO Auto-Login Successful",
-        body: {
-          contentType: "Text",
-          content: `You logged in automatically using SSO at ${new Date().toLocaleString()}`,
-        },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: accounts[0].username,
-            },
-          },
-        ],
-      },
-      saveToSentItems: "true",
-    };
-
-    const response = await fetch(graphConfig.graphSendMailEndpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resp.accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(emailPayload),
-    });
-
-    if (response.ok) {
-      alert("Confirmation email sent successfully!");
-    } else {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.error?.message || `Failed to send email: ${response.status}`);
-    }
-  });
-
-  const userRoles = internalUser?.app_roles || [];
-  
-  const isHR = userRoles.includes("SipraHub-HR");
-  const isManager = userRoles.includes("SipraHub-Manager");
-  const isSystemAdmin = userRoles.includes("SipraHub-SystemAdmin");
-  const isEmployee = userRoles.includes("SipraHub-Employee") || (!isHR && !isManager && !isSystemAdmin);
+  useEffect(() => {
+    if (!internalUser) return;
+    const roles = internalUser.app_roles || [];
+    navigate(getRedirectPath(roles), { replace: true });
+  }, [internalUser, navigate]);
 
   return (
-    <div style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto", fontFamily: "'Inter', sans-serif" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "40px" }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem", color: "#1e293b" }}>SipraHub Intranet</h1>
-          <p style={{ margin: 0, color: "#64748b" }}>Welcome back, {internalUser?.name || accounts[0]?.name}</p>
+    <div className="spinner-wrap">
+      <div className="spinner" />
+      <p style={{ color: "var(--neutral-500)", fontFamily: "Inter, sans-serif" }}>
+        Redirecting to your dashboard…
+      </p>
+    </div>
+  );
+}
+
+// ─── Admin Dashboard ──────────────────────────────────────────────
+const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null }) => {
+  const navigate = useNavigate();
+  
+  const stats = [
+    { label: "Active Users", value: "1,248", trend: "Normal", icon: <Users size={20} />, color: "#3B82F6" },
+    { label: "System Load", value: "14.2%", trend: "Optimal", icon: <Server size={20} />, color: "#10B981" },
+    { label: "Sync Status", value: "Active", trend: "1 min ago", icon: <Activity size={20} />, color: "#F59E0B" },
+    { label: "Security Health", value: "Secure", trend: "Verified", icon: <Shield size={20} />, color: "#CE2124" },
+  ];
+
+  return (
+    <DashboardLayout internalUser={internalUser} role="Admin">
+      <header className="page-header">
+        <div className="breadcrumb">
+          <span>Home</span>
+          <span className="breadcrumb__separator">/</span>
+          <span>Admin Dashboard</span>
         </div>
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          {internalUser && (
-            <span style={{ padding: "4px 8px", backgroundColor: "#e2e8f0", borderRadius: "4px", fontSize: "0.8rem", color: "#475569" }}>
-              {internalUser.job_title || "Employee"} • {internalUser.department || "Organization"}
-            </span>
-          )}
-          <button 
-            onClick={() => window.location.href = "/hr-page"} 
-            style={{ 
-              padding: "8px 16px", 
-              backgroundColor: "#86198f", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500
-            }}>
-            Test HR Access
-          </button>
-          <button 
-            onClick={() => window.location.href = "/employee-page"} 
-            style={{ 
-              padding: "8px 16px", 
-              backgroundColor: "#059669", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500
-            }}>
-            Test Employee Access
-          </button>
-          <button 
-            onClick={() => window.location.href = "/manager-page"} 
-            style={{ 
-              padding: "8px 16px", 
-              backgroundColor: "#ea580c", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500
-            }}>
-            Test Manager Access
-          </button>
-          <button 
-            onClick={() => window.location.href = "/admin-check"} 
-            style={{ 
-              padding: "8px 16px", 
-              backgroundColor: "#2563eb", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500
-            }}>
-            Test Admin Access
-          </button>
-          <button 
-            onClick={handleLogout} 
-            style={{ 
-              padding: "8px 16px", 
-              backgroundColor: "#ef4444", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500
-            }}>
-            Logout
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="page-title">Systems Control</h1>
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+             <button className="btn btn--secondary">
+                <Settings size={16} />
+                Global Config
+             </button>
+             <button className="btn btn--primary">
+                <Lock size={16} />
+                Security Audit
+             </button>
+          </div>
         </div>
       </header>
 
-      {error && (
-        <div style={{ 
-          padding: "12px 16px", 
-          backgroundColor: "#fef2f2", 
-          color: "#b91c1c", 
-          marginBottom: "20px",
-          border: "1px solid #fee2e2",
-          borderRadius: "8px"
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Role-based navigation / rendering */}
-      <div style={{ display: "flex", gap: "20px", marginBottom: "40px" }}>
-        {isHR && (
-          <div style={{ flex: 1, padding: "20px", backgroundColor: "#fdf4ff", border: "1px solid #f0abfc", borderRadius: "12px" }}>
-            <h3 style={{ marginTop: 0, color: "#86198f" }}>HR Dashboard</h3>
-            <ul style={{ margin: 0, paddingLeft: "20px", color: "#701a75" }}>
-              <li>Announcements Management</li>
-              <li>HR Documents</li>
-              <li>Leave Balance Management</li>
-            </ul>
+      <section className="stats-grid">
+        {stats.map((stat, idx) => (
+          <div className="stat-card" key={idx}>
+            <div className="stat-card__header">
+              <div className="stat-card__icon" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
+                {stat.icon}
+              </div>
+              <span className="stat-card__trend" style={{ color: stat.color === '#CE2124' ? 'var(--error-700)' : stat.color }}>
+                {stat.trend}
+              </span>
+            </div>
+            <div>
+              <div className="stat-card__label">{stat.label}</div>
+              <div className="stat-card__value">{stat.value}</div>
+            </div>
           </div>
-        )}
-        
-        {isManager && (
-          <div style={{ flex: 1, padding: "20px", backgroundColor: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "12px" }}>
-            <h3 style={{ marginTop: 0, color: "#1e40af" }}>Manager Dashboard</h3>
-            <ul style={{ margin: 0, paddingLeft: "20px", color: "#1d4ed8" }}>
-              <li>Approvals Page</li>
-              <li>Team Timesheets</li>
-              <li>Leave Approvals</li>
-            </ul>
+        ))}
+      </section>
+
+      <div className="content-grid">
+        <div className="card" style={{ gridColumn: 'span 8' }}>
+          <div className="card__header">
+            <h3 className="card__title">Operational Health</h3>
+            <button className="btn btn--ghost btn--sm">Full Report</button>
           </div>
-        )}
-
-        {isSystemAdmin && (
-          <div style={{ flex: 1, padding: "20px", backgroundColor: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "12px" }}>
-            <h3 style={{ marginTop: 0, color: "#92400e" }}>System Admin Dashboard</h3>
-            <ul style={{ margin: 0, paddingLeft: "20px", color: "#b45309" }}>
-              <li>User Management</li>
-              <li>Activation / Deactivation</li>
-              <li>Technical Controls</li>
-            </ul>
+          <div className="card__body">
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-6)' }}>
+                <div style={{ padding: 'var(--space-5)', background: 'var(--neutral-50)', borderRadius: 'var(--rounded-xl)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                      <Globe size={18} className="text-primary-500" style={{ color: 'var(--primary-500)' }} />
+                      <span style={{ fontWeight: 600 }}>SSO Connectivity</span>
+                   </div>
+                   <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 'var(--space-1)' }}>99.98%</div>
+                   <div style={{ fontSize: '0.75rem', color: 'var(--neutral-500)' }}>Last 30 days uptime</div>
+                </div>
+                <div style={{ padding: 'var(--space-5)', background: 'var(--neutral-50)', borderRadius: 'var(--rounded-xl)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                      <Database size={18} style={{ color: 'var(--success-500)' }} />
+                      <span style={{ fontWeight: 600 }}>Database Performance</span>
+                   </div>
+                   <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 'var(--space-1)' }}>24ms</div>
+                   <div style={{ fontSize: '0.75rem', color: 'var(--neutral-500)' }}>Avg query response time</div>
+                </div>
+                <div style={{ padding: 'var(--space-5)', background: 'var(--neutral-50)', borderRadius: 'var(--rounded-xl)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                      <HardDrive size={18} style={{ color: 'var(--dept-finance)' }} />
+                      <span style={{ fontWeight: 600 }}>Storage Usage</span>
+                   </div>
+                   <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 'var(--space-1)' }}>42%</div>
+                   <div style={{ fontSize: '0.75rem', color: 'var(--neutral-500)' }}>1.2TB of 3.0TB used</div>
+                </div>
+                <div style={{ padding: 'var(--space-5)', background: 'var(--neutral-50)', borderRadius: 'var(--rounded-xl)' }}>
+                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                      <PieChart size={18} style={{ color: 'var(--dept-it)' }} />
+                      <span style={{ fontWeight: 600 }}>API Traffic</span>
+                   </div>
+                   <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 'var(--space-1)' }}>+12%</div>
+                   <div style={{ fontSize: '0.75rem', color: 'var(--neutral-500)' }}>Increase since last week</div>
+                </div>
+             </div>
           </div>
-        )}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "40px" }}>
-        {/* Common Employee Views */}
-        <div style={{ border: "1px solid #e2e8f0", padding: "24px", borderRadius: "12px", backgroundColor: "white" }}>
-          <h3 style={{ marginTop: 0 }}>Employee Tools</h3>
-          <ul style={{ margin: 0, paddingLeft: "20px", color: "#475569", marginBottom: "20px" }}>
-            <li>Dashboard</li>
-            <li>Timesheets</li>
-            <li>Leave Request</li>
-            <li>Announcements View</li>
-          </ul>
         </div>
 
-        <div style={{ border: "1px solid #e2e8f0", padding: "24px", borderRadius: "12px", backgroundColor: "white" }}>
-          <h3 style={{ marginTop: 0 }}>Files & OneDrive</h3>
-          <button 
-            disabled={loading["OneDriveFiles"]}
-            onClick={fetchOneDriveFiles} 
-            style={{ 
-              width: "100%", 
-              padding: "10px", 
-              backgroundColor: "#2563eb", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer" 
-            }}>
-            {loading["OneDriveFiles"] ? "Loading..." : "Fetch OneDrive Files"}
-          </button>
-          
-          <button 
-            onClick={() => handleExternalLink("https://www.office.com/launch/onedrive")} 
-            style={{ 
-              width: "100%", 
-              marginTop: "10px",
-              padding: "10px", 
-              backgroundColor: "#f8fafc", 
-              color: "#475569", 
-              border: "1px solid #e2e8f0", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px"
-            }}>
-            <span>🌐</span> Open OneDrive
-          </button>
-          
-          {driveFiles.length > 0 && (
-            <ul style={{ marginTop: "20px", padding: 0, listStyle: "none", maxHeight: "200px", overflowY: "auto", fontSize: "0.9rem" }}>
-              {driveFiles.map((file: any) => (
-                <li key={file.id} style={{ padding: "4px 0", borderBottom: "1px solid #f1f5f9" }}>📄 {file.name}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div style={{ border: "1px solid #e2e8f0", padding: "24px", borderRadius: "12px", backgroundColor: "white" }}>
-          <h3 style={{ marginTop: 0 }}>Communication</h3>
-          <button 
-            disabled={loading["Email"]}
-            onClick={sendConfirmationEmail} 
-            style={{ 
-              width: "100%", 
-              padding: "10px", 
-              backgroundColor: "#059669", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "6px", 
-              cursor: "pointer" 
-            }}>
-            {loading["Email"] ? "Sending..." : "Send SSO Confirm"}
-          </button>
-
-          <button 
-            onClick={() => handleExternalLink("https://outlook.office.com/mail/")}
-            style={{ 
-              width: "100%", 
-              marginTop: "10px",
-              padding: "10px", 
-              backgroundColor: "#f8fafc", 
-              color: "#475569", 
-              border: "1px solid #e2e8f0", 
-              borderRadius: "6px", 
-              cursor: "pointer",
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px"
-            }}>
-            <span>📧</span> Open Outlook
-          </button>
-
-          <button
-            onClick={() => handleExternalLink("https://teams.microsoft.com/")}
-            style={{
-              width: "100%",
-              marginTop: "10px",
-              padding: "10px",
-              backgroundColor: "#f8fafc",
-              color: "#475569",
-              border: "1px solid #e2e8f0",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px"
-            }}>
-            <span>💬</span> Open Teams
-          </button>
+        <div className="card" style={{ gridColumn: 'span 4' }}>
+          <div className="card__header">
+            <h3 className="card__title">Module Management</h3>
+          </div>
+          <div className="card__body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            {[
+              { label: "HR Dashboard", path: "/hr-dashboard", color: "var(--primary-500)" },
+              { label: "Manager Dashboard", path: "/manager-dashboard", color: "var(--dept-it)" },
+              { label: "Employee View", path: "/employee-dashboard", color: "var(--dept-finance)" },
+            ].map((dash, idx) => (
+              <button key={idx} onClick={() => navigate(dash.path)} className="btn btn--secondary" style={{ justifyContent: 'space-between', padding: 'var(--space-4)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dash.color }}></span>
+                  {dash.label}
+                </span>
+                <ArrowRight size={16} />
+              </button>
+            ))}
+          </div>
+          <div className="card__footer">
+             <p style={{ fontSize: '0.75rem', color: 'var(--neutral-500)' }}>Admins have bypass access to all dashboard routes for maintenance.</p>
+          </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
-const AdminCheck = ({ internalUser }: { internalUser: any }) => {
-  const [apiResponse, setApiResponse] = useState<string | null>(null);
-  
-  useEffect(() => {
-    fetch("http://localhost:3000/api/admin-check", { credentials: "include" })
-      .then(res => {
-        if (res.status === 403 || res.status === 401) {
-          setApiResponse("Access Denied");
-          return null;
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.message) {
-          setApiResponse(data.message);
-        }
-      })
-      .catch(console.error);
-  }, []);
-
-  const userRoles = internalUser?.app_roles || [];
-  const isAdmin = userRoles.includes("Admin") || userRoles.includes("SipraHub-SystemAdmin");
-
-  return (
-    <div style={{ padding: "40px", maxWidth: "800px", margin: "0 auto", fontFamily: "'Inter', sans-serif" }}>
-      <h2>Admin Role Check</h2>
-      
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px", marginBottom: "20px" }}>
-        <h3>Frontend Role Check:</h3>
-        {isAdmin ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>Admin Access Success</p>
-        ) : (
-          <p style={{ color: "red", fontWeight: "bold" }}>Access Denied – You are not an Admin</p>
-        )}
-      </div>
-
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px" }}>
-        <h3>Backend API Check (/api/admin-check):</h3>
-        {apiResponse === "Admin Access Success" ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : apiResponse ? (
-          <p style={{ color: "red", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : (
-          <p>Loading...</p>
-        )}
-      </div>
-
-      <button 
-        onClick={() => window.location.href = "/"}
-        style={{ marginTop: "20px", padding: "10px 15px", cursor: "pointer" }}
-      >
-        Back to Dashboard
-      </button>
-    </div>
-  );
-};
-
-const HrCheck = ({ internalUser }: { internalUser: any }) => {
-  const [apiResponse, setApiResponse] = useState<string | null>(null);
-  
-  useEffect(() => {
-    fetch("http://localhost:3000/api/hr-check", { credentials: "include" })
-      .then(res => {
-        if (res.status === 403 || res.status === 401) {
-          setApiResponse("Access Denied");
-          return null;
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.message) {
-          setApiResponse(data.message);
-        }
-      })
-      .catch(console.error);
-  }, []);
-
-  const userRoles = internalUser?.app_roles || [];
-  const isHR = userRoles.includes("HR") || userRoles.includes("SipraHub-HR");
-
-  return (
-    <div style={{ padding: "40px", maxWidth: "800px", margin: "0 auto", fontFamily: "'Inter', sans-serif" }}>
-      <h2>HR Role Check</h2>
-      
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px", marginBottom: "20px" }}>
-        <h3>Frontend Role Check:</h3>
-        {isHR ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>HR Access Success</p>
-        ) : (
-          <p style={{ color: "red", fontWeight: "bold" }}>Access Denied – You are not HR</p>
-        )}
-      </div>
-
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px" }}>
-        <h3>Backend API Check (/api/hr-check):</h3>
-        {apiResponse === "HR Access Success" ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : apiResponse ? (
-          <p style={{ color: "red", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : (
-          <p>Loading...</p>
-        )}
-      </div>
-
-      <button 
-        onClick={() => window.location.href = "/"}
-        style={{ marginTop: "20px", padding: "10px 15px", cursor: "pointer" }}
-      >
-        Back to Dashboard
-      </button>
-    </div>
-  );
-};
-
-const EmployeeCheck = ({ internalUser }: { internalUser: any }) => {
-  const [apiResponse, setApiResponse] = useState<string | null>(null);
-  
-  useEffect(() => {
-    fetch("http://localhost:3000/api/employee-check", { credentials: "include" })
-      .then(res => {
-        if (res.status === 403 || res.status === 401) {
-          setApiResponse("Access Denied");
-          return null;
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.message) {
-          setApiResponse(data.message);
-        }
-      })
-      .catch(console.error);
-  }, []);
-
-  const userRoles = internalUser?.app_roles || [];
-  const isEmployee = userRoles.includes("Employee") || userRoles.includes("SipraHub-Employee");
-
-  return (
-    <div style={{ padding: "40px", maxWidth: "800px", margin: "0 auto", fontFamily: "'Inter', sans-serif" }}>
-      <h2>Employee Role Check</h2>
-      
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px", marginBottom: "20px" }}>
-        <h3>Frontend Role Check:</h3>
-        {isEmployee ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>Employee Access Success</p>
-        ) : (
-          <p style={{ color: "red", fontWeight: "bold" }}>Access Denied – You are not an Employee</p>
-        )}
-      </div>
-
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px" }}>
-        <h3>Backend API Check (/api/employee-check):</h3>
-        {apiResponse === "Employee Access Success" ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : apiResponse ? (
-          <p style={{ color: "red", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : (
-          <p>Loading...</p>
-        )}
-      </div>
-
-      <button 
-        onClick={() => window.location.href = "/"}
-        style={{ marginTop: "20px", padding: "10px 15px", cursor: "pointer" }}
-      >
-        Back to Dashboard
-      </button>
-    </div>
-  );
-};
-
-const ManagerCheck = ({ internalUser }: { internalUser: any }) => {
-  const [apiResponse, setApiResponse] = useState<string | null>(null);
-  
-  useEffect(() => {
-    fetch("http://localhost:3000/api/manager-check", { credentials: "include" })
-      .then(res => {
-        if (res.status === 403 || res.status === 401) {
-          setApiResponse("Access Denied");
-          return null;
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.message) {
-          setApiResponse(data.message);
-        }
-      })
-      .catch(console.error);
-  }, []);
-
-  const userRoles = internalUser?.app_roles || [];
-  const isManager = userRoles.includes("Manager") || userRoles.includes("SipraHub-Manager");
-
-  return (
-    <div style={{ padding: "40px", maxWidth: "800px", margin: "0 auto", fontFamily: "'Inter', sans-serif" }}>
-      <h2>Manager Role Check</h2>
-      
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px", marginBottom: "20px" }}>
-        <h3>Frontend Role Check:</h3>
-        {isManager ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>Manager Access Success</p>
-        ) : (
-          <p style={{ color: "red", fontWeight: "bold" }}>Access Denied – You are not a Manager</p>
-        )}
-      </div>
-
-      <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px" }}>
-        <h3>Backend API Check (/api/manager-check):</h3>
-        {apiResponse === "Manager Access Success" ? (
-          <p style={{ color: "green", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : apiResponse ? (
-          <p style={{ color: "red", fontWeight: "bold" }}>{apiResponse}</p>
-        ) : (
-          <p>Loading...</p>
-        )}
-      </div>
-
-      <button 
-        onClick={() => window.location.href = "/"}
-        style={{ marginTop: "20px", padding: "10px 15px", cursor: "pointer" }}
-      >
-        Back to Dashboard
-      </button>
-    </div>
-  );
-};
-
-const App = () => {
-  const currentPath = window.location.pathname;
-
-  return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc" }}>
-      <ProtectedRoute>
-        {currentPath === "/admin-check" ? (
-          <DashboardRenderer isCheckPage={true} pageType="admin" />
-        ) : currentPath === "/hr-page" ? (
-          <DashboardRenderer isCheckPage={true} pageType="hr" />
-        ) : currentPath === "/employee-page" ? (
-          <DashboardRenderer isCheckPage={true} pageType="employee" />
-        ) : currentPath === "/manager-page" ? (
-          <DashboardRenderer isCheckPage={true} pageType="manager" />
-        ) : (
-          <DashboardRenderer isCheckPage={false} />
-        )}
-      </ProtectedRoute>
-    </div>
-  );
-};
-
-const DashboardRenderer = ({ isCheckPage, pageType }: { isCheckPage: boolean, pageType?: string }) => {
-  const [internalUser, setInternalUser] = useState<any>(null);
+// ─── Session loader wrapper ───────────────────────────────────────
+const SessionProvider = ({
+  children,
+}: {
+  children: (user: InternalUser | null, error: string | null) => React.ReactNode;
+}) => {
+  const [internalUser, setInternalUser] = useState<InternalUser | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
-    fetch("http://localhost:3000/api/auth/me", {credentials: "include"})
+    fetch("http://localhost:3000/api/auth/me", { credentials: "include" })
       .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load session: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Session load failed: ${res.status}`);
         return res.json();
       })
-      .then(data => {
-        if (data.user) {
-          setInternalUser(data.user);
-        } else {
-          setError("User data missing from session response.");
-        }
+      .then((data) => {
+        if (data.user) setInternalUser(data.user);
+        else setError("User data missing from session response.");
       })
       .catch((err) => {
         console.error("Session load error:", err);
@@ -653,37 +263,157 @@ const DashboardRenderer = ({ isCheckPage, pageType }: { isCheckPage: boolean, pa
 
   if (error) {
     return (
-      <div style={{ padding: "40px", color: "#b91c1c", textAlign: "center" }}>
+      <div style={{ padding: 40, color: "var(--error-500)", textAlign: "center", fontFamily: "Inter, sans-serif" }}>
         <h3>Session Error</h3>
         <p>{error}</p>
-        <button 
-          onClick={() => window.location.reload()}
-          style={{ padding: "8px 16px", marginTop: "10px", cursor: "pointer" }}
-        >
+        <button onClick={() => window.location.reload()} className="btn btn--primary" style={{ marginTop: 10 }}>
           Retry
         </button>
       </div>
     );
   }
 
-  if (!internalUser) {
-    return <div style={{ padding: "40px" }}>Loading user session...</div>;
-  }
+  return <>{children(internalUser, error)}</>;
+};
 
-  if (isCheckPage) {
-    if (pageType === "hr") {
-      return <HrCheck internalUser={internalUser} />;
-    }
-    if (pageType === "employee") {
-      return <EmployeeCheck internalUser={internalUser} />;
-    }
-    if (pageType === "manager") {
-      return <ManagerCheck internalUser={internalUser} />;
-    }
-    return <AdminCheck internalUser={internalUser} />;
-  }
+// ─── Legacy Test Pages (Updated for new Layout) ──────────────────
+const LegacyCheckPage = ({ type, internalUser }: { type: "admin" | "hr" | "employee" | "manager", internalUser: any }) => {
+  const [apiResponse, setApiResponse] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  return <Dashboard internalUser={internalUser} />;
+  const endpointMap: Record<string, string> = {
+    admin: "/api/admin-check",
+    hr: "/api/hr-check",
+    employee: "/api/employee-check",
+    manager: "/api/manager-check",
+  };
+
+  useEffect(() => {
+    fetch(`http://localhost:3000${endpointMap[type]}`, { credentials: "include" })
+      .then((res) => {
+        if (res.status === 403 || res.status === 401) { setApiResponse("Access Denied"); return null; }
+        return res.json();
+      })
+      .then((data) => { if (data?.message) setApiResponse(data.message); })
+      .catch(console.error);
+  }, [type]);
+
+  const roleLabelMap: Record<string, "Admin" | "HR" | "Manager" | "Employee"> = {
+    admin: "Admin",
+    hr: "HR",
+    employee: "Employee",
+    manager: "Manager"
+  };
+
+  return (
+    <DashboardLayout internalUser={internalUser} role={roleLabelMap[type]}>
+       <header className="page-header">
+        <h1 className="page-title">{type.toUpperCase()} Role Check</h1>
+      </header>
+      <div className="card">
+        <div className="card__header">
+           <h3 className="card__title">Backend API Response</h3>
+        </div>
+        <div className="card__body">
+           {apiResponse ? (
+            <p style={{ color: apiResponse.includes("Denied") ? "var(--error-500)" : "var(--success-500)", fontWeight: "bold", fontSize: '1.125rem' }}>
+              {apiResponse}
+            </p>
+          ) : (
+            <p>Loading…</p>
+          )}
+        </div>
+        <div className="card__footer">
+           <button onClick={() => navigate("/")} className="btn btn--secondary">Back to Home</button>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+// ─── Main App ─────────────────────────────────────────────────────
+const AppContent = () => {
+  return (
+    <ProtectedRoute>
+      <SessionProvider>
+        {(internalUser) => (
+          <Routes>
+            <Route path="/" element={<RootRedirect internalUser={internalUser} />} />
+
+            <Route
+              path="/admin-dashboard"
+              element={
+                <RoleGuard
+                  internalUser={internalUser}
+                  allowed={(r) => r.includes("Admin") || r.includes("SipraHub-SystemAdmin")}
+                >
+                  <AdminDashboard internalUser={internalUser} />
+                </RoleGuard>
+              }
+            />
+
+            <Route
+              path="/hr-dashboard"
+              element={
+                <RoleGuard
+                  internalUser={internalUser}
+                  allowed={(r) => r.includes("HR") || r.includes("SipraHub-HR")}
+                >
+                  <HRDashboard internalUser={internalUser!} />
+                </RoleGuard>
+              }
+            />
+
+            <Route
+              path="/manager-dashboard"
+              element={
+                <RoleGuard
+                  internalUser={internalUser}
+                  allowed={(r) => r.includes("Manager") || r.includes("SipraHub-Manager")}
+                >
+                  <ManagerDashboard internalUser={internalUser!} />
+                </RoleGuard>
+              }
+            />
+
+            <Route
+              path="/employee-dashboard"
+              element={
+                <RoleGuard
+                  internalUser={internalUser}
+                  allowed={(r) =>
+                    r.includes("Employee") ||
+                    r.includes("SipraHub-Employee") ||
+                    r.includes("Default Access")
+                  }
+                >
+                  <EmployeeDashboard internalUser={internalUser!} />
+                </RoleGuard>
+              }
+            />
+
+            <Route path="/access-denied" element={<AccessDenied />} />
+
+            {/* Legacy Check Pages */}
+            <Route path="/admin-check"    element={<LegacyCheckPage type="admin" internalUser={internalUser} />} />
+            <Route path="/hr-page"        element={<LegacyCheckPage type="hr" internalUser={internalUser} />} />
+            <Route path="/employee-page"  element={<LegacyCheckPage type="employee" internalUser={internalUser} />} />
+            <Route path="/manager-page"   element={<LegacyCheckPage type="manager" internalUser={internalUser} />} />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        )}
+      </SessionProvider>
+    </ProtectedRoute>
+  );
+};
+
+const App = () => {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
 };
 
 export default App;
