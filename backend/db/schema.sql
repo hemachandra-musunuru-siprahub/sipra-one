@@ -230,7 +230,7 @@ DROP CONSTRAINT IF EXISTS chk_leave_type;
 
 ALTER TABLE leave_requests
 ADD CONSTRAINT chk_leave_type
-CHECK (leave_type IN ('annual', 'sick', 'unpaid'));
+CHECK (leave_type IN ('annual', 'sick', 'unpaid', 'other'));
 
 ALTER TABLE hr_documents
 DROP CONSTRAINT IF EXISTS chk_hr_doc_scope;

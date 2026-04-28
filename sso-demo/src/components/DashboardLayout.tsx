@@ -31,7 +31,8 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    fetch("http://localhost:3000/api/auth/logout", {
+    const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+    fetch(`${API}/api/auth/logout`, {
       method: "POST",
       credentials: "include"
     }).finally(() => {
@@ -55,16 +56,16 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
     Admin: [
       { label: "Overview", items: [
         { label: "Dashboard", icon: <LayoutDashboard />, path: "/admin-dashboard" },
-        { label: "System Health", icon: <Shield />, path: "#" },
+        { label: "System Health", icon: <Shield />, path: "/admin/health" },
       ]},
       { label: "Management", items: [
+        { label: "User Management", icon: <Users />, path: "/admin/users" },
         { label: "HR Dashboard", icon: <Users />, path: "/hr-dashboard" },
         { label: "Manager Dashboard", icon: <Briefcase />, path: "/manager-dashboard" },
         { label: "Employee View", icon: <UserCheck />, path: "/employee-dashboard" },
       ]},
       { label: "Technical", items: [
-        { label: "App Roles", icon: <Settings />, path: "#" },
-        { label: "Audit Logs", icon: <FileText />, path: "#" },
+        { label: "Audit Logs", icon: <FileText />, path: "/admin/audit" },
       ]}
     ],
     HR: [
@@ -72,13 +73,12 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         { label: "Dashboard", icon: <LayoutDashboard />, path: "/hr-dashboard" },
       ]},
       { label: "People", items: [
-        { label: "Employees", icon: <Users />, path: "#" },
-        { label: "Leave Requests", icon: <Calendar />, path: "#" },
-        { label: "Recruitment", icon: <Search />, path: "#" },
+        { label: "Employees", icon: <Users />, path: "/hr/employees" },
+        { label: "Leave Requests", icon: <Calendar />, path: "/hr/leave" },
       ]},
-      { label: "Organization", items: [
-        { label: "Documents", icon: <FileText />, path: "#" },
-        { label: "Analytics", icon: <PieChart />, path: "#" },
+      { label: "Content", items: [
+        { label: "Documents", icon: <FileText />, path: "/hr/documents" },
+        { label: "Announcements", icon: <Megaphone />, path: "/hr/announcements" },
       ]}
     ],
     Manager: [
@@ -86,13 +86,12 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         { label: "Dashboard", icon: <LayoutDashboard />, path: "/manager-dashboard" },
       ]},
       { label: "My Team", items: [
-        { label: "Approvals", icon: <UserCheck />, path: "#" },
-        { label: "Timesheets", icon: <Calendar />, path: "#" },
-        { label: "Performance", icon: <PieChart />, path: "#" },
+        { label: "Leave Approvals", icon: <UserCheck />, path: "/manager/approvals" },
+        { label: "Timesheets", icon: <Calendar />, path: "/manager/timesheets" },
       ]},
       { label: "Resources", items: [
-        { label: "Team Docs", icon: <FileText />, path: "#" },
-        { label: "Reports", icon: <FileText />, path: "#" },
+        { label: "Announcements", icon: <Megaphone />, path: "/employee/announcements" },
+        { label: "Team Docs", icon: <FileText />, path: "/employee/documents" },
       ]}
     ],
     Employee: [
@@ -100,17 +99,16 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         { label: "Dashboard", icon: <LayoutDashboard />, path: "/employee-dashboard" },
       ]},
       { label: "Self Service", items: [
-        { label: "My Profile", icon: <Users />, path: "#" },
-        { label: "Leave Request", icon: <Calendar />, path: "#" },
-        { label: "Timesheets", icon: <Calendar />, path: "#" },
+        { label: "Leave Request", icon: <Calendar />, path: "/employee/leave" },
+        { label: "Timesheets", icon: <Calendar />, path: "/employee/timesheets" },
       ]},
       { label: "Company", items: [
-        { label: "Announcements", icon: <Megaphone />, path: "#" },
-        { label: "Documents", icon: <FileText />, path: "#" },
-        { label: "Support", icon: <HelpCircle />, path: "#" },
+        { label: "Announcements", icon: <Megaphone />, path: "/employee/announcements" },
+        { label: "Documents", icon: <FileText />, path: "/employee/documents" },
       ]}
     ]
   };
+
 
   const currentGroups = navGroups[role] || navGroups.Employee;
 
