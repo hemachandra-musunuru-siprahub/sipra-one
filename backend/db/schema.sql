@@ -1,6 +1,7 @@
 -- Database schema for SipraHub MVP
--- Microsoft Entra ID is the source of truth for identity, roles, and authentication.
--- Local database stores business data and a lightweight user profile cache.
+-- Microsoft Entra ID is the single source of truth for identity, roles, and authentication.
+-- Roles are handled via token/session claims; the database does not store user roles.
+-- The users table serves only as a lightweight profile cache.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -13,14 +14,9 @@ CREATE TABLE IF NOT EXISTS users (
     entra_oid VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
-    job_title VARCHAR(255),
-    department VARCHAR(255),
     manager_entra_oid VARCHAR(255),
-    azure_groups JSONB DEFAULT '[]',
-    app_roles JSONB DEFAULT '[]',
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE,
     last_login TIMESTAMP WITH TIME ZONE
 );
 
@@ -127,7 +123,35 @@ CREATE TABLE IF NOT EXISTS hr_documents (
 );
 
 -- ==========================================
--- 5. Audit Logs
+-- 6. Performance
+-- ==========================================
+CREATE TABLE IF NOT EXISTS performance_goals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_oid VARCHAR(255) NOT NULL,
+    manager_oid VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    target_date DATE NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending', -- pending, in_progress, completed
+    progress_percent INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS performance_reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_oid VARCHAR(255) NOT NULL,
+    reviewer_oid VARCHAR(255) NOT NULL,
+    review_period VARCHAR(100) NOT NULL,
+    rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+    strengths TEXT,
+    improvements TEXT,
+    comments TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- 7. Audit Logs
 -- ==========================================
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -145,7 +169,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- User Cache Indexes
 CREATE INDEX IF NOT EXISTS idx_users_entra_oid ON users(entra_oid);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_department ON users(department);
 CREATE INDEX IF NOT EXISTS idx_users_manager_entra_oid ON users(manager_entra_oid);
 
 -- Business Table Indexes
@@ -168,6 +191,13 @@ CREATE INDEX IF NOT EXISTS idx_hr_documents_assigned_to ON hr_documents(assigned
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_oid);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_performance_goals_employee ON performance_goals(employee_oid);
+CREATE INDEX IF NOT EXISTS idx_performance_goals_manager ON performance_goals(manager_oid);
+CREATE INDEX IF NOT EXISTS idx_performance_goals_status ON performance_goals(status);
+
+CREATE INDEX IF NOT EXISTS idx_performance_reviews_employee ON performance_reviews(employee_oid);
+CREATE INDEX IF NOT EXISTS idx_performance_reviews_reviewer ON performance_reviews(reviewer_oid);
 
 -- ==========================================
 -- Additional Performance Indexes
@@ -208,3 +238,10 @@ DROP CONSTRAINT IF EXISTS chk_hr_doc_scope;
 ALTER TABLE hr_documents
 ADD CONSTRAINT chk_hr_doc_scope
 CHECK (scope IN ('company', 'department', 'individual'));
+
+ALTER TABLE performance_goals
+DROP CONSTRAINT IF EXISTS chk_performance_goal_status;
+
+ALTER TABLE performance_goals
+ADD CONSTRAINT chk_performance_goal_status
+CHECK (status IN ('pending', 'in_progress', 'completed'));

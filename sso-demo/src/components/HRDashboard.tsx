@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import { 
   Users, 
@@ -20,16 +20,44 @@ interface Props {
 export const HRDashboard = ({ internalUser }: Props) => {
   const stats = [
     { label: "Total Headcount", value: "156", trend: "+4 this month", icon: <Users size={20} />, color: "#CE2124" },
-    { label: "Active Job Openings", value: "12", trend: "3 Urgent", icon: <UserPlus size={20} />, color: "#3B82F6" },
+    { label: "Performance Reviews", value: "85%", trend: "In Progress", icon: <TrendingUp size={20} />, color: "#3B82F6" },
     { label: "Pending Leave", value: "24", trend: "Requires Action", icon: <Calendar size={20} />, color: "#F59E0B" },
     { label: "Monthly Retention", value: "98.2%", trend: "Above Target", icon: <TrendingUp size={20} />, color: "#10B981" },
   ];
+
+  const [reportData, setReportData] = useState<{ ratingDistribution: any[], completionByEmployee: any[] }>({ ratingDistribution: [], completionByEmployee: [] });
+  const [loading, setLoading] = useState(true);
 
   const recentHires = [
     { name: "Alice Thompson", role: "Software Engineer", dept: "IT & Digital", startDate: "Oct 15", status: "Onboarding" },
     { name: "Bob Richards", role: "Financial Analyst", dept: "Finance", startDate: "Oct 20", status: "Pending" },
     { name: "Catherine Low", role: "HR Coordinator", dept: "HR & People", startDate: "Oct 1", status: "Active" },
   ];
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const response = await fetch("/api/performance/reports");
+        if (response.ok) {
+          const data = await response.json();
+          setReportData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch performance reports:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReports();
+  }, []);
+
+  const totalReviews = reportData.completionByEmployee.length;
+  const completedReviews = reportData.completionByEmployee.filter(e => parseInt(e.review_count) > 0).length;
+  const completionPercent = totalReviews > 0 ? Math.round((completedReviews / totalReviews) * 100) : 0;
+  
+  const topPerformers = reportData.completionByEmployee
+    .filter(e => parseInt(e.review_count) > 0)
+    .slice(0, 3); // Simple slice for demo
 
   return (
     <DashboardLayout internalUser={internalUser} role="HR">
@@ -134,15 +162,13 @@ export const HRDashboard = ({ internalUser }: Props) => {
           </div>
           <div className="card__body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             {[
-              { label: "Recruitment Pipeline", icon: <BarChart2 size={18} />, color: "var(--dept-it)" },
-              { label: "Payroll Support", icon: <DollarSign size={18} />, color: "var(--dept-finance)", placeholder: true },
               { label: "Leave Management", icon: <Calendar size={18} />, color: "var(--dept-hr)" },
               { label: "HR Analytics", icon: <TrendingUp size={18} />, color: "var(--dept-comm)" },
+              { label: "Document Management", icon: <FileText size={18} />, color: "var(--dept-it)" },
             ].map((mod, idx) => (
-              <button key={idx} className="btn btn--secondary" style={{ justifyContent: 'flex-start', padding: 'var(--space-4)', borderStyle: mod.placeholder ? 'dashed' : 'solid' }}>
+              <button key={idx} className="btn btn--secondary" style={{ justifyContent: 'flex-start', padding: 'var(--space-4)' }}>
                 <span style={{ color: mod.color }}>{mod.icon}</span>
                 <span style={{ flex: 1, textAlign: 'left' }}>{mod.label}</span>
-                {mod.placeholder && <span className="badge badge--draft" style={{ fontSize: '0.65rem' }}>UI ONLY</span>}
               </button>
             ))}
           </div>
@@ -195,6 +221,68 @@ export const HRDashboard = ({ internalUser }: Props) => {
           </div>
           <div className="card__footer">
             <button className="btn btn--primary" style={{ width: '100%' }}>Manage Policy Vault</button>
+          </div>
+        </div>
+
+        {/* New Performance Module Card */}
+        <div className="card" style={{ gridColumn: 'span 12' }}>
+          <div className="card__header">
+            <h3 className="card__title">Performance Reports</h3>
+            <button className="btn btn--secondary btn--sm">Download Summary</button>
+          </div>
+          <div className="card__body" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-6)' }}>
+            <div>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--neutral-800)', marginBottom: 'var(--space-3)' }}>Review Completion</h4>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary-600)', lineHeight: 1 }}>{loading ? "..." : `${completionPercent}%`}</div>
+                <div style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', paddingBottom: '4px' }}>of headcount</div>
+              </div>
+              <div style={{ height: 8, background: 'var(--neutral-100)', borderRadius: 4 }}>
+                <div style={{ height: '100%', width: `${completionPercent}%`, background: 'var(--primary-500)', borderRadius: 4 }}></div>
+              </div>
+              <div style={{ marginTop: 'var(--space-3)', fontSize: '0.875rem', color: 'var(--neutral-500)' }}>
+                {loading ? "Calculating..." : `${completedReviews} of ${totalReviews} reviews completed`}
+              </div>
+            </div>
+            
+            <div>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--neutral-800)', marginBottom: 'var(--space-3)' }}>Rating Distribution</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                {loading ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>Loading ratings...</p>
+                ) : reportData.ratingDistribution.length > 0 ? (
+                  reportData.ratingDistribution.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--space-2)', borderBottom: '1px solid var(--neutral-100)' }}>
+                      <span style={{ fontSize: '0.875rem', color: 'var(--neutral-600)' }}>Rating: {item.rating} Stars</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--neutral-800)' }}>{item.count} employees</span>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>No ratings yet.</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--neutral-800)', marginBottom: 'var(--space-3)' }}>Sample Top Performers</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                {loading ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>Loading...</p>
+                ) : topPerformers.length > 0 ? (
+                  topPerformers.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-2)' }}>
+                      <div>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--neutral-800)' }}>{item.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--neutral-500)' }}>Review Count: {item.review_count}</div>
+                      </div>
+                      <div className="badge badge--published" style={{ fontSize: '0.75rem' }}>Active</div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>No data available.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

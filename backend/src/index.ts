@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
+import { query } from "./db";
 
 dotenv.config();
 
@@ -128,6 +129,133 @@ app.get("/api/employee-dashboard-check", requireAuth, (req, res) => {
     return res.status(403).json({ message: "Access Denied" });
   }
   res.json({ message: "Access Success" });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance Endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Employee: My Performance
+app.get("/api/performance/me", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const goals = await query("SELECT * FROM performance_goals WHERE employee_oid = $1 ORDER BY created_at DESC", [user.entra_oid]);
+    const reviews = await query("SELECT * FROM performance_reviews WHERE employee_oid = $1 ORDER BY created_at DESC", [user.entra_oid]);
+    
+    res.json({
+      goals: goals.rows,
+      reviews: reviews.rows
+    });
+  } catch (error) {
+    console.error("Error fetching performance data:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Manager: Team Performance
+app.get("/api/performance/team", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const userRoles: string[] = user?.roles || [];
+  
+  if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-Manager") && !userRoles.includes("Manager")) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+
+  try {
+    // If Admin, they might want all performance data or just their team. 
+    // For now, let's keep it to their direct report data (where they are manager/reviewer)
+    const goals = await query(
+      "SELECT g.*, u.name as employee_name FROM performance_goals g JOIN users u ON g.employee_oid = u.entra_oid WHERE g.manager_oid = $1 ORDER BY g.created_at DESC", 
+      [user.entra_oid]
+    );
+    const reviews = await query(
+      "SELECT r.*, u.name as employee_name FROM performance_reviews r JOIN users u ON r.employee_oid = u.entra_oid WHERE r.reviewer_oid = $1 ORDER BY r.created_at DESC", 
+      [user.entra_oid]
+    );
+    
+    res.json({
+      teamGoals: goals.rows,
+      teamReviews: reviews.rows
+    });
+  } catch (error) {
+    console.error("Error fetching team performance data:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Manager: Create Goal
+app.post("/api/performance/goal", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const userRoles: string[] = user?.roles || [];
+  
+  if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-Manager") && !userRoles.includes("Manager")) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+
+  const { employee_oid, title, description, target_date } = req.body;
+
+  try {
+    const result = await query(
+      "INSERT INTO performance_goals (employee_oid, manager_oid, title, description, target_date, status, progress_percent) VALUES ($1, $2, $3, $4, $5, 'pending', 0) RETURNING *",
+      [employee_oid, user.entra_oid, title, description, target_date]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error creating goal:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Manager: Create Review
+app.post("/api/performance/review", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  const userRoles: string[] = user?.roles || [];
+  
+  if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-Manager") && !userRoles.includes("Manager")) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+
+  const { employee_oid, review_period, rating, strengths, improvements, comments } = req.body;
+
+  try {
+    const result = await query(
+      "INSERT INTO performance_reviews (employee_oid, reviewer_oid, review_period, rating, strengths, improvements, comments) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+      [employee_oid, user.entra_oid, review_period, rating, strengths, improvements, comments]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error creating review:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// HR: Performance Reports
+app.get("/api/performance/reports", requireAuth, async (req, res) => {
+  const userRoles: string[] = (req as any).user?.roles || [];
+  if (!isAdmin(userRoles) && !userRoles.includes("SipraHub-HR") && !userRoles.includes("HR")) {
+    return res.status(403).json({ message: "Access Denied" });
+  }
+
+  try {
+    // Aggregated reports for HR
+    const ratingStats = await query("SELECT rating, COUNT(*) as count FROM performance_reviews GROUP BY rating ORDER BY rating DESC");
+    const completionStats = await query(`
+      SELECT 
+        u.name, 
+        COUNT(r.id) as review_count 
+      FROM users u 
+      LEFT JOIN performance_reviews r ON u.entra_oid = r.employee_oid 
+      GROUP BY u.entra_oid, u.name
+    `);
+    
+    res.json({
+      ratingDistribution: ratingStats.rows,
+      completionByEmployee: completionStats.rows
+    });
+  } catch (error) {
+    console.error("Error fetching performance reports:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

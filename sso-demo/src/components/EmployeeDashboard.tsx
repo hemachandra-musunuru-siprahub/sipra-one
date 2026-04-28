@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import { 
   User, 
@@ -28,11 +28,32 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
     { id: "profile", title: "My Profile", desc: "Manage personal data & contacts", icon: <User /> },
     { id: "leave", title: "My Leave", desc: "Request & track absence", icon: <Calendar /> },
     { id: "timesheets", title: "My Timesheets", desc: "Log and submit working hours", icon: <Clock /> },
-    { id: "docs", title: "My Documents", desc: "Access payslips & contracts", icon: <FileText /> },
+    { id: "docs", title: "My Documents", desc: "Access policies & contracts", icon: <FileText /> },
     { id: "news", title: "Company News", desc: "Latest internal announcements", icon: <Megaphone /> },
     { id: "support", title: "Help & Support", desc: "IT & HR service desk", icon: <HelpCircle /> },
-    { id: "payslips", title: "Payslip Access", desc: "Secure financial statements", icon: <CreditCard /> },
   ];
+  
+  const [performanceData, setPerformanceData] = useState<{ goals: any[], reviews: any[] }>({ goals: [], reviews: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPerformance = async () => {
+      try {
+        const response = await fetch("/api/performance/me");
+        if (response.ok) {
+          const data = await response.json();
+          setPerformanceData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch performance data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPerformance();
+  }, []);
+
+  const latestReview = performanceData.reviews.length > 0 ? performanceData.reviews[0] : null;
 
   return (
     <DashboardLayout internalUser={internalUser} role="Employee">
@@ -122,6 +143,61 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
           </div>
           <div className="card__footer">
             <button className="btn btn--ghost btn--sm" style={{ width: '100%' }}>Customize Shortcuts</button>
+          </div>
+        </div>
+
+        {/* New Performance Module Card */}
+        <div className="card" style={{ gridColumn: 'span 12' }}>
+          <div className="card__header">
+            <h3 className="card__title">My Performance</h3>
+            <button className="btn btn--secondary btn--sm">View Full History</button>
+          </div>
+          <div className="card__body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-6)' }}>
+            <div>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--neutral-800)', marginBottom: 'var(--space-3)' }}>Current Goals</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                {loading ? (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>Loading goals...</p>
+                ) : performanceData.goals.length > 0 ? (
+                  performanceData.goals.map((goal, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-1)' }}>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>{goal.title}</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{goal.progress_percent}%</span>
+                      </div>
+                      <div style={{ height: 6, background: 'var(--neutral-100)', borderRadius: 3 }}>
+                        <div style={{ height: '100%', width: `${goal.progress_percent}%`, background: 'var(--primary-500)', borderRadius: 3 }}></div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>No goals assigned yet.</p>
+                )}
+              </div>
+            </div>
+            <div>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--neutral-800)', marginBottom: 'var(--space-3)' }}>Latest Review</h4>
+              {loading ? (
+                <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>Loading review...</p>
+              ) : latestReview ? (
+                <div style={{ padding: 'var(--space-4)', background: 'var(--neutral-50)', borderRadius: 'var(--rounded-lg)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: latestReview.rating >= 4 ? 'var(--success-600)' : 'var(--neutral-800)' }}>
+                      {latestReview.rating === 5 ? "Outstanding" : latestReview.rating === 4 ? "Exceeds Expectations" : latestReview.rating === 3 ? "Meets Expectations" : "Needs Improvement"}
+                    </div>
+                    <div className="badge badge--published">{latestReview.review_period}</div>
+                  </div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--neutral-600)', lineHeight: 1.5, fontStyle: 'italic' }}>
+                    "{latestReview.comments || "No comments provided."}"
+                  </p>
+                  <div style={{ marginTop: 'var(--space-3)', fontSize: '0.75rem', color: 'var(--neutral-400)' }}>
+                    - Manager Comment
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.875rem', color: 'var(--neutral-500)' }}>No reviews recorded yet.</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

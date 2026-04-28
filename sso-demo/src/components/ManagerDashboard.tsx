@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import { 
   Users, 
@@ -28,6 +28,32 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
     { name: "Emily Davis", type: "Expense Claim", duration: "$120.50", date: "Travel", status: "Pending" },
     { name: "Robert Wilson", type: "Remote Work", duration: "2 days", date: "Oct 26 - Oct 27", status: "Pending" },
   ];
+
+  const [performanceData, setPerformanceData] = useState<{ teamGoals: any[], teamReviews: any[] }>({ teamGoals: [], teamReviews: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPerformance = async () => {
+      try {
+        const response = await fetch("/api/performance/team");
+        if (response.ok) {
+          const data = await response.json();
+          setPerformanceData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch team performance:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPerformance();
+  }, []);
+
+  const activeGoalsCount = performanceData.teamGoals.filter(g => g.status !== 'completed').length;
+  const pendingReviewsCount = performanceData.teamReviews.length; // Simplified for demo
+  const avgRating = performanceData.teamReviews.length > 0 
+    ? (performanceData.teamReviews.reduce((acc, r) => acc + r.rating, 0) / performanceData.teamReviews.length).toFixed(1)
+    : "N/A";
 
   return (
     <DashboardLayout internalUser={internalUser} role="Manager">
@@ -173,6 +199,32 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
           </div>
           <div className="card__footer">
             <button className="btn btn--ghost btn--sm" style={{ width: '100%' }}>View Team Calendar</button>
+          </div>
+        </div>
+
+        {/* New Performance Module Card */}
+        <div className="card" style={{ gridColumn: 'span 12' }}>
+          <div className="card__header">
+            <h3 className="card__title">Team Performance Overview</h3>
+            <button className="btn btn--secondary btn--sm">View All Performance</button>
+          </div>
+          <div className="card__body" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-4)' }}>
+            <div style={{ padding: 'var(--space-3)', border: '1px solid var(--neutral-100)', borderRadius: 'var(--rounded-lg)' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: 'var(--space-1)' }}>Active Team Goals</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--neutral-800)' }}>{loading ? "..." : activeGoalsCount}</div>
+            </div>
+            <div style={{ padding: 'var(--space-3)', border: '1px solid var(--neutral-100)', borderRadius: 'var(--rounded-lg)' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: 'var(--space-1)' }}>Pending Reviews</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--warning-600)' }}>{loading ? "..." : pendingReviewsCount}</div>
+            </div>
+            <div style={{ padding: 'var(--space-3)', border: '1px solid var(--neutral-100)', borderRadius: 'var(--rounded-lg)' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: 'var(--space-1)' }}>Avg Team Rating</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--success-600)' }}>{loading ? "..." : `${avgRating} / 5`}</div>
+            </div>
+            <div style={{ padding: 'var(--space-3)', border: '1px solid var(--neutral-100)', borderRadius: 'var(--rounded-lg)' }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--neutral-500)', marginBottom: 'var(--space-1)' }}>Needs Attention</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--error-600)' }}>{loading ? "..." : (performanceData.teamReviews.some(r => r.rating < 3) ? "1" : "0")}</div>
+            </div>
           </div>
         </div>
       </div>
