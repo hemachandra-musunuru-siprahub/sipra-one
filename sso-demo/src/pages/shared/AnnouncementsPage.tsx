@@ -4,7 +4,7 @@ import { Megaphone, ThumbsUp, Heart, Smile, Plus } from "lucide-react";
 import { getAnnouncements, reactToAnnouncement, removeReaction, createAnnouncement } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
+interface Props { internalUser: any; isHR?: boolean; role?: "admin" | "hr" | "manager" | "employee"; }
 
 const REACTIONS = [
   { type: "thumbs_up", icon: "👍" },
@@ -57,11 +57,8 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
     finally { setSubmitting(false); }
   };
 
-  const userRoles = internalUser?.roles || [];
-  let role: "Admin" | "HR" | "Manager" | "Employee" = "Employee";
-  if (userRoles.includes("Admin") || userRoles.includes("SipraHub-SystemAdmin")) role = "Admin";
-  else if (userRoles.includes("HR") || userRoles.includes("SipraHub-HR")) role = "HR";
-  else if (userRoles.includes("Manager") || userRoles.includes("SipraHub-Manager")) role = "Manager";
+  const currentRole = role || "Employee";
+  const layoutRole = (currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase()) as any;
 
   return (
     <DashboardLayout internalUser={internalUser} role={layoutRole}>

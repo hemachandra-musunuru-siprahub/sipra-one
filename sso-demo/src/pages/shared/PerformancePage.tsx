@@ -21,7 +21,7 @@ interface EmployeeSummary {
 
 interface Props { 
   internalUser: any; 
-  role: "Admin" | "HR" | "Manager" | "Employee"; 
+  role?: "admin" | "hr" | "manager" | "employee" | "Admin" | "HR" | "Manager" | "Employee"; 
 }
 
 const CURRENT_REVIEW_PERIOD = "Q2 2026";
@@ -43,18 +43,21 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   const [goalForm, setGoalForm] = useState({ title: "", description: "", target_date: "", employee_oid: "" });
   const [reviewForm, setReviewForm] = useState({ employee_oid: "", review_period: CURRENT_REVIEW_PERIOD, rating: 3, strengths: "", improvements: "", comments: "" });
 
+  const currentRole = (role?.toLowerCase() || "employee") as "admin" | "hr" | "manager" | "employee";
+  const layoutRole = (currentRole.charAt(0).toUpperCase() + currentRole.slice(1)) as "Admin" | "HR" | "Manager" | "Employee";
+
   useEffect(() => {
     loadData();
-  }, [role]);
+  }, [currentRole]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      if (role === "Employee") {
+      if (currentRole === "employee") {
         const [g, r] = await Promise.all([getMyGoals(), getMyReviews()]);
         setGoals(g.goals);
         setReviews(r.reviews);
-      } else if (role === "Manager") {
+      } else if (currentRole === "manager") {
         const { summary: s } = await getEmployeeSummary();
         setSummary(s);
       } else {
@@ -126,7 +129,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             {g.title}
           </h3>
           <div style={{ fontSize: "0.875rem", color: "var(--neutral-500)", marginTop: "var(--space-1)" }}>
-            {role !== "Employee" && role !== "Manager" && g.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {g.employee_name}</span>}
+            {currentRole !== "employee" && currentRole !== "manager" && g.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {g.employee_name}</span>}
             <Clock size={14} style={{ display: "inline", verticalAlign: "middle", marginRight: 4 }} />
             Target: {new Date(g.target_date).toLocaleDateString()}
           </div>
@@ -167,7 +170,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             {r.review_period} Review
           </h3>
           <div style={{ fontSize: "0.875rem", color: "var(--neutral-500)", marginTop: "var(--space-1)" }}>
-            {role !== "Employee" && role !== "Manager" && r.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {r.employee_name}</span>}
+            {currentRole !== "employee" && currentRole !== "manager" && r.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {r.employee_name}</span>}
             <span><strong>Reviewer:</strong> {r.reviewer_name || "Manager"}</span>
             <span style={{ marginLeft: "var(--space-3)" }}><strong>Date:</strong> {new Date(r.created_at).toLocaleDateString()}</span>
           </div>
@@ -222,7 +225,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
     </div>
   );
 
-  const filteredSummary = role === "Manager" && activeTab === "reviews" 
+  const filteredSummary = currentRole === "manager" && activeTab === "reviews" 
     ? summary.filter(s => {
         const hasCurrentReview = s.reviews.some(r => r.review_period === CURRENT_REVIEW_PERIOD);
         if (managerReviewSubTab === "pending") {
@@ -234,10 +237,10 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
     : summary;
 
   return (
-    <DashboardLayout internalUser={internalUser} role={role}>
+    <DashboardLayout internalUser={internalUser} role={layoutRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{role}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
+          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Performance Management</h1>
@@ -245,7 +248,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             <button className="btn btn--primary" onClick={() => { setShowGoalForm(true); setShowReviewForm(false); }}>
               <Plus size={16} /> Add Goal
             </button>
-            {role !== "Employee" && (
+            {currentRole !== "employee" && (
               <button className="btn btn--secondary" onClick={() => { setShowReviewForm(true); setShowGoalForm(false); }}>
                 <Star size={16} /> New Review
               </button>
@@ -264,7 +267,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             borderBottom: activeTab === "goals" ? "2px solid var(--primary-600)" : "none"
           }}
         >
-          {role === "Employee" ? "My Goals" : role === "Manager" ? "Employee Goals" : "All Goals"}
+          {currentRole === "employee" ? "My Goals" : currentRole === "manager" ? "Employee Goals" : "All Goals"}
         </button>
         <button 
           onClick={() => setActiveTab("reviews")}
@@ -274,12 +277,12 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             borderBottom: activeTab === "reviews" ? "2px solid var(--primary-600)" : "none"
           }}
         >
-          {role === "Employee" ? "My Reviews" : role === "Manager" ? "Employee Review" : "All Reviews"}
+          {currentRole === "employee" ? "My Reviews" : currentRole === "manager" ? "Employee Review" : "All Reviews"}
         </button>
       </div>
 
       {/* Sub Tabs for Manager Reviews */}
-      {role === "Manager" && activeTab === "reviews" && (
+      {currentRole === "manager" && activeTab === "reviews" && (
         <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
           <button 
             className={`btn btn--sm ${managerReviewSubTab === "pending" ? 'btn--primary' : 'btn--secondary'}`}
@@ -305,7 +308,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
               <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Title *</label>
               <input className="input" value={goalForm.title} onChange={e => setGoalForm(f => ({ ...f, title: e.target.value }))} />
             </div>
-            {role !== "Employee" && (
+            {currentRole !== "employee" && (
               <div>
                 <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee OID (Leave empty for self)</label>
                 <input className="input" placeholder="Entra OID" value={goalForm.employee_oid} onChange={e => setGoalForm(f => ({ ...f, employee_oid: e.target.value }))} />
@@ -328,7 +331,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
       )}
 
       {/* Review Form */}
-      {showReviewForm && role !== "Employee" && (
+      {showReviewForm && currentRole !== "employee" && (
         <div className="card" style={{ marginBottom: "var(--space-6)" }}>
           <div className="card__header"><h3 className="card__title">Add Performance Review</h3></div>
           <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
@@ -366,7 +369,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
 
       {loading ? (
         <div style={{ padding: "var(--space-6)", textAlign: "center", color: "var(--neutral-500)" }}>Loading data...</div>
-      ) : role === "Manager" ? (
+      ) : currentRole === "manager" ? (
         // Manager Unified View
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           {filteredSummary.length === 0 ? (
@@ -438,7 +441,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
         <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>
           {goals.length === 0 ? (
              <div className="card"><div className="card__body" style={{ textAlign: "center", color: "var(--neutral-500)" }}>No goals found.</div></div>
-          ) : goals.map(g => renderGoalCard(g, role === "Employee"))}
+          ) : goals.map(g => renderGoalCard(g, currentRole === "employee"))}
         </div>
       ) : (
         <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>

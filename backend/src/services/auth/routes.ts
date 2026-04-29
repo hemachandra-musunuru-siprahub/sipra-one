@@ -147,7 +147,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     }
 
     // Roles are extracted from ID token but NOT stored in DB
-    let appRoles = decodedIdToken?.roles || [];
+    let appRoles: string[] = decodedIdToken?.roles || [];
     if (appRoles.length === 0 && process.env.NODE_ENV !== "production") {
       appRoles = ["Admin", "HR", "Manager", "Employee", "SipraHub-HR"];
     }

@@ -13,6 +13,7 @@ import {
   Megaphone,
   ClipboardList,
   Building2,
+  Target,
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 
@@ -77,6 +78,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           { label: "HR Dashboard",   icon: <Building2 size={20} />, path: "/hr-dashboard" },
           { label: "Manager View",   icon: <Briefcase size={20} />, path: "/manager-dashboard" },
           { label: "Employee View",  icon: <UserCheck size={20} />, path: "/employee-dashboard" },
+          { label: "Performance",    icon: <Target size={20} />,    path: "/admin/performance" },
         ],
       },
     ],
@@ -93,6 +95,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           { label: "Employees",      icon: <Users size={20} />,         path: "/hr/employees" },
           { label: "Leave Requests", icon: <Calendar size={20} />,      path: "/hr/leave" },
           { label: "Leave Policies", icon: <ClipboardList size={20} />, path: "/hr/leave?tab=policies" },
+          { label: "Performance",    icon: <Target size={20} />,        path: "/hr/performance" },
         ],
       },
       {
@@ -121,6 +124,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "Approvals",   icon: <UserCheck size={20} />,      path: "/manager/approvals" },
           { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/manager/timesheets" },
+          { label: "Performance", icon: <Target size={20} />,         path: "/manager/performance" },
         ],
       },
       {
@@ -149,6 +153,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
           { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/employee/timesheets" },
+          { label: "Performance", icon: <Target size={20} />,         path: "/employee/performance" },
         ],
       },
       {
