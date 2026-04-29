@@ -154,17 +154,44 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     const email = profile.mail || profile.userPrincipalName;
     const name = profile.displayName;
     
+    console.log(`[SYNC] syncing user email: ${email}`);
+
+    let existingUser;
+    try {
+      const { rows } = await query("SELECT manager_entra_oid FROM users WHERE entra_oid = $1", [entra_oid]);
+      existingUser = rows[0];
+    } catch (e: any) {
+      console.error("[SYNC] Failed to fetch existing user:", e.message);
+    }
+
+    const finalManagerOid =
+      managerEntraOid && managerEntraOid.trim() !== ""
+        ? managerEntraOid
+        : existingUser?.manager_entra_oid || null;
+
+    console.log(`[SYNC] manager_entra_oid logic - existing: ${existingUser?.manager_entra_oid || null}, graph: ${managerEntraOid}, final: ${finalManagerOid}`);
+
     console.log("[SYNC] 3. Creating/updating user profile cache in database...");
     const upsertQuery = `
-      INSERT INTO users (entra_oid, email, name, manager_entra_oid, last_login)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      INSERT INTO users (
+        entra_oid,
+        email,
+        name,
+        manager_entra_oid,
+        last_login
+      )
+      VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
       ON CONFLICT (entra_oid) 
       DO UPDATE SET 
         email = EXCLUDED.email,
         name = EXCLUDED.name,
-        manager_entra_oid = EXCLUDED.manager_entra_oid,
-        last_login = CURRENT_TIMESTAMP
-      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active;
+        manager_entra_oid = CASE
+          WHEN EXCLUDED.manager_entra_oid IS NOT NULL
+          THEN EXCLUDED.manager_entra_oid
+          ELSE users.manager_entra_oid
+        END,
+        last_login = NOW()
+      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
     `;
     
     let user;
@@ -173,9 +200,10 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         entra_oid, 
         email, 
         name, 
-        managerEntraOid
+        finalManagerOid
       ]);
       user = rows[0];
+      console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}`);
     } catch (e: any) {
       console.error("[SYNC] Database upsert failed:", e.message);
       res.status(500).json({ error: "DATABASE_ERROR", details: e.message });

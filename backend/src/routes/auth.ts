@@ -172,15 +172,25 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     console.log(`[SYNC] manager_entra_oid logic - existing: ${existingUser?.manager_entra_oid || null}, graph: ${managerEntraOid}, final: ${finalManagerOid}`);
 
     const upsertQuery = `
-      INSERT INTO users (entra_oid, email, name, manager_entra_oid, last_login)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      INSERT INTO users (
+        entra_oid,
+        email,
+        name,
+        manager_entra_oid,
+        last_login
+      )
+      VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
       ON CONFLICT (entra_oid) 
       DO UPDATE SET 
         email = EXCLUDED.email,
         name = EXCLUDED.name,
-        manager_entra_oid = COALESCE(EXCLUDED.manager_entra_oid, users.manager_entra_oid),
-        last_login = CURRENT_TIMESTAMP
-      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active;
+        manager_entra_oid = CASE
+          WHEN EXCLUDED.manager_entra_oid IS NOT NULL
+          THEN EXCLUDED.manager_entra_oid
+          ELSE users.manager_entra_oid
+        END,
+        last_login = NOW()
+      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
     `;
     
     let user;

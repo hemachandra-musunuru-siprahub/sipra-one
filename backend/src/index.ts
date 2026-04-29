@@ -73,3 +73,4 @@ app.listen(PORT, () => {
   logger.info(`   Tenant:   ${process.env.ENTRA_TENANT_ID}`);
   logger.info(`   Frontend: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
 });
+
