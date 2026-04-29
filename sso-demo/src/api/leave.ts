@@ -35,3 +35,24 @@ export const setLeaveBalance = (
   employeeOid: string,
   data: { leaveType: "annual" | "sick" | "unpaid" | "other"; year: number; totalDays: number }
 ) => api.patch<{ balance: LeaveBalance }>(`/api/leave-requests/balances/${employeeOid}`, data);
+
+export interface LeavePolicy {
+  id: string;
+  name: string;
+  leave_type: "annual" | "sick" | "casual" | "unpaid" | "other";
+  total_days: number;
+  scope: "all" | "department" | "individual";
+  target?: string;
+  created_at: string;
+}
+
+export const getPolicies = () =>
+  api.get<{ policies: LeavePolicy[] }>("/api/leave-requests/policies");
+
+export const createPolicy = (data: {
+  name: string;
+  leaveType: "annual" | "sick" | "casual" | "unpaid" | "other";
+  totalDays: number;
+  scope: "all" | "department" | "individual";
+  target?: string | null;
+}) => api.post<{ policy: LeavePolicy }>("/api/leave-requests/policies", data);

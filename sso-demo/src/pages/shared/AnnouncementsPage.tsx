@@ -57,7 +57,11 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
     finally { setSubmitting(false); }
   };
 
-  const layoutRole = role || (isHR ? "HR" : "Employee");
+  const userRoles = internalUser?.roles || [];
+  let role: "Admin" | "HR" | "Manager" | "Employee" = "Employee";
+  if (userRoles.includes("Admin") || userRoles.includes("SipraHub-SystemAdmin")) role = "Admin";
+  else if (userRoles.includes("HR") || userRoles.includes("SipraHub-HR")) role = "HR";
+  else if (userRoles.includes("Manager") || userRoles.includes("SipraHub-Manager")) role = "Manager";
 
   return (
     <DashboardLayout internalUser={internalUser} role={layoutRole}>

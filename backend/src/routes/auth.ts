@@ -11,6 +11,15 @@ dotenv.config();
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_key_change_me";
 
+// ─── JWKS singleton — created once at startup, keys cached for 10 min ─────────
+const jwksSingleton = jwksClient({
+  jwksUri: `https://login.microsoftonline.com/${process.env.ENTRA_TENANT_ID}/discovery/v2.0/keys`,
+  cache: true,
+  cacheMaxEntries: 10,
+  cacheMaxAge: 10 * 60 * 1000, // 10 minutes
+  rateLimit: true,
+});
+
 router.get("/debug-config", (req: Request, res: Response) => {
   res.json({
     tenantId: process.env.ENTRA_TENANT_ID,
@@ -38,29 +47,33 @@ router.get("/debug-jwks", async (req: Request, res: Response) => {
   }
 });
 
-// Fetch user profile and manager from Graph API using the access token
+// Fetch user profile AND manager in parallel from Graph API
 const fetchGraphData = async (accessToken: string) => {
-  try {
-    const profileResponse = await axios.get("https://graph.microsoft.com/v1.0/me", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      params: { $select: "id,mail,userPrincipalName,displayName" }
-    });
-    
-    let managerEntraOid = null;
-    try {
-      const managerResponse = await axios.get("https://graph.microsoft.com/v1.0/me/manager", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        params: { $select: "id" }
-      });
-      managerEntraOid = managerResponse.data.id;
-    } catch (e: any) {
-      console.warn("Could not fetch manager for user", e.message);
-    }
-    
-    return { profile: profileResponse.data, managerEntraOid };
-  } catch (error) {
-    throw new Error("Failed to fetch data from Microsoft Graph API");
+  const headers = { Authorization: `Bearer ${accessToken}` };
+
+  const [profileResult, managerResult] = await Promise.allSettled([
+    axios.get("https://graph.microsoft.com/v1.0/me", {
+      headers,
+      params: { $select: "id,mail,userPrincipalName,displayName" },
+    }),
+    axios.get("https://graph.microsoft.com/v1.0/me/manager", {
+      headers,
+      params: { $select: "id" },
+    }),
+  ]);
+
+  if (profileResult.status === "rejected") {
+    throw new Error("Failed to fetch profile from Microsoft Graph API");
   }
+
+  const managerEntraOid =
+    managerResult.status === "fulfilled" ? (managerResult.value.data.id ?? null) : null;
+
+  if (managerResult.status === "rejected") {
+    console.warn("[SYNC] Could not fetch manager (non-fatal):", (managerResult.reason as any)?.message);
+  }
+
+  return { profile: profileResult.value.data, managerEntraOid };
 };
 
 router.post("/sync", async (req: Request, res: Response): Promise<void> => {
@@ -94,16 +107,9 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const jwksUri = `https://login.microsoftonline.com/${ENTRA_TENANT_ID}/discovery/v2.0/keys`;
-
-    const client = jwksClient({
-      jwksUri: jwksUri,
-      cache: true,
-      rateLimit: true
-    });
-
+    // ─── Use module-level singleton JWKS client ────────────────────────────
     const getKey = (header: jwt.JwtHeader, callback: jwt.SigningKeyCallback) => {
-      client.getSigningKey(header.kid, (err, key) => {
+      jwksSingleton.getSigningKey(header.kid, (err, key) => {
         if (err || !key) {
           if (err?.message?.includes("Bad Request") || err?.message?.includes("400")) {
              return callback(new Error("TENANT_NOT_FOUND"));
@@ -154,22 +160,9 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     const email = profile.mail || profile.userPrincipalName;
     const name = profile.displayName;
     
-    console.log("[SYNC] 3. Creating/updating user profile cache in database...");
-
-    let existingUser;
-    try {
-      const { rows } = await query("SELECT manager_entra_oid FROM users WHERE entra_oid = $1", [entra_oid]);
-      existingUser = rows[0];
-    } catch (e: any) {
-      console.error("[SYNC] Failed to fetch existing user:", e.message);
-    }
-
-    const finalManagerOid =
-      managerEntraOid && managerEntraOid.trim() !== ""
-        ? managerEntraOid
-        : existingUser?.manager_entra_oid || null;
-
-    console.log(`[SYNC] manager_entra_oid logic - existing: ${existingUser?.manager_entra_oid || null}, graph: ${managerEntraOid}, final: ${finalManagerOid}`);
+    // ─── Step 3: Upsert user — CASE in SQL preserves existing manager if Graph returns null ─
+    console.log("[SYNC] 3. Upserting user profile cache in database...");
+    const finalManagerOid = managerEntraOid && managerEntraOid.trim() !== "" ? managerEntraOid : null;
 
     const upsertQuery = `
       INSERT INTO users (

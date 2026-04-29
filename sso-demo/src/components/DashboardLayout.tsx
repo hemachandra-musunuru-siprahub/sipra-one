@@ -1,22 +1,18 @@
-import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  Calendar, 
-  Bell, 
-  Search, 
-  LogOut, 
-  Menu,
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  Calendar,
+  Bell,
+  Search,
+  LogOut,
   Shield,
   Briefcase,
   UserCheck,
-  HelpCircle,
   Megaphone,
-  Settings,
-  PieChart,
-  Target
+  ClipboardList,
+  Building2,
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 
@@ -26,6 +22,24 @@ interface DashboardLayoutProps {
   role: "Admin" | "HR" | "Manager" | "Employee";
 }
 
+interface NavItem {
+  label: string;
+  icon: React.ReactNode;
+  path: string;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const ROLE_COLOR: Record<string, string> = {
+  Admin: "var(--primary-500)",
+  HR: "var(--dept-hr)",
+  Manager: "var(--dept-it)",
+  Employee: "var(--dept-finance)",
+};
+
 export const DashboardLayout = ({ children, internalUser, role }: DashboardLayoutProps) => {
   const { instance, accounts } = useMsal();
   const location = useLocation();
@@ -33,19 +47,13 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
 
   const handleLogout = () => {
     const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
-    fetch(`${API}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include"
-    }).finally(() => {
-      instance.logoutRedirect({
-        postLogoutRedirectUri: "/",
-      }).catch((e) => {
-        console.error(e);
-      });
+    fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).finally(() => {
+      instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
     });
   };
 
   const userName = internalUser?.name || accounts[0]?.name || "User";
+  const userEmail = internalUser?.email || accounts[0]?.username || "";
   const initials = userName
     .split(" ")
     .map((n: string) => n[0])
@@ -53,127 +61,194 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
     .slice(0, 2)
     .toUpperCase();
 
-  const navGroups = {
+  const navGroups: Record<string, NavGroup[]> = {
     Admin: [
-      { label: "Overview", items: [
-        { label: "Dashboard", icon: <LayoutDashboard />, path: "/admin-dashboard" },
-        { label: "System Health", icon: <Shield />, path: "/admin/health" },
-      ]},
-      { label: "Management", items: [
-        { label: "User Management", icon: <Users />, path: "/admin/users" },
-      ]},
-      { label: "Technical", items: [
-        { label: "Audit Logs", icon: <FileText />, path: "/admin/audit" },
-      ]}
+      {
+        label: "Overview",
+        items: [
+          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: "/admin-dashboard" },
+          { label: "System Health",icon: <Shield size={20} />,          path: "/admin/health" },
+        ],
+      },
+      {
+        label: "Management",
+        items: [
+          { label: "Users",          icon: <Users size={20} />,     path: "/admin/users" },
+          { label: "HR Dashboard",   icon: <Building2 size={20} />, path: "/hr-dashboard" },
+          { label: "Manager View",   icon: <Briefcase size={20} />, path: "/manager-dashboard" },
+          { label: "Employee View",  icon: <UserCheck size={20} />, path: "/employee-dashboard" },
+        ],
+      },
     ],
     HR: [
-      { label: "Overview", items: [
-        { label: "Dashboard", icon: <LayoutDashboard />, path: "/hr-dashboard" },
-      ]},
-      { label: "People", items: [
-        { label: "Employees", icon: <Users />, path: "/hr/employees" },
-        { label: "Leave Requests", icon: <Calendar />, path: "/hr/leave" },
-        { label: "Performance", icon: <Target />, path: "/hr/performance" },
-      ]},
-      { label: "Content", items: [
-        { label: "Documents", icon: <FileText />, path: "/hr/documents" },
-        { label: "Announcements", icon: <Megaphone />, path: "/hr/announcements" },
-      ]}
+      {
+        label: "Overview",
+        items: [
+          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: "/hr-dashboard" },
+        ],
+      },
+      {
+        label: "People",
+        items: [
+          { label: "Employees",      icon: <Users size={20} />,         path: "/hr/employees" },
+          { label: "Leave Requests", icon: <Calendar size={20} />,      path: "/hr/leave" },
+          { label: "Leave Policies", icon: <ClipboardList size={20} />, path: "/hr/leave?tab=policies" },
+        ],
+      },
+      {
+        label: "Content",
+        items: [
+          { label: "Documents",    icon: <FileText size={20} />,    path: "/hr/documents" },
+          { label: "Announcements",icon: <Megaphone size={20} />,   path: "/hr/announcements" },
+        ],
+      },
+      {
+        label: "Self Service",
+        items: [
+          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
+        ],
+      },
     ],
     Manager: [
-      { label: "Overview", items: [
-        { label: "Dashboard", icon: <LayoutDashboard />, path: "/manager-dashboard" },
-      ]},
-      { label: "My Team", items: [
-        { label: "Leave Approvals", icon: <UserCheck />, path: "/manager/approvals" },
-        { label: "Timesheets", icon: <Calendar />, path: "/manager/timesheets" },
-        { label: "Performance", icon: <Target />, path: "/manager/performance" },
-      ]},
-      { label: "Resources", items: [
-        { label: "Announcements", icon: <Megaphone />, path: "/manager/announcements" },
-        { label: "Team Docs", icon: <FileText />, path: "/manager/documents" },
-      ]}
+      {
+        label: "Overview",
+        items: [
+          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: "/manager-dashboard" },
+        ],
+      },
+      {
+        label: "My Team",
+        items: [
+          { label: "Approvals",   icon: <UserCheck size={20} />,      path: "/manager/approvals" },
+          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/manager/timesheets" },
+        ],
+      },
+      {
+        label: "Resources",
+        items: [
+          { label: "Notices",     icon: <Megaphone size={20} />,      path: "/manager/announcements" },
+          { label: "Documents",   icon: <FileText size={20} />,       path: "/manager/documents" },
+        ],
+      },
+      {
+        label: "Self Service",
+        items: [
+          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
+        ],
+      },
     ],
     Employee: [
-      { label: "Overview", items: [
-        { label: "Dashboard", icon: <LayoutDashboard />, path: "/employee-dashboard" },
-      ]},
-      { label: "Self Service", items: [
-        { label: "Leave Request", icon: <Calendar />, path: "/employee/leave" },
-        { label: "Timesheets", icon: <Calendar />, path: "/employee/timesheets" },
-        { label: "Performance", icon: <Target />, path: "/employee/performance" },
-      ]},
-      { label: "Company", items: [
-        { label: "Announcements", icon: <Megaphone />, path: "/employee/announcements" },
-        { label: "Documents", icon: <FileText />, path: "/employee/documents" },
-      ]}
-    ]
+      {
+        label: "Overview",
+        items: [
+          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: "/employee-dashboard" },
+        ],
+      },
+      {
+        label: "Self Service",
+        items: [
+          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
+          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/employee/timesheets" },
+        ],
+      },
+      {
+        label: "Company",
+        items: [
+          { label: "Notices",     icon: <Megaphone size={20} />,      path: "/employee/announcements" },
+          { label: "Documents",   icon: <FileText size={20} />,       path: "/employee/documents" },
+        ],
+      },
+    ],
   };
 
-
   const currentGroups = navGroups[role] || navGroups.Employee;
+  const roleAccent = ROLE_COLOR[role] || "var(--primary-500)";
 
   return (
     <div className="app-container">
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <aside className="sidebar">
-        <div className="sidebar__header">
-          <Link to="/" className="sidebar__logo">
-            <span>SipraHub</span>
+
+        {/* Logo / Brand */}
+        <div className="sidebar__brand">
+          <Link to="/" className="sidebar__logo-link">
+            <div className="sidebar__logo-icon">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <rect width="22" height="22" rx="6" fill="var(--primary-500)" />
+                <path d="M5 11h12M11 5v12" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span className="sidebar__logo-text">SipraHub</span>
           </Link>
         </div>
-        <div className="sidebar__content">
-          {currentGroups.map((group, idx) => (
-            <div className="nav-group" key={idx}>
-              <div className="nav-group__label">{group.label}</div>
-              {group.items.map((item, i) => (
-                <Link 
-                  key={i} 
-                  to={item.path} 
-                  className={`nav-item ${location.pathname === item.path ? 'nav-item--active' : ''}`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              ))}
+
+
+
+        {/* Nav */}
+        <nav className="sidebar__nav">
+          {currentGroups.map((group, gi) => (
+            <div className="sidebar__group" key={gi}>
+              <span className="sidebar__group-label">{group.label}</span>
+              {group.items.map((item, ii) => {
+                const isActive = item.path.includes("?")
+                  ? (location.pathname + location.search) === item.path
+                  : location.pathname === item.path;
+                return (
+                  <Link
+                    key={ii}
+                    to={item.path}
+                    className={`sidebar__nav-item${isActive ? " sidebar__nav-item--active" : ""}`}
+                    title={item.label}
+                  >
+                    <span className="sidebar__nav-icon">{item.icon}</span>
+                    <span className="sidebar__nav-label">{item.label}</span>
+                    {isActive && <span className="sidebar__nav-indicator" />}
+                  </Link>
+                );
+              })}
             </div>
           ))}
-          
-          <div className="nav-group" style={{ marginTop: 'auto' }}>
-             <button onClick={handleLogout} className="nav-item" style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                <LogOut />
-                <span>Sign Out</span>
-             </button>
-          </div>
+        </nav>
+
+        {/* Footer / Logout */}
+        <div className="sidebar__footer">
+          <button onClick={handleLogout} className="sidebar__logout-btn" title="Sign out">
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
-      {/* Topbar */}
+      {/* ── Topbar ── */}
       <header className="topbar">
         <div className="topbar__search">
-          <Search size={18} />
-          <input type="text" placeholder="Search intranet..." className="topbar__search-input" />
+          <Search size={16} />
+          <input
+            type="text"
+            placeholder="Search SipraHub…"
+            className="topbar__search-input"
+          />
         </div>
         <div className="topbar__actions">
-          <button className="topbar__icon-btn">
-            <Bell size={20} />
+          <button className="topbar__icon-btn" aria-label="Notifications">
+            <Bell size={18} />
+            <span className="topbar__notif-dot" />
           </button>
-          <div className="user-profile">
-            <div className="user-profile__info">
-              <span className="user-profile__name">{userName}</span>
-              <span className="user-profile__role">{role}</span>
+
+          <div className="topbar__user">
+            <div className="topbar__user-text">
+              <span className="topbar__user-name">{userName}</span>
+              <span className="topbar__user-email">{userEmail}</span>
             </div>
-            <div className="avatar avatar--online">
+            <div className="topbar__avatar" style={{ background: roleAccent }}>
               {initials}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="main-content">
-        {children}
-      </main>
+      {/* ── Main ── */}
+      <main className="main-content">{children}</main>
     </div>
   );
 };

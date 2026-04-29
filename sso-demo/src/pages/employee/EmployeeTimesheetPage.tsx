@@ -143,7 +143,7 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
           {isDraft && (
             <div className="card">
               <div className="card__header"><h3 className="card__title"><Plus size={18} /> Add Entry</h3></div>
-              <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 2fr 2fr 100px auto", gap: "var(--space-3)", alignItems: "end" }}>
+              <div className="card__body ts-entry-form">
                 <div>
                   <label style={{ fontSize: "0.75rem", color: "var(--neutral-600)", display: "block", marginBottom: "var(--space-1)" }}>Date *</label>
                   <input className="input" type="date" value={form.workDate} onChange={e => setForm(f => ({ ...f, workDate: e.target.value }))} />

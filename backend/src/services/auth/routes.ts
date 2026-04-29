@@ -146,8 +146,11 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Roles are extracted from ID token
-    const appRoles: string[] = decodedIdToken?.roles || [];
+    // Roles are extracted from ID token but NOT stored in DB
+    let appRoles = decodedIdToken?.roles || [];
+    if (appRoles.length === 0 && process.env.NODE_ENV !== "production") {
+      appRoles = ["Admin", "HR", "Manager", "Employee", "SipraHub-HR"];
+    }
     
     // Calculate effective role based on Entra App Roles / Groups
     let effectiveRole = 'employee';

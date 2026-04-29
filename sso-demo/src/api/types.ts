@@ -49,7 +49,7 @@ export interface LeaveRequest {
   employee_oid: string;
   employee_name?: string;
   manager_oid: string;
-  leave_type: "annual" | "sick" | "unpaid" | "other";
+  leave_type: "annual" | "sick" | "casual" | "unpaid" | "other";
   start_date: string;
   end_date: string;
   total_days: number;

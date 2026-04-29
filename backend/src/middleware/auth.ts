@@ -16,6 +16,37 @@ export interface AuthRequest extends Request {
   };
 }
 
+// ─── In-memory user cache ─────────────────────────────────────────────────────
+// Caches the DB user row for 60 seconds per entra_oid so that every protected
+// API call does NOT hit the database. TTL keeps it fresh for role / status changes.
+const USER_CACHE_TTL_MS = 60_000; // 60 seconds
+
+interface CachedUser {
+  user: AuthRequest["user"];
+  expiresAt: number;
+}
+
+const userCache = new Map<string, CachedUser>();
+
+export const invalidateUserCache = (entra_oid: string) => {
+  userCache.delete(entra_oid);
+};
+
+const getCachedUser = (entra_oid: string): AuthRequest["user"] | null => {
+  const entry = userCache.get(entra_oid);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    userCache.delete(entra_oid);
+    return null;
+  }
+  return entry.user!;
+};
+
+const setCachedUser = (entra_oid: string, user: AuthRequest["user"]) => {
+  userCache.set(entra_oid, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+};
+
+// ─── requireAuth ──────────────────────────────────────────────────────────────
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const token = req.cookies.session_token;
   if (!token) {
@@ -24,6 +55,15 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { entra_oid: string; roles: string[] };
+
+    // ── Check cache first ──
+    const cached = getCachedUser(decoded.entra_oid);
+    if (cached) {
+      req.user = { ...cached, roles: decoded.roles || [] };
+      return next();
+    }
+
+    // ── Cache miss: hit the DB once, then cache ──
     const { rows } = await query(
       "SELECT id, entra_oid, email, name, manager_entra_oid, is_active FROM users WHERE entra_oid = $1 AND is_active = true",
       [decoded.entra_oid]
@@ -32,7 +72,9 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       res.status(401).json({ error: "Unauthorized: User not found or inactive" });
       return;
     }
-    req.user = { ...rows[0], roles: decoded.roles || [] };
+    const userRow = rows[0];
+    setCachedUser(decoded.entra_oid, userRow);
+    req.user = { ...userRow, roles: decoded.roles || [] };
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized: Invalid or expired session token" });

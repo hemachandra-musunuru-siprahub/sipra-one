@@ -3,11 +3,85 @@ import { z } from "zod";
 import { requireAuth, requireRole, AuthRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { notFound, forbidden, badRequest, conflict, unprocessable } from "../../lib/errors";
-import { isAdmin, isManager, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAccess } from "../../lib/roles";
+import { isAdmin, isManager, isHR, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAccess } from "../../lib/roles";
 import * as repo from "./repo";
 import { getDirectReportOids } from "../users/repo";
 
 const router = Router();
+
+import { query } from "../../db";
+
+// ─── Auto-initialize leave_policies table & upgrade constraints ───────────────
+(async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS leave_policies (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(255) NOT NULL,
+        leave_type VARCHAR(50) NOT NULL,
+        total_days NUMERIC(4,1) NOT NULL,
+        scope VARCHAR(50) DEFAULT 'all',
+        target VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Upgrade constraints to allow 'casual' and additional leave types
+    await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_type`);
+    await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('annual', 'sick', 'casual', 'unpaid', 'other'))`);
+  } catch (err) {
+    console.error("[LEAVE SETUP ERROR]:", err);
+  }
+})();
+
+router.get("/policies", requireAuth, async (req: AuthRequest, res: Response) => {
+  const { rows } = await query("SELECT * FROM leave_policies ORDER BY created_at DESC");
+  res.json({ policies: rows });
+});
+
+const CreatePolicySchema = z.object({
+  name: z.string().min(2),
+  leaveType: z.enum(["annual", "sick", "casual", "unpaid", "other"]),
+  totalDays: z.number().min(0).max(365),
+  scope: z.enum(["all", "department", "individual"]),
+  target: z.string().optional().nullable(),
+});
+
+router.post("/policies", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]), validate(CreatePolicySchema), async (req: AuthRequest, res: Response) => {
+  const { name, leaveType, totalDays, scope, target } = req.body;
+  
+  const { rows } = await query(
+    `INSERT INTO leave_policies (name, leave_type, total_days, scope, target)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [name, leaveType, totalDays, scope, target || null]
+  );
+  const policy = rows[0];
+
+  const currentYear = new Date().getFullYear();
+  let employeeOids: string[] = [];
+
+  if (scope === "all" || scope === "department") {
+    // Note: Since users don't have department columns, both act on all active employees
+    const usersRes = await query("SELECT entra_oid FROM users WHERE is_active = true");
+    employeeOids = usersRes.rows.map(u => u.entra_oid);
+  } else if (scope === "individual" && target) {
+    employeeOids = [target];
+  }
+
+  // Atomically initialize balances for everyone in scope
+  for (const oid of employeeOids) {
+    await query(
+      `INSERT INTO leave_balances (employee_oid, leave_type, year, total_days, used_days, remaining_days)
+       VALUES ($1, $2, $3, $4, 0, $4)
+       ON CONFLICT (employee_oid, leave_type, year)
+       DO UPDATE SET total_days = $4, remaining_days = $4 - leave_balances.used_days, updated_at = NOW()`,
+      [oid, leaveType, currentYear, totalDays]
+    );
+  }
+
+  res.status(201).json({ policy });
+});
+
 
 const calcWorkingDays = (start: string, end: string): number => {
   let count = 0;
@@ -51,7 +125,7 @@ router.get("/balances", requireAuth,
 );
 
 const CreateLeaveSchema = z.object({
-  leaveType: z.enum(["annual", "sick", "unpaid", "other"]),
+  leaveType: z.enum(["annual", "sick", "casual", "unpaid", "other"]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   reason:    z.string().optional(),
@@ -63,18 +137,36 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
   async (req: AuthRequest, res: Response) => {
     const { leaveType, startDate, endDate, reason } = req.body;
     const user = req.user!;
-    if (!user.manager_entra_oid)
+    const roles = user.roles || [];
+
+    if (isAdmin(roles)) {
+      throw forbidden("Admin users cannot apply for leave");
+    }
+
+    const isHrOrManager = isHR(roles) || isManager(roles);
+
+    if (!isHrOrManager && !user.manager_entra_oid)
       throw unprocessable("NO_MANAGER_ASSIGNED", "No manager assigned. Contact system admin.");
+
+    const managerOid = user.manager_entra_oid || user.entra_oid;
+
     const totalDays = calcWorkingDays(startDate, endDate);
-    if (leaveType === "annual" || leaveType === "sick") {
-      const year = new Date(startDate).getFullYear();
+    const year = new Date(startDate).getFullYear();
+
+    if (leaveType === "annual" || leaveType === "sick" || leaveType === "casual") {
       const balance = await repo.getBalance(user.entra_oid, leaveType, year);
-      if (!balance || balance.remaining_days < totalDays)
+      if (!balance || Number(balance.remaining_days) < totalDays)
         throw unprocessable("INSUFFICIENT_BALANCE", `Insufficient ${leaveType} leave balance`);
     }
-    const request = await repo.createRequest(
-      user.entra_oid, user.manager_entra_oid!, leaveType, startDate, endDate, totalDays, reason
+
+    let request = await repo.createRequest(
+      user.entra_oid, managerOid, leaveType, startDate, endDate, totalDays, reason
     );
+
+    if (isHrOrManager) {
+      request = await repo.approveRequest(request.id, user.entra_oid, user.entra_oid, leaveType, totalDays, year);
+    }
+
     res.status(201).json({ request });
   }
 );
