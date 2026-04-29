@@ -4,9 +4,9 @@ import { FileText, Plus, Trash2, ExternalLink } from "lucide-react";
 import { getDocuments, createDocument, deleteDocument } from "../../api/documents";
 import type { HrDocument } from "../../api/types";
 
-interface Props { internalUser: any; isHR?: boolean; }
+interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
 
-export const DocumentsPage = ({ internalUser, isHR = false }: Props) => {
+export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -46,13 +46,13 @@ export const DocumentsPage = ({ internalUser, isHR = false }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
-  const role = isHR ? "HR" : "Employee";
+  const layoutRole = role || (isHR ? "HR" : "Employee");
 
   return (
-    <DashboardLayout internalUser={internalUser} role={role}>
+    <DashboardLayout internalUser={internalUser} role={layoutRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{role}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
+          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">HR Documents</h1>

@@ -4,17 +4,23 @@ import { Users, Shield, Activity, CheckCircle, XCircle } from "lucide-react";
 import { getUsers, setActive, setManager } from "../../api/users";
 import type { User } from "../../api/types";
 
+import { deleteUser } from "../../api/admin";
+
 interface Props { internalUser: any; }
 
 export const AdminUsersPage = ({ internalUser }: Props) => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [managerOid, setManagerOid] = useState("");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
+  const loadUsers = () => {
     getUsers().then(d => setUsers(d.users)).catch(console.error).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadUsers();
   }, []);
 
   const filtered = users.filter(u =>
@@ -36,6 +42,14 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
       setUsers(prev => prev.map(u => u.entra_oid === oid ? user : u));
       setEditingId(null); setManagerOid("");
     } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteUser = async (oid: string) => {
+    if (!window.confirm("Are you sure you want to delete this account from SipraHub? This action only removes the local account, not the Microsoft Entra ID.")) return;
+    try {
+      await deleteUser(oid);
+      loadUsers();
+    } catch (e: any) { alert(e.message); }
   };
 
   const activeCount   = users.filter(u => u.is_active).length;
@@ -77,6 +91,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Role</th>
                 <th>Manager OID</th>
                 <th>Status</th>
                 <th>Last Login</th>
@@ -85,9 +100,9 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading users…</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading users…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No users found</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No users found</td></tr>
               ) : filtered.map(user => (
                 <tr key={user.entra_oid}>
                   <td>
@@ -97,6 +112,11 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                     </div>
                   </td>
                   <td style={{ fontSize: "0.875rem" }}>{user.email}</td>
+                  <td>
+                    <span className="badge badge--secondary" style={{ textTransform: "capitalize" }}>
+                      {user.effective_role ? user.effective_role : "Not Synced"}
+                    </span>
+                  </td>
                   <td>
                     {editingId === user.entra_oid ? (
                       <div style={{ display: "flex", gap: "var(--space-2)" }}>
@@ -129,13 +149,22 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                     {user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}
                   </td>
                   <td>
-                    <button
-                      className={`btn btn--sm ${user.is_active ? "btn--secondary" : "btn--primary"}`}
-                      style={{ height: 28, fontSize: "0.75rem" }}
-                      onClick={() => handleToggleActive(user.entra_oid, user.is_active)}
-                    >
-                      {user.is_active ? "Deactivate" : "Activate"}
-                    </button>
+                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                      <button
+                        className={`btn btn--sm ${user.is_active ? "btn--secondary" : "btn--primary"}`}
+                        style={{ height: 28, fontSize: "0.75rem" }}
+                        onClick={() => handleToggleActive(user.entra_oid, user.is_active)}
+                      >
+                        {user.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        className="btn btn--sm btn--danger"
+                        style={{ height: 28, fontSize: "0.75rem", backgroundColor: "var(--error-500)", color: "white" }}
+                        onClick={() => handleDeleteUser(user.entra_oid)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

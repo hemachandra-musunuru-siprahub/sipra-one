@@ -3,7 +3,7 @@ import { query } from "../../db";
 // ─── List all users (system_admin only) ──────────────────────────────────────
 export const listUsers = async () => {
   const { rows } = await query(`
-    SELECT id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login
+    SELECT id, entra_oid, email, name, effective_role, manager_entra_oid, is_active, created_at, last_login
     FROM users
     ORDER BY name ASC
   `);
@@ -13,7 +13,7 @@ export const listUsers = async () => {
 // ─── Get single user by entra_oid ────────────────────────────────────────────
 export const getUserByOid = async (entraOid: string) => {
   const { rows } = await query(
-    `SELECT id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login
+    `SELECT id, entra_oid, email, name, effective_role, manager_entra_oid, is_active, created_at, last_login
      FROM users WHERE entra_oid = $1`,
     [entraOid]
   );

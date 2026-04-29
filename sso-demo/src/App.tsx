@@ -24,6 +24,7 @@ import { ManagerApprovalsPage } from "./pages/manager/ManagerApprovalsPage";
 import { ManagerTimesheetsPage } from "./pages/manager/ManagerTimesheetsPage";
 import { HREmployeesPage } from "./pages/hr/HREmployeesPage";
 import { HRLeavePage } from "./pages/hr/HRLeavePage";
+import { PerformancePage } from "./pages/shared/PerformancePage";
 
 // ─── API base (use env var everywhere) ───────────────────────────────────────
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
@@ -87,28 +88,103 @@ function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
   );
 }
 
+import { getGroupedUsers, deleteUser } from "./api/admin";
+import { setActive } from "./api/users";
+
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null }) => {
   const navigate = useNavigate();
-  const [userCount, setUserCount] = useState<number | null>(null);
   const [dbStatus, setDbStatus] = useState<string>("Checking…");
+  const [groupedUsers, setGroupedUsers] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"hr" | "manager" | "employee" | "admin">("hr");
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const data = await getGroupedUsers();
+      setGroupedUsers(data);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
 
   useEffect(() => {
     fetch(`${API}/health`, { credentials: "include" })
       .then(r => r.json())
       .then(d => setDbStatus(d.db === "connected" ? "Connected" : "Error"))
       .catch(() => setDbStatus("Error"));
-    fetch(`${API}/api/users`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => d && setUserCount(d.users?.filter((u: any) => u.is_active).length ?? null))
-      .catch(() => {});
+    loadData();
   }, []);
 
+  const handleToggleActive = async (oid: string, current: boolean) => {
+    try {
+      await setActive(oid, !current);
+      loadData();
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteUser = async (oid: string) => {
+    if (!window.confirm("Are you sure you want to delete this account from SipraHub? This action only removes the local account, not the Microsoft Entra ID.")) return;
+    try {
+      await deleteUser(oid);
+      loadData();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const UserTable = ({ users, title }: { users: any[], title: string }) => (
+    <div className="card" style={{ marginBottom: "var(--space-6)" }}>
+      <div className="card__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h3 className="card__title">{title} ({users.length})</h3>
+        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/admin/users")}>Manage All</button>
+      </div>
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Manager OID</th>
+              <th>Status</th>
+              <th>Last Login</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-6)" }}>No members found in this role group.</td></tr>
+            ) : users.map(user => (
+              <tr key={user.entra_oid}>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                    <div className="avatar avatar--sm" style={{ width: 24, height: 24, fontSize: "0.75rem" }}>{user.name[0]}</div>
+                    <span style={{ fontSize: "0.875rem", fontWeight: 500 }}>{user.name}</span>
+                  </div>
+                </td>
+                <td style={{ fontSize: "0.8125rem" }}>{user.email}</td>
+                <td style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>{user.manager_entra_oid ? user.manager_entra_oid.slice(0, 8) + "…" : "—"}</td>
+                <td><span className={`badge ${user.is_active ? "badge--published" : "badge--draft"}`} style={{ fontSize: "0.6875rem" }}>{user.is_active ? "Active" : "Inactive"}</span></td>
+                <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}</td>
+                <td>
+                  <div style={{ display: "flex", gap: "var(--space-1)" }}>
+                    <button className="btn btn--ghost btn--sm" style={{ color: user.is_active ? "var(--error-500)" : "var(--success-500)" }} onClick={() => handleToggleActive(user.entra_oid, user.is_active)}>
+                      {user.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                    <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-600)" }} onClick={() => handleDeleteUser(user.entra_oid)}>Delete</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   const stats = [
-    { label: "Active Users",    value: userCount !== null ? String(userCount) : "…", trend: "From DB",   icon: <Users size={20} />,    color: "#3B82F6" },
+    { label: "Active Users",    value: groupedUsers ? Object.values(groupedUsers).flat().filter((u: any) => u.is_active).length : "…", trend: "Live", icon: <Users size={20} />,    color: "#3B82F6" },
     { label: "Database",        value: dbStatus,                                      trend: "Health",    icon: <Server size={20} />,   color: "#10B981" },
-    { label: "Sync Status",     value: "Active",                                      trend: "1 min ago", icon: <Activity size={20} />, color: "#F59E0B" },
-    { label: "Security Health", value: "Secure",                                      trend: "Verified",  icon: <Shield size={20} />,   color: "#CE2124" },
+    { label: "Sync Status",     value: "Active",                                      trend: "Real-time", icon: <Activity size={20} />, color: "#F59E0B" },
+    { label: "Security Health", value: "Verified",                                    trend: "Entra ID",  icon: <Shield size={18} />,   color: "#CE2124" },
   ];
 
   return (
@@ -118,8 +194,8 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Systems Control</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <button className="btn btn--secondary"><Settings size={16} /> Global Config</button>
-            <button className="btn btn--primary"><Lock size={16} /> Security Audit</button>
+            <button className="btn btn--secondary" onClick={() => navigate("/admin/users")}><Users size={16} /> User Management</button>
+            <button className="btn btn--primary" onClick={() => navigate("/admin/health")}><Shield size={16} /> System Health</button>
           </div>
         </div>
       </header>
@@ -136,16 +212,43 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
         ))}
       </section>
 
-      <div className="content-grid">
-        <div className="card" style={{ gridColumn: "span 8" }}>
-          <div className="card__header"><h3 className="card__title">Operational Health</h3><button className="btn btn--ghost btn--sm">Full Report</button></div>
+      <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>
+        <div className="card">
+          <div className="card__header" style={{ borderBottom: "1px solid var(--neutral-100)" }}>
+            <h3 className="card__title">Role Members</h3>
+            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              {(["hr", "manager", "employee", "admin"] as const).map(role => (
+                <button 
+                  key={role}
+                  className={`btn btn--sm ${activeTab === role ? "btn--primary" : "btn--secondary"}`}
+                  onClick={() => setActiveTab(role)}
+                  style={{ textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: "0.05em" }}
+                >
+                  {role} {groupedUsers?.[role]?.length ? `(${groupedUsers[role].length})` : ""}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="card__body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-6)" }}>
+            {loading ? (
+              <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--neutral-500)" }}>Fetching role data…</div>
+            ) : groupedUsers ? (
+              <UserTable users={groupedUsers[activeTab] || []} title={`${activeTab.toUpperCase()} Members`} />
+            ) : (
+              <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--error-500)" }}>Failed to load members.</div>
+            )}
+          </div>
+        </div>
+        
+        <div className="card">
+          <div className="card__header"><h3 className="card__title">Operational Health</h3></div>
+          <div className="card__body">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-6)" }}>
               {[
-                { icon: <Globe size={18} style={{ color: "var(--primary-500)" }} />, label: "SSO Connectivity", value: "99.98%", sub: "Last 30 days uptime" },
-                { icon: <Database size={18} style={{ color: "var(--success-500)" }} />, label: "Database Performance", value: "24ms", sub: "Avg query response time" },
-                { icon: <HardDrive size={18} style={{ color: "var(--dept-finance)" }} />, label: "Storage Usage", value: "42%", sub: "1.2TB of 3.0TB used" },
-                { icon: <PieChart size={18} style={{ color: "var(--dept-it)" }} />, label: "API Traffic", value: "+12%", sub: "Increase since last week" },
+                { icon: <Globe size={18} style={{ color: "var(--primary-500)" }} />, label: "SSO Connectivity", value: "Active", sub: "Entra ID v2.0" },
+                { icon: <Database size={18} style={{ color: "var(--success-500)" }} />, label: "Local Database", value: "Connected", sub: "PostgreSQL" },
+                { icon: <HardDrive size={18} style={{ color: "var(--dept-finance)" }} />, label: "Audit Logs", value: "Enabled", sub: "Tracking local changes" },
+                { icon: <PieChart size={18} style={{ color: "var(--dept-it)" }} />, label: "API Sync", value: "Synced", sub: "Latest profile data" },
               ].map((item, idx) => (
                 <div key={idx} style={{ padding: "var(--space-5)", background: "var(--neutral-50)", borderRadius: "var(--rounded-xl)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-4)" }}>
@@ -157,28 +260,8 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="card" style={{ gridColumn: "span 4" }}>
-          <div className="card__header"><h3 className="card__title">Module Management</h3></div>
-          <div className="card__body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {[
-              { label: "User Management",    path: "/admin/users",       color: "var(--primary-500)" },
-              { label: "HR Dashboard",        path: "/hr-dashboard",      color: "var(--dept-hr)" },
-              { label: "Manager Dashboard",   path: "/manager-dashboard", color: "var(--dept-it)" },
-              { label: "Employee View",       path: "/employee-dashboard",color: "var(--dept-finance)" },
-            ].map((dash, idx) => (
-              <button key={idx} onClick={() => navigate(dash.path)} className="btn btn--secondary" style={{ justifyContent: "space-between", padding: "var(--space-4)" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dash.color }} />
-                  {dash.label}
-                </span>
-                <ArrowRight size={16} />
-              </button>
-            ))}
-          </div>
           <div className="card__footer">
-            <p style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>Admins have bypass access to all dashboard routes.</p>
+            <p style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>Role information is cached locally for display speed and synced from Microsoft Entra ID on user login.</p>
           </div>
         </div>
       </div>
@@ -256,11 +339,15 @@ const AppContent = () => (
           <Route path="/hr/documents"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><DocumentsPage internalUser={internalUser} isHR={true} /></RoleGuard>} />
           <Route path="/hr/announcements"  element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><AnnouncementsPage internalUser={internalUser} isHR={true} /></RoleGuard>} />
           <Route path="/hr/leave"          element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/hr/performance"    element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><PerformancePage internalUser={internalUser} role="HR" /></RoleGuard>} />
 
           {/* Manager */}
           <Route path="/manager-dashboard"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerDashboard internalUser={internalUser} /></RoleGuard>} />
           <Route path="/manager/approvals"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerApprovalsPage internalUser={internalUser} /></RoleGuard>} />
           <Route path="/manager/timesheets"  element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerTimesheetsPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/manager/announcements" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><AnnouncementsPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
+          <Route path="/manager/documents"     element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><DocumentsPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
+          <Route path="/manager/performance"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><PerformancePage internalUser={internalUser} role="Manager" /></RoleGuard>} />
 
           {/* Employee */}
           <Route path="/employee-dashboard"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeDashboard internalUser={internalUser} /></RoleGuard>} />
@@ -268,6 +355,7 @@ const AppContent = () => (
           <Route path="/employee/timesheets"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeTimesheetPage internalUser={internalUser} /></RoleGuard>} />
           <Route path="/employee/announcements" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><AnnouncementsPage internalUser={internalUser} /></RoleGuard>} />
           <Route path="/employee/documents"     element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><DocumentsPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/employee/performance"   element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><PerformancePage internalUser={internalUser} role="Employee" /></RoleGuard>} />
 
           {/* Shared */}
           <Route path="/access-denied" element={<AccessDenied />} />

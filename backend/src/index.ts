@@ -27,6 +27,8 @@ import timesheetRoutes   from "./services/timesheets/routes";
 import leaveRoutes       from "./services/leave/routes";
 import hrDocumentRoutes  from "./services/hr-documents/routes";
 import searchRoutes      from "./services/search/routes";
+import performanceRoutes from "./services/performance/routes";
+import adminRoutes       from "./services/admin/routes";
 
 const app = express();
 
@@ -57,6 +59,8 @@ app.use("/api/timesheets",     timesheetRoutes);
 app.use("/api/leave-requests", leaveRoutes);
 app.use("/api/hr-documents",   hrDocumentRoutes);
 app.use("/api/search",         searchRoutes);
+app.use("/api/performance",    performanceRoutes);
+app.use("/api/admin",          adminRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

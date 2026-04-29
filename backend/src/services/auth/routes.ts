@@ -146,15 +146,34 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Roles are extracted from ID token but NOT stored in DB
-    const appRoles = decodedIdToken?.roles || [];
+    // Roles are extracted from ID token
+    const appRoles: string[] = decodedIdToken?.roles || [];
     
+    // Calculate effective role based on Entra App Roles / Groups
+    let effectiveRole = 'employee';
+    
+    const hasAdmin = appRoles.some(r => ['Admin', 'SipraHub-SystemAdmin', 'SipraHub_Admin'].includes(r));
+    const hasHR    = appRoles.some(r => ['HR', 'SipraHub-HR', 'SipraHub_HR'].includes(r));
+    const hasMgr   = appRoles.some(r => ['Manager', 'SipraHub-Manager', 'SipraHub_Manager'].includes(r));
+    const hasEmp   = appRoles.some(r => ['Employee', 'SipraHub-Employee', 'SipraHub_Employee'].includes(r));
+
+    if (hasAdmin) effectiveRole = 'admin';
+    else if (hasHR) effectiveRole = 'hr';
+    else if (hasMgr) effectiveRole = 'manager';
+    else if (hasEmp) effectiveRole = 'employee';
+
+    console.log(`[SYNC] --- ROLE MAPPING DEBUG ---`);
+    console.log(`[SYNC] User: ${profile.mail || profile.userPrincipalName}`);
+    console.log(`[SYNC] Entra roles received: ${JSON.stringify(appRoles)}`);
+    console.log(`[SYNC] Mapped effective_role: ${effectiveRole}`);
+    console.log(`[SYNC] --------------------------`);
+
     // 3. Extract required fields for profile cache
     const entra_oid = profile.id;
     const email = profile.mail || profile.userPrincipalName;
     const name = profile.displayName;
     
-    console.log(`[SYNC] syncing user email: ${email}`);
+    console.log(`[SYNC] syncing user email: ${email}, role: ${effectiveRole}`);
 
     let existingUser;
     try {
@@ -178,9 +197,12 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         email,
         name,
         manager_entra_oid,
+        effective_role,
+        role_source,
+        azure_groups,
         last_login
       )
-      VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
+      VALUES ($1, $2, $3, NULLIF($4, ''), $5, 'entra', $6, NOW())
       ON CONFLICT (entra_oid) 
       DO UPDATE SET 
         email = EXCLUDED.email,
@@ -190,8 +212,11 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
           THEN EXCLUDED.manager_entra_oid
           ELSE users.manager_entra_oid
         END,
+        effective_role = EXCLUDED.effective_role,
+        role_source = EXCLUDED.role_source,
+        azure_groups = EXCLUDED.azure_groups,
         last_login = NOW()
-      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
+      RETURNING id, entra_oid, email, name, manager_entra_oid, effective_role, is_active, created_at, last_login;
     `;
     
     let user;
@@ -200,10 +225,12 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         entra_oid, 
         email, 
         name, 
-        finalManagerOid
+        finalManagerOid,
+        effectiveRole,
+        JSON.stringify(appRoles)
       ]);
       user = rows[0];
-      console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}`);
+      console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}, role: ${user.effective_role}`);
     } catch (e: any) {
       console.error("[SYNC] Database upsert failed:", e.message);
       res.status(500).json({ error: "DATABASE_ERROR", details: e.message });

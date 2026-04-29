@@ -4,7 +4,7 @@ import { Megaphone, ThumbsUp, Heart, Smile, Plus } from "lucide-react";
 import { getAnnouncements, reactToAnnouncement, removeReaction, createAnnouncement } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-interface Props { internalUser: any; isHR?: boolean; }
+interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
 
 const REACTIONS = [
   { type: "thumbs_up", icon: "👍" },
@@ -14,7 +14,7 @@ const REACTIONS = [
   { type: "sad",       icon: "😢" },
 ];
 
-export const AnnouncementsPage = ({ internalUser, isHR = false }: Props) => {
+export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -57,13 +57,13 @@ export const AnnouncementsPage = ({ internalUser, isHR = false }: Props) => {
     finally { setSubmitting(false); }
   };
 
-  const role = isHR ? "HR" : "Employee";
+  const layoutRole = role || (isHR ? "HR" : "Employee");
 
   return (
-    <DashboardLayout internalUser={internalUser} role={role}>
+    <DashboardLayout internalUser={internalUser} role={layoutRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{role}</span><span className="breadcrumb__separator">/</span><span>Announcements</span>
+          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Announcements</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Company Announcements</h1>

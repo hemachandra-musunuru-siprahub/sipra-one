@@ -15,7 +15,8 @@ import {
   HelpCircle,
   Megaphone,
   Settings,
-  PieChart
+  PieChart,
+  Target
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 
@@ -60,9 +61,6 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       ]},
       { label: "Management", items: [
         { label: "User Management", icon: <Users />, path: "/admin/users" },
-        { label: "HR Dashboard", icon: <Users />, path: "/hr-dashboard" },
-        { label: "Manager Dashboard", icon: <Briefcase />, path: "/manager-dashboard" },
-        { label: "Employee View", icon: <UserCheck />, path: "/employee-dashboard" },
       ]},
       { label: "Technical", items: [
         { label: "Audit Logs", icon: <FileText />, path: "/admin/audit" },
@@ -75,6 +73,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       { label: "People", items: [
         { label: "Employees", icon: <Users />, path: "/hr/employees" },
         { label: "Leave Requests", icon: <Calendar />, path: "/hr/leave" },
+        { label: "Performance", icon: <Target />, path: "/hr/performance" },
       ]},
       { label: "Content", items: [
         { label: "Documents", icon: <FileText />, path: "/hr/documents" },
@@ -88,10 +87,11 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       { label: "My Team", items: [
         { label: "Leave Approvals", icon: <UserCheck />, path: "/manager/approvals" },
         { label: "Timesheets", icon: <Calendar />, path: "/manager/timesheets" },
+        { label: "Performance", icon: <Target />, path: "/manager/performance" },
       ]},
       { label: "Resources", items: [
-        { label: "Announcements", icon: <Megaphone />, path: "/employee/announcements" },
-        { label: "Team Docs", icon: <FileText />, path: "/employee/documents" },
+        { label: "Announcements", icon: <Megaphone />, path: "/manager/announcements" },
+        { label: "Team Docs", icon: <FileText />, path: "/manager/documents" },
       ]}
     ],
     Employee: [
@@ -101,6 +101,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       { label: "Self Service", items: [
         { label: "Leave Request", icon: <Calendar />, path: "/employee/leave" },
         { label: "Timesheets", icon: <Calendar />, path: "/employee/timesheets" },
+        { label: "Performance", icon: <Target />, path: "/employee/performance" },
       ]},
       { label: "Company", items: [
         { label: "Announcements", icon: <Megaphone />, path: "/employee/announcements" },
