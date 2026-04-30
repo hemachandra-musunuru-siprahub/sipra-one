@@ -1,24 +1,22 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Calendar,
-  Bell,
-  Search,
-  LogOut,
+  LayoutDashboard, 
+  Users, 
+  FileText, 
+  Calendar, 
+  Bell, 
+  Search, 
+  LogOut, 
   Shield,
   Briefcase,
   UserCheck,
-  Megaphone,
-  ClipboardList,
-  Building2,
-  Target,
+  Megaphone
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   internalUser: any;
   role: "Admin" | "HR" | "Manager" | "Employee";
 }
@@ -44,6 +42,7 @@ const ROLE_COLOR: Record<string, string> = {
 export const DashboardLayout = ({ children, internalUser, role }: DashboardLayoutProps) => {
   const { instance, accounts } = useMsal();
   const location = useLocation();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const navigate = useNavigate();
 
   const handleLogout = () => {

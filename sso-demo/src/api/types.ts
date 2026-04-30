@@ -19,6 +19,11 @@ export interface Announcement {
   created_at: string;
   updated_at: string;
   reactions: Record<string, number>;
+  user_reaction?: string | null;
+  comments_count?: number;
+  image_url?: string;
+  type?: "GENERAL" | "IMPORTANT";
+  author_name?: string;
 }
 
 export interface TimesheetEntry {

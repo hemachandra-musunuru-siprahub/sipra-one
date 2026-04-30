@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import {
-  Users, Calendar, FileText, TrendingUp,
-  Search, Filter, Plus, Megaphone, CheckCircle, XCircle
+  Users, Calendar, FileText, Plus, Megaphone
 } from "lucide-react";
-import { getAllLeave, getLeaveBalances } from "../api/leave";
+import { getAllLeave } from "../api/leave";
 import { getDocuments } from "../api/documents";
-import { getAnnouncements, createAnnouncement, deleteAnnouncement } from "../api/announcements";
+
+import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
+import { getAnnouncements, createAnnouncement } from "../api/announcements";
 import type { LeaveRequest, HrDocument, Announcement } from "../api/types";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface Props { internalUser: any; }
 
 export const HRDashboard = ({ internalUser }: Props) => {
@@ -55,12 +57,7 @@ export const HRDashboard = ({ internalUser }: Props) => {
     } catch (e) { console.error(e); } finally { setSubmitting(false); }
   };
 
-  const handleDeleteAnnouncement = async (id: string) => {
-    try {
-      await deleteAnnouncement(id);
-      setAnnouncements(prev => prev.filter(a => a.id !== id));
-    } catch (e) { console.error(e); }
-  };
+
 
   return (
     <DashboardLayout internalUser={internalUser} role="HR">
@@ -103,6 +100,8 @@ export const HRDashboard = ({ internalUser }: Props) => {
           </div>
         </div>
       )}
+
+      <TopAnnouncementsCarousel />
 
       <section className="stats-grid">
         {stats.map((stat, idx) => (
@@ -168,8 +167,8 @@ export const HRDashboard = ({ internalUser }: Props) => {
           </div>
         </div>
 
-        {/* Company Documents */}
-        <div className="card" style={{ gridColumn: "span 6" }}>
+        {/* Company Documents + Latest Updates side by side */}
+        <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="card__header">
             <h3 className="card__title">Company Documents</h3>
             <button className="btn btn--ghost btn--sm">View All</button>
@@ -190,37 +189,6 @@ export const HRDashboard = ({ internalUser }: Props) => {
                     <span className={`badge ${doc.scope === "company" ? "badge--published" : "badge--draft"}`}>{doc.scope}</span>
                     <a href={doc.onedrive_url} target="_blank" rel="noreferrer" className="btn btn--ghost btn--sm">Open</a>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Announcements Feed */}
-        <div className="card" style={{ gridColumn: "span 6" }}>
-          <div className="card__header">
-            <h3 className="card__title">Recent Announcements</h3>
-          </div>
-          <div className="card__body">
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-              {loading ? (
-                <p style={{ color: "var(--neutral-500)", fontSize: "0.875rem" }}>Loading…</p>
-              ) : announcements.length === 0 ? (
-                <p style={{ color: "var(--neutral-500)", fontSize: "0.875rem" }}>No announcements yet.</p>
-              ) : announcements.slice(0, 4).map((ann) => (
-                <div key={ann.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "var(--space-3)", border: "1px solid var(--neutral-100)", borderRadius: "var(--rounded-lg)" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                      {ann.is_pinned && <span style={{ color: "var(--primary-500)", fontSize: "0.75rem" }}>📌</span>}
-                      {ann.title}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>
-                      {new Date(ann.created_at).toLocaleDateString()} {ann.category && `· ${ann.category}`}
-                    </div>
-                  </div>
-                  <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-500)" }} onClick={() => handleDeleteAnnouncement(ann.id)}>
-                    <XCircle size={14} />
-                  </button>
                 </div>
               ))}
             </div>

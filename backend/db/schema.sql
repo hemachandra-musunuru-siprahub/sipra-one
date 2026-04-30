@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS announcements (
     body TEXT NOT NULL,
     category VARCHAR(100),
     is_pinned BOOLEAN DEFAULT false,
+    priority VARCHAR(20) DEFAULT 'GENERAL',
+    image_url TEXT,
     created_by_oid VARCHAR(100) NOT NULL, -- Microsoft Entra OID
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -40,7 +42,7 @@ CREATE TABLE IF NOT EXISTS announcement_reactions (
     user_oid VARCHAR(100) NOT NULL, -- Microsoft Entra OID
     reaction_type VARCHAR(50) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_announcement_user_reaction UNIQUE (announcement_id, user_oid, reaction_type)
+    CONSTRAINT unique_announcement_user_reaction UNIQUE (announcement_id, user_oid)
 );
 
 -- ==========================================

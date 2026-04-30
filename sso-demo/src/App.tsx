@@ -25,6 +25,7 @@ import { ManagerApprovalsPage } from "./pages/manager/ManagerApprovalsPage";
 import { ManagerTimesheetsPage } from "./pages/manager/ManagerTimesheetsPage";
 import { HREmployeesPage } from "./pages/hr/HREmployeesPage";
 import { HRLeavePage } from "./pages/hr/HRLeavePage";
+import { AnnouncementDetailPage } from "./pages/shared/AnnouncementDetailPage";
 import { PerformancePage } from "./pages/shared/PerformancePage";
 
 // ─── API base ─────────────────────────────────────────────────────────────────
@@ -90,8 +91,27 @@ function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
   );
 }
 
-import { getGroupedUsers, deleteUser } from "./api/admin";
-import { setActive } from "./api/users";
+// ─── Announcements redirect ───────────────────────────────────────────────────
+function AnnouncementsRedirect({ internalUser }: { internalUser: InternalUser | null }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!internalUser) return;
+    const roles = internalUser.roles || [];
+    if (isAdminRole(roles) || isHRRole(roles)) {
+      navigate("/hr/announcements", { replace: true });
+    } else if (isManagerRole(roles)) {
+      navigate("/manager/announcements", { replace: true });
+    } else {
+      navigate("/employee/announcements", { replace: true });
+    }
+  }, [internalUser, navigate]);
+  return (
+    <div className="spinner-wrap">
+      <div className="spinner" />
+      <p style={{ color: "var(--neutral-50)", fontFamily: "Inter, sans-serif" }}>Opening announcements…</p>
+    </div>
+  );
+}
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null }) => {
@@ -335,58 +355,50 @@ const SessionProvider = ({
 };
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-const AppContent = () => {
-  // User received directly from /sync response — avoids a redundant /me fetch
-  const [syncedUser, setSyncedUser] = useState<InternalUser | null>(null);
+const AppContent = () => (
+  <ProtectedRoute>
+    <SessionProvider>
+      {(internalUser) => (
+        <Routes>
+          {/* Root redirect */}
+          <Route path="/" element={<RootRedirect internalUser={internalUser} />} />
 
-  return (
-    <ProtectedRoute>
-      <LoginHandler onSyncComplete={setSyncedUser}>
-        <SessionProvider initialUser={syncedUser}>
-          {(internalUser) => (
-            <Routes>
-              <Route path="/" element={<RootRedirect internalUser={internalUser} />} />
+          {/* Admin */}
+          <Route path="/admin-dashboard" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminDashboard internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/admin/users"     element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminUsersPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/admin/health"    element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminHealthPage internalUser={internalUser} /></RoleGuard>} />
 
-              {/* Admin */}
-              <Route path="/admin-dashboard" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminDashboard internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/admin/users"     element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminUsersPage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/admin/performance" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><PerformancePage internalUser={internalUser} role="Admin" /></RoleGuard>} />
-              <Route path="/admin/health"    element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminHealthPage internalUser={internalUser} /></RoleGuard>} />
+          {/* HR */}
+          <Route path="/hr-dashboard"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRDashboard internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/hr/employees"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HREmployeesPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/hr/documents"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><DocumentsPage internalUser={internalUser} isHR={true} /></RoleGuard>} />
+          <Route path="/hr/announcements"  element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><AnnouncementsPage internalUser={internalUser} isHR={true} /></RoleGuard>} />
+          <Route path="/hr/leave"          element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} /></RoleGuard>} />
 
-              {/* HR */}
-              <Route path="/hr-dashboard"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRDashboard internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/hr/employees"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HREmployeesPage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/hr/documents"      element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><DocumentsPage internalUser={internalUser} isHR={true} role={internalUser?.effective_role} /></RoleGuard>} />
-              <Route path="/hr/announcements"  element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><AnnouncementsPage internalUser={internalUser} isHR={true} role={internalUser?.effective_role} /></RoleGuard>} />
-              <Route path="/hr/performance"    element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><PerformancePage internalUser={internalUser} role="HR" /></RoleGuard>} />
-              <Route path="/hr/leave"          element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} /></RoleGuard>} />
+          {/* Manager */}
+          <Route path="/manager-dashboard"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerDashboard internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/manager/approvals"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerApprovalsPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/manager/timesheets"  element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerTimesheetsPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/manager/announcements" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><AnnouncementsPage internalUser={internalUser} roleOverride="Manager" /></RoleGuard>} />
+          <Route path="/manager/documents"     element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><DocumentsPage internalUser={internalUser} roleOverride="Manager" /></RoleGuard>} />
 
-              {/* Manager */}
-              <Route path="/manager-dashboard"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerDashboard internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/manager/approvals"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerApprovalsPage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/manager/timesheets"  element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerTimesheetsPage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/manager/documents"     element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><DocumentsPage internalUser={internalUser} role={internalUser?.effective_role} /></RoleGuard>} />
-              <Route path="/manager/announcements" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><AnnouncementsPage internalUser={internalUser} role={internalUser?.effective_role} /></RoleGuard>} />
-              <Route path="/manager/performance"   element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><PerformancePage internalUser={internalUser} role="Manager" /></RoleGuard>} />
+          {/* Employee */}
+          <Route path="/employee-dashboard"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeDashboard internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/employee/leave"         element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeLeavePage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/employee/timesheets"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeTimesheetPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/employee/announcements" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><AnnouncementsPage internalUser={internalUser} /></RoleGuard>} />
+          <Route path="/employee/documents"     element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><DocumentsPage internalUser={internalUser} /></RoleGuard>} />
 
-              {/* Employee */}
-              <Route path="/employee-dashboard"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeDashboard internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/employee/leave"         element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeLeavePage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/employee/timesheets"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeTimesheetPage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/employee/announcements" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><AnnouncementsPage internalUser={internalUser} role={internalUser?.effective_role} /></RoleGuard>} />
-              <Route path="/employee/documents"     element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><DocumentsPage internalUser={internalUser} role={internalUser?.effective_role} /></RoleGuard>} />
-              <Route path="/employee/performance"   element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><PerformancePage internalUser={internalUser} role="Employee" /></RoleGuard>} />
-
-              {/* Shared */}
-              <Route path="/access-denied" element={<AccessDenied />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          )}
-        </SessionProvider>
-      </LoginHandler>
-    </ProtectedRoute>
-  );
-};
+          {/* Shared */}
+          <Route path="/announcements" element={<AnnouncementsRedirect internalUser={internalUser} />} />
+          <Route path="/announcements/:id" element={<AnnouncementDetailPage internalUser={internalUser} />} />
+          <Route path="/access-denied" element={<AccessDenied />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
+    </SessionProvider>
+  </ProtectedRoute>
+);
 
 const App = () => (
   <BrowserRouter>

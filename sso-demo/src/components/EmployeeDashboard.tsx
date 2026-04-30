@@ -4,8 +4,11 @@ import { Calendar, Clock, Megaphone, FileText, User, HelpCircle } from "lucide-r
 import { getAnnouncements } from "../api/announcements";
 import { getLeaveBalances } from "../api/leave";
 import { getMyTimesheet } from "../api/timesheets";
+
+import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import type { Announcement, LeaveBalance, Timesheet } from "../api/types";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface Props { internalUser: any; }
 
 export const EmployeeDashboard = ({ internalUser }: Props) => {
@@ -64,6 +67,8 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
         </div>
       </section>
 
+      <TopAnnouncementsCarousel />
+
       <section className="stats-grid">
         {stats.map((stat, idx) => (
           <div className="stat-card" key={idx}>
@@ -76,39 +81,16 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
         ))}
       </section>
 
-      <div className="content-grid">
-        <div className="card" style={{ gridColumn: "span 8" }}>
-          <div className="card__header">
-            <h3 className="card__title">Recent Announcements</h3>
-            <a href="/employee/announcements" className="btn btn--ghost btn--sm">View All</a>
-          </div>
-          <div className="card__body">
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-              {loading ? (
-                <p style={{ color: "var(--neutral-500)", fontSize: "0.875rem" }}>Loading…</p>
-              ) : announcements.length === 0 ? (
-                <p style={{ color: "var(--neutral-500)", fontSize: "0.875rem" }}>No announcements yet.</p>
-              ) : announcements.map((ann) => (
-                <div key={ann.id} style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", padding: "var(--space-3)", borderRadius: "var(--rounded-lg)", border: "1px solid var(--neutral-100)" }}>
-                  <div className={`badge ${ann.is_pinned ? "badge--urgent" : "badge--it"}`}>
-                    {ann.category || (ann.is_pinned ? "📌 Pinned" : "General")}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--neutral-800)" }}>{ann.title}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{new Date(ann.created_at).toLocaleDateString()}</div>
-                  </div>
-                  <button className="btn btn--ghost btn--sm">Read</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        <div className="card" style={{ gridColumn: "span 4" }}>
-          <div className="card__header"><h3 className="card__title">Quick Access</h3></div>
+
+      <div className="content-grid">
+        <div className="card" style={{ gridColumn: "span 12" }}>
+          <div className="card__header">
+            <h3 className="card__title">Quick Access</h3>
+          </div>
           <div className="card__body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-4)" }}>
-              {modules.slice(0, 4).map((mod, idx) => (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-4)" }}>
+              {modules.map((mod, idx) => (
                 <a key={idx} href={mod.path} className="btn btn--secondary" style={{ height: "auto", padding: "var(--space-4)", flexDirection: "column", gap: "var(--space-2)", textDecoration: "none" }}>
                   <span style={{ color: "var(--primary-500)" }}>{mod.icon}</span>
                   <span style={{ fontSize: "0.75rem" }}>{mod.title}</span>

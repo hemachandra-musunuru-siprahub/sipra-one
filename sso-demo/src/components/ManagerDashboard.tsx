@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import { Users, CheckSquare, Clock, CheckCircle, Download } from "lucide-react";
+
+import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import { getTeamLeave, actionLeave } from "../api/leave";
 import { getTeamTimesheets, reviewTimesheet, exportTimesheets } from "../api/timesheets";
 import type { LeaveRequest, Timesheet } from "../api/types";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface Props { internalUser: any; }
 
 export const ManagerDashboard = ({ internalUser }: Props) => {
@@ -71,6 +74,8 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
           </button>
         </div>
       </header>
+
+      <TopAnnouncementsCarousel />
 
       <section className="stats-grid">
         {stats.map((s, i) => (
