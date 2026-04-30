@@ -10,7 +10,10 @@ import {
   Shield,
   Briefcase,
   UserCheck,
-  Megaphone
+  Megaphone,
+  Building2,
+  ClipboardList,
+  Target
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 
@@ -74,10 +77,6 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         label: "Management",
         items: [
           { label: "Users",          icon: <Users size={20} />,     path: "/admin/users" },
-          { label: "HR Dashboard",   icon: <Building2 size={20} />, path: "/hr-dashboard" },
-          { label: "Manager View",   icon: <Briefcase size={20} />, path: "/manager-dashboard" },
-          { label: "Employee View",  icon: <UserCheck size={20} />, path: "/employee-dashboard" },
-          { label: "Performance",    icon: <Target size={20} />,    path: "/admin/performance" },
         ],
       },
     ],

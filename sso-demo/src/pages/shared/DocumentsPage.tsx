@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { FileText, Plus, Trash2, ExternalLink } from "lucide-react";
 import { getDocuments, createDocument, deleteDocument } from "../../api/documents";
 import type { HrDocument } from "../../api/types";
 
-interface Props { internalUser: any; isHR?: boolean; role?: "admin" | "hr" | "manager" | "employee"; }
+interface Props { internalUser: any; isHR?: boolean; roleOverride?: "Admin" | "HR" | "Manager" | "Employee"; }
 
-export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
+export const DocumentsPage = ({ internalUser, isHR = false, roleOverride }: Props) => {
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -46,8 +46,14 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
-  const currentRole = role || "Employee";
-  const layoutRole = (currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase()) as any;
+  const layoutRole = useMemo(() => {
+    if (roleOverride) return roleOverride;
+    const userRoles = internalUser?.roles || [];
+    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
+    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
+    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
+    return "Employee";
+  }, [roleOverride, internalUser, isHR]);
 
   return (
     <DashboardLayout internalUser={internalUser} role={layoutRole}>

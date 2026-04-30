@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
+import { useNavigate } from "react-router-dom";
 import {
   Users, Calendar, FileText, Plus, Megaphone
 } from "lucide-react";
@@ -14,6 +15,7 @@ import type { LeaveRequest, HrDocument, Announcement } from "../api/types";
 interface Props { internalUser: any; }
 
 export const HRDashboard = ({ internalUser }: Props) => {
+  const navigate = useNavigate();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -146,7 +148,7 @@ export const HRDashboard = ({ internalUser }: Props) => {
             </table>
           </div>
           <div className="card__footer">
-            <button className="btn btn--ghost btn--sm" style={{ width: "100%" }}>View All Leave Requests →</button>
+            <button className="btn btn--ghost btn--sm" style={{ width: "100%" }} onClick={() => navigate("/hr/leave")}>View All Leave Requests →</button>
           </div>
         </div>
 
@@ -155,11 +157,11 @@ export const HRDashboard = ({ internalUser }: Props) => {
           <div className="card__header"><h3 className="card__title">HR Modules</h3></div>
           <div className="card__body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {[
-              { label: "Leave Management", icon: <Calendar size={18} />, color: "var(--dept-hr)" },
-              { label: "Document Management", icon: <FileText size={18} />, color: "var(--dept-it)" },
-              { label: "Announcements", icon: <Megaphone size={18} />, color: "var(--dept-comm)" },
+              { label: "Leave Management", icon: <Calendar size={18} />, color: "var(--dept-hr)", path: "/hr/leave" },
+              { label: "Document Management", icon: <FileText size={18} />, color: "var(--dept-it)", path: "/hr/documents" },
+              { label: "Announcements", icon: <Megaphone size={18} />, color: "var(--dept-comm)", path: "/hr/announcements" },
             ].map((mod, idx) => (
-              <button key={idx} className="btn btn--secondary" style={{ justifyContent: "flex-start", padding: "var(--space-4)" }}>
+              <button key={idx} className="btn btn--secondary" style={{ justifyContent: "flex-start", padding: "var(--space-4)" }} onClick={() => navigate(mod.path)}>
                 <span style={{ color: mod.color }}>{mod.icon}</span>
                 <span style={{ flex: 1, textAlign: "left" }}>{mod.label}</span>
               </button>
@@ -171,7 +173,7 @@ export const HRDashboard = ({ internalUser }: Props) => {
         <div className="card" style={{ gridColumn: "span 12" }}>
           <div className="card__header">
             <h3 className="card__title">Company Documents</h3>
-            <button className="btn btn--ghost btn--sm">View All</button>
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate("/hr/documents")}>View All</button>
           </div>
           <div className="card__body">
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>

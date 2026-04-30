@@ -44,7 +44,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   const [reviewForm, setReviewForm] = useState({ employee_oid: "", review_period: CURRENT_REVIEW_PERIOD, rating: 3, strengths: "", improvements: "", comments: "" });
 
   const currentRole = (role?.toLowerCase() || "employee") as "admin" | "hr" | "manager" | "employee";
-  const layoutRole = (currentRole.charAt(0).toUpperCase() + currentRole.slice(1)) as "Admin" | "HR" | "Manager" | "Employee";
+  const layoutRole = (currentRole === "hr" ? "HR" : currentRole.charAt(0).toUpperCase() + currentRole.slice(1)) as "Admin" | "HR" | "Manager" | "Employee";
 
   useEffect(() => {
     loadData();
@@ -245,9 +245,11 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Performance Management</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <button className="btn btn--primary" onClick={() => { setShowGoalForm(true); setShowReviewForm(false); }}>
-              <Plus size={16} /> Add Goal
-            </button>
+            {currentRole !== "employee" && (
+              <button className="btn btn--primary" onClick={() => { setShowGoalForm(true); setShowReviewForm(false); }}>
+                <Plus size={16} /> Add Goal
+              </button>
+            )}
             {currentRole !== "employee" && (
               <button className="btn btn--secondary" onClick={() => { setShowReviewForm(true); setShowGoalForm(false); }}>
                 <Star size={16} /> New Review
@@ -300,7 +302,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
       )}
 
       {/* Goal Form */}
-      {showGoalForm && (
+      {showGoalForm && currentRole !== "employee" && (
         <div className="card" style={{ marginBottom: "var(--space-6)" }}>
           <div className="card__header"><h3 className="card__title">Create New Goal</h3></div>
           <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
@@ -308,12 +310,10 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
               <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Title *</label>
               <input className="input" value={goalForm.title} onChange={e => setGoalForm(f => ({ ...f, title: e.target.value }))} />
             </div>
-            {currentRole !== "employee" && (
-              <div>
-                <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee OID (Leave empty for self)</label>
-                <input className="input" placeholder="Entra OID" value={goalForm.employee_oid} onChange={e => setGoalForm(f => ({ ...f, employee_oid: e.target.value }))} />
-              </div>
-            )}
+            <div>
+              <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee OID (Leave empty for self)</label>
+              <input className="input" placeholder="Entra OID" value={goalForm.employee_oid} onChange={e => setGoalForm(f => ({ ...f, employee_oid: e.target.value }))} />
+            </div>
             <div>
               <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Target Date *</label>
               <input className="input" type="date" value={goalForm.target_date} onChange={e => setGoalForm(f => ({ ...f, target_date: e.target.value }))} />

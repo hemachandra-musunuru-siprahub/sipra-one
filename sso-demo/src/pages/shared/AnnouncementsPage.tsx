@@ -83,7 +83,14 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: 
     refresh();
   };
 
-  const role = roleOverride || (isHR ? "HR" : "Employee");
+  const displayRole = useMemo(() => {
+    if (roleOverride) return roleOverride;
+    const userRoles = internalUser?.roles || [];
+    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
+    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
+    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
+    return "Employee";
+  }, [roleOverride, internalUser, isHR]);
 
   // Filter announcements
   const filteredAnnouncements = useMemo(() => {
@@ -91,12 +98,12 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: 
       const matchesSearch = ann.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            ann.body.toLowerCase().includes(searchQuery.toLowerCase());
       
-      if (role === "Employee") return matchesSearch;
+      if (displayRole === "Employee") return matchesSearch;
 
       const matchesCategory = activeCategory === "All" || ann.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [announcements, searchQuery, activeCategory, role]);
+  }, [announcements, searchQuery, activeCategory, displayRole]);
 
   // Stats
   const stats = useMemo(() => {
@@ -113,7 +120,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: 
   const categories = ["All", "HR", "IT", "Events", "General"];
 
   return (
-    <DashboardLayout internalUser={internalUser} role={role}>
+    <DashboardLayout internalUser={internalUser} role={displayRole}>
       {/* Header Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -134,7 +141,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: 
               />
             </div>
             
-            {role !== "Employee" && (
+            {displayRole !== "Employee" && (
               <div className="relative w-full sm:w-auto hidden sm:block">
                 <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <select 
@@ -254,7 +261,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: 
             </div>
 
             {/* Categories Panel */}
-            {role !== "Employee" && (
+            {displayRole !== "Employee" && (
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="flex flex-wrap gap-2">

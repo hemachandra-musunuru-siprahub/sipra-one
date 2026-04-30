@@ -176,7 +176,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     const email = profile.mail || profile.userPrincipalName;
     const name = profile.displayName;
     
-    console.log(`[SYNC] syncing user email: ${email}, role: ${effectiveRole}`);
+    console.log(`[SYNC] 3. Syncing user data: email=${email}, role=${effectiveRole}`);
 
     let existingUser;
     try {
@@ -191,7 +191,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         ? managerEntraOid
         : existingUser?.manager_entra_oid || null;
 
-    console.log(`[SYNC] manager_entra_oid logic - existing: ${existingUser?.manager_entra_oid || null}, graph: ${managerEntraOid}, final: ${finalManagerOid}`);
+    console.log(`[SYNC] Manager OID resolution - existing: ${existingUser?.manager_entra_oid || 'none'}, from graph: ${managerEntraOid || 'none'}, final result: ${finalManagerOid || 'none'}`);
 
     console.log("[SYNC] 3. Creating/updating user profile cache in database...");
     const upsertQuery = `
@@ -233,7 +233,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         JSON.stringify(appRoles)
       ]);
       user = rows[0];
-      console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}, role: ${user.effective_role}`);
+      console.log(`[SYNC] Database upsert successful: user_id=${user.id}, entra_oid=${user.entra_oid}`);
     } catch (e: any) {
       console.error("[SYNC] Database upsert failed:", e.message);
       res.status(500).json({ error: "DATABASE_ERROR", details: e.message });

@@ -105,38 +105,7 @@ export const LoginHandler = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, inProgress, accounts, isAuthenticated, syncComplete]);
 
-  const syncWithBackend = async () => {
-    if (accounts.length === 0) return;
-    setIsSyncing(true);
-    try {
-      const response = await instance.acquireTokenSilent({
-        ...loginRequest,
-        account: accounts[0],
-      });
-      
-      const res = await fetch("http://localhost:3000/api/auth/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ 
-          accessToken: response.accessToken, 
-          idToken: response.idToken 
-        }),
-      });
-      
-      if (!res.ok) {
-        console.error("Backend sync failed");
-      } else {
-        console.log("Backend sync successful");
-        await fetch("http://localhost:3000/api/auth/me", { credentials: "include" });
-      }
-    } catch (e) {
-      console.error("Error acquiring token for backend sync", e);
-    } finally {
-      setSyncComplete(true);
-      setIsSyncing(false);
-    }
-  };
+  const showSpinner = isInitializing || isSyncing || (accounts.length > 0 && !syncComplete);
 
   if (showSpinner) {
     return (
