@@ -57,7 +57,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
 
   const currentRole = role || "Employee";
   const basePath = currentRole === "Admin" ? "/admin" : currentRole === "HR" ? "/hr" : currentRole === "Manager" ? "/manager" : "/employee";
-  const dashboardPath = currentRole === "Admin" ? "/admin-dashboard" : currentRole === "HR" ? "/hr-dashboard" : currentRole === "Manager" ? "/manager-dashboard" : "/employee-dashboard";
+  const dashboardPath = currentRole === "Admin" ? "/admin-dashboard" : currentRole === "HR" ? "/hr-dashboard" : currentRole === "Manager" ? "/manager/dashboard" : "/employee-dashboard";
 
   const userName = internalUser?.name || accounts[0]?.name || "User";
   const userEmail = internalUser?.email || accounts[0]?.username || "";
@@ -95,8 +95,8 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         label: "People",
         items: [
           { label: "Employees",      icon: <Users size={20} />,         path: `${basePath}/employees` },
-          { label: "Leave Requests", icon: <Calendar size={20} />,      path: `${basePath}/leave` },
-          { label: "Leave Policies", icon: <ClipboardList size={20} />, path: `${basePath}/leave?tab=policies` },
+          { label: "Leave Requests", icon: <Calendar size={20} />,      path: `${basePath}/leave-requests` },
+          { label: "Leave Policies", icon: <ClipboardList size={20} />, path: `${basePath}/leave-policies` },
           { label: "Performance",    icon: <Target size={20} />,        path: `${basePath}/performance` },
         ],
       },
@@ -110,7 +110,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Self Service",
         items: [
-          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
+          { label: "My Leave",    icon: <Calendar size={20} />,       path: `${basePath}/my-leave` },
         ],
       },
     ],
@@ -124,7 +124,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "My Team",
         items: [
-          { label: "Leave Approvals",   icon: <UserCheck size={20} />,      path: "/manager/approvals" },
+          { label: "Leave Approvals",   icon: <UserCheck size={20} />,      path: "/manager/leave-approvals" },
           { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/manager/timesheets" },
           { label: "Performance", icon: <Target size={20} />,         path: "/manager/performance" },
         ],
@@ -139,7 +139,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Self Service",
         items: [
-          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
+          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/manager/my-leave" },
         ],
       },
     ],

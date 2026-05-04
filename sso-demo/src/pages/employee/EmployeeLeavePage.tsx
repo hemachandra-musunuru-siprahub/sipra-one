@@ -14,7 +14,7 @@ import {
 import { getMyLeave, getLeaveBalances, submitLeave, cancelLeave } from "../../api/leave";
 import type { LeaveRequest, LeaveBalance } from "../../api/types";
 
-interface Props { internalUser: any; }
+interface Props { internalUser: any; role?: string; }
 
 /* ─── Toast ─────────────────────────────────────────────── */
 type ToastType = "success" | "error" | "warning";
@@ -74,8 +74,8 @@ function TableSkeleton() {
 import { normalizeRole } from "../../lib/roleHelper";
 import type { UserRole } from "../../lib/roleHelper";
 
-export const EmployeeLeavePage = ({ internalUser }: Props) => {
-  const displayRole: UserRole = normalizeRole(internalUser?.roleFromEntra);
+export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
+  const displayRole: UserRole = normalizeRole(role || internalUser?.roleFromEntra || "Employee");
   const isHRRole = displayRole === "HR";
   const isManagerRole = displayRole === "Manager";
   const isAdminRole = displayRole === "Admin";

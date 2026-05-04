@@ -241,9 +241,9 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
   async (req: AuthRequest, res: Response) => {
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
+    if (ts.status === "reviewed") throw forbidden("Cannot add entries to a reviewed timesheet");
     if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.roles || []))
       throw forbidden("You can only edit your own timesheet");
-    if (ts.status !== "draft") throw forbidden("Only draft timesheets can be edited");
 
     const { workDate, projectName, taskDescription, hours } = req.body;
     const updated = await repo.addEntry(req.params.id, workDate, projectName, taskDescription, hours);

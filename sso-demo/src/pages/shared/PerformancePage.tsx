@@ -3,8 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { Target, Star, Plus, CheckCircle, Clock, User, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import { 
-  getMyGoals, getTeamGoals, getAllGoals, createGoal, updateGoal,
-  getMyReviews, getTeamReviews, getAllReviews, createReview, getEmployeeSummary,
+  getMyGoals, getAllGoals, createGoal, updateGoal,
+  getMyReviews, getAllReviews, createReview, getEmployeeSummary,
   type Goal, type Review
 } from "../../api/performance";
 

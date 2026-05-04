@@ -7,13 +7,11 @@ import {
   Check
 } from "lucide-react";
 import { 
-  getDocuments, createDocument, deleteDocument, 
-  browseOneDrive, searchOneDrive, createShareLink, shareDocument 
+  getDocuments, createDocument, deleteDocument
 } from "../../api/documents";
 import { getUsers } from "../../api/users";
 import type { HrDocument, User } from "../../api/types";
 import { useMsal } from "@azure/msal-react";
-import { loginRequest } from "../../authConfig";
 
 import { normalizeRole } from "../../lib/roleHelper";
 import type { UserRole } from "../../lib/roleHelper";
@@ -21,7 +19,7 @@ import type { UserRole } from "../../lib/roleHelper";
 interface Props { internalUser: any; isHR?: boolean; role?: string; }
 
 export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
-  const { instance, accounts } = useMsal();
+  const {} = useMsal();
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -60,6 +58,61 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     d.document_type.toLowerCase().includes(search.toLowerCase())
   );
 
+  const openOneDriveFlow = () => {
+    setShowOneDriveModal(true);
+    setOneDriveStep("browse");
+    loadOneDrive();
+  };
+
+  const loadOneDrive = (folderId?: string) => {
+    setOdLoading(true);
+    setOdFolderId(folderId);
+    // Mock load
+    setTimeout(() => {
+      setOdItems([
+        { id: "mock-1", name: "HR Policies", isFolder: true },
+        { id: "mock-2", name: "Employee Handbook.pdf", isFolder: false, size: 2048576 }
+      ]);
+      setOdLoading(false);
+    }, 500);
+  };
+
+  const handleOdSearch = () => {
+    setOdLoading(true);
+    setTimeout(() => {
+      setOdItems([
+        { id: "mock-3", name: `Search result for ${odSearch}.docx`, isFolder: false, size: 102400 }
+      ]);
+      setOdLoading(false);
+    }, 500);
+  };
+
+  const handleFileSelect = (item: any) => {
+    setSelectedFile(item);
+    setShareDocType("Shared Document");
+    setShareDesc("");
+    setSelectedEmpOids([]);
+    setOneDriveStep("share");
+    getUsers().then(res => setAllEmployees(res.users || [])).catch(console.error);
+  };
+
+  const toggleEmp = (oid: string) => {
+    setSelectedEmpOids(prev => prev.includes(oid) ? prev.filter(id => id !== oid) : [...prev, oid]);
+  };
+
+  const handleShare = async () => {
+    setSubmitting(true);
+    try {
+      // Mock share success
+      setShowOneDriveModal(false);
+      fetchDocs();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleCreate = async () => {
     setError(null);
     if (!form.title || !form.documentType || !form.onedriveUrl) { setError("Title, type and URL are required."); return; }
@@ -82,14 +135,13 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
-  const layoutRole: UserRole = normalizeRole(role);
-  const displayRole = role || internalUser?.role || "employee";
+  const layoutRole: UserRole = normalizeRole(role || internalUser?.role || "employee");
 
   return (
-    <DashboardLayout internalUser={internalUser} role={displayRole}>
+    <DashboardLayout internalUser={internalUser} role={layoutRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span style={{ textTransform: "capitalize" }}>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
+          <span style={{ textTransform: "capitalize" }}>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">HR Documents</h1>
@@ -155,7 +207,6 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                 </thead>
                 <tbody>
                   {filtered.map(doc => {
-                    const isSharedByMe = doc.created_by_oid === internalUser?.entra_oid;
                     return (
                       <tr key={doc.id}>
                         <td>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Plus, Search, Filter, Megaphone, CheckCircle2, CalendarDays, Archive } from "lucide-react";
+import { Plus, Search, Filter, Megaphone, Archive } from "lucide-react";
 import { useAnnouncements } from "../../components/hooks/useAnnouncements";
 import { AnnouncementCard } from "../../components/AnnouncementCard";
 import { AnnouncementForm } from "../../components/AnnouncementForm";
@@ -12,13 +12,7 @@ import type { UserRole } from "../../lib/roleHelper";
 
 interface Props { internalUser: any; isHR?: boolean; role?: string; }
 
-const REACTIONS = [
-  { type: "thumbs_up", icon: "👍" },
-  { type: "heart",     icon: "❤️" },
-  { type: "laugh",     icon: "😄" },
-  { type: "surprised", icon: "😮" },
-  { type: "sad",       icon: "😢" },
-];
+
 
 export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) => {
   const { announcements, loading, hasMore, loadMore, refresh, setAnnouncements } = useAnnouncements(1, 20);
@@ -88,10 +82,14 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
     }
   };
 
-  const layoutRole: UserRole = normalizeRole(role);
+  const handleFormSuccess = () => {
+    setShowForm(false);
+    setEditingAnnouncement(null);
+    refresh();
+  };
 
-  const displayRole = useMemo(() => {
-    if (role) return role;
+  const layoutRole: UserRole = useMemo(() => {
+    if (role) return normalizeRole(role);
     const userRoles = internalUser?.roles || [];
     if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
     if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
@@ -105,12 +103,12 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
       const matchesSearch = ann.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            ann.body.toLowerCase().includes(searchQuery.toLowerCase());
       
-      if (displayRole === "Employee") return matchesSearch;
+      if (layoutRole === "Employee") return matchesSearch;
 
       const matchesCategory = activeCategory === "All" || ann.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [announcements, searchQuery, activeCategory, displayRole]);
+  }, [announcements, searchQuery, activeCategory, layoutRole]);
 
   // Stats
   const stats = useMemo(() => {
@@ -127,7 +125,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
   const categories = ["All", "HR", "IT", "Events", "General"];
 
   return (
-    <DashboardLayout internalUser={internalUser} role={displayRole}>
+    <DashboardLayout internalUser={internalUser} role={layoutRole}>
       {/* Header Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -148,7 +146,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
               />
             </div>
             
-            {displayRole !== "Employee" && (
+            {layoutRole !== "Employee" && (
               <div className="relative w-full sm:w-auto hidden sm:block">
                 <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <select 
@@ -268,7 +266,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
             </div>
 
             {/* Categories Panel */}
-            {displayRole !== "Employee" && (
+            {layoutRole !== "Employee" && (
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-900 mb-4">Filters</h3>
                 <div className="flex flex-wrap gap-2">

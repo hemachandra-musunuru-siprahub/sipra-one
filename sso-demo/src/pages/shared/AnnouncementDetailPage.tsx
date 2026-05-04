@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, User, Tag, Share2 } from "lucide-react";
+import { ArrowLeft, Calendar, User, Share2 } from "lucide-react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { api } from "../../api/client";
 import type { Announcement } from "../../api/types";

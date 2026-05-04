@@ -7,24 +7,27 @@ import type { LeavePolicy } from "../../api/leave";
 import { getUsers } from "../../api/users";
 import type { LeaveRequest, User } from "../../api/types";
 
-interface Props { internalUser: any; }
+interface Props { internalUser: any; defaultTab?: "requests" | "policies"; }
 
 /** Extends the base type with the server-joined manager_name field. */
 interface EnrichedLeaveRequest extends LeaveRequest {
   manager_name?: string;
 }
 
-export const HRLeavePage = ({ internalUser }: Props) => {
+export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) => {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"requests" | "policies">(
-    searchParams.get("tab") === "policies" ? "policies" : "requests"
+    searchParams.get("tab") === "policies" ? "policies" : defaultTab
   );
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab === "policies") setActiveTab("policies");
-    else setActiveTab("requests");
-  }, [searchParams]);
+    if (tab) {
+      setActiveTab(tab === "policies" ? "policies" : "requests");
+    } else {
+      setActiveTab(defaultTab);
+    }
+  }, [searchParams, defaultTab]);
 
   // All data is server-side scoped by role — no client-side role filtering needed
   const [requests, setRequests] = useState<EnrichedLeaveRequest[]>([]);

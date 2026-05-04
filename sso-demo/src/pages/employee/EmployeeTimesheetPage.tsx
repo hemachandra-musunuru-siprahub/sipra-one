@@ -123,6 +123,9 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
   };
 
   const isDraft = timesheet?.status === "draft";
+  const isSubmitted = timesheet?.status === "submitted";
+  const canAdd = isDraft || isSubmitted;
+
   const statusBadge = (s: string) => ({ draft: "badge--draft", submitted: "badge--it", reviewed: "badge--published" }[s] || "badge--draft");
 
   return (
@@ -284,10 +287,10 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
             </div>
           </div>
 
-          {/* Add Entry Form (draft only) */}
-          {isDraft && (
+          {/* Add Entry Form (draft or submitted) */}
+          {canAdd && (
             <div className="card">
-              <div className="card__header"><h3 className="card__title"><Plus size={18} /> Add Entry</h3></div>
+              <div className="card__header"><h3 className="card__title"><Plus size={18} /> {isDraft ? "Add Entry" : "Add Extra Task"}</h3></div>
               <div className="card__body ts-entry-form">
                 <div>
                   <label style={{ fontSize: "0.75rem", color: "var(--neutral-600)", display: "block", marginBottom: "var(--space-1)" }}>Date *</label>
