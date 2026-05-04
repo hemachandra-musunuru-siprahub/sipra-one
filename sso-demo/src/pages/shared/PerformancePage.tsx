@@ -20,9 +20,12 @@ interface EmployeeSummary {
   reviews: Review[];
 }
 
+import { normalizeRole } from "../../lib/roleHelper";
+import type { UserRole } from "../../lib/roleHelper";
+
 interface Props { 
   internalUser: any; 
-  role?: "admin" | "hr" | "manager" | "employee" | "Admin" | "HR" | "Manager" | "Employee"; 
+  role?: string; 
 }
 
 const CURRENT_REVIEW_PERIOD = "Q2 2026";
@@ -49,19 +52,8 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   const [goalForm, setGoalForm] = useState({ title: "", description: "", target_date: "", employee_oid: "" });
   const [reviewForm, setReviewForm] = useState({ employee_oid: "", review_period: CURRENT_REVIEW_PERIOD, rating: 3, strengths: "", improvements: "", comments: "" });
 
-  const displayRole = React.useMemo(() => {
-    if (role) {
-      if (role.toLowerCase() === "hr") return "HR";
-      return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() as any;
-    }
-    const userRoles = internalUser?.roles || [];
-    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
-    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r))) return "HR";
-    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
-    return "Employee";
-  }, [role, internalUser]);
-
-  const currentRole = displayRole.toLowerCase() as "admin" | "hr" | "manager" | "employee";
+  const currentRole = (role?.toLowerCase() || "employee") as "admin" | "hr" | "manager" | "employee";
+  const layoutRole: UserRole = normalizeRole(role);
 
   useEffect(() => {
     loadData();

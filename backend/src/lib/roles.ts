@@ -34,3 +34,11 @@ export const getEffectiveRole = (roles: string[]): "admin" | "hr" | "manager" | 
 export const ADMIN_AND_HR_ROLES      = [...ADMIN_ROLES, ...HR_ROLES];
 export const ADMIN_AND_MANAGER_ROLES = [...ADMIN_ROLES, ...MANAGER_ROLES];
 export const ALL_BUSINESS_ROLES      = [...ADMIN_ROLES, ...HR_ROLES, ...MANAGER_ROLES, ...EMPLOYEE_ROLES];
+
+export const getEffectiveRole = (roles: string[]): string => {
+  if (isAdmin(roles)) return 'admin';
+  if (isHR(roles)) return 'hr';
+  if (isManager(roles)) return 'manager';
+  if (isEmployee(roles)) return 'employee';
+  return 'employee'; // Fallback
+};

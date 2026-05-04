@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Plus, Trash2, Send, ChevronLeft, ChevronRight } from "lucide-react";
-import { getMyTimesheet, addEntry, deleteEntry, submitTimesheet } from "../../api/timesheets";
+import { Plus, Trash2, Send, ChevronLeft, ChevronRight, Pencil, Save, X } from "lucide-react";
+import { getMyTimesheet, addEntry, deleteEntry, submitTimesheet, putUpdateEntry } from "../../api/timesheets";
 import type { Timesheet, TimesheetEntry } from "../../api/types";
 
 interface Props { internalUser: any; }
@@ -14,13 +14,23 @@ const getMonday = (d: Date) => {
   return monday.toISOString().slice(0, 10);
 };
 
+import { normalizeRole } from "../../lib/roleHelper";
+import type { UserRole } from "../../lib/roleHelper";
+
 export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
+  const displayRole: UserRole = normalizeRole(internalUser?.roleFromEntra);
+
   const [currentWeek, setCurrentWeek] = useState(getMonday(new Date()));
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ workDate: "", projectName: "", taskDescription: "", hours: 8 });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit state
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ date: "", project: "", task: "", hours: 0 });
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const loadWeek = (week: string) => {
     setLoading(true);
@@ -58,6 +68,50 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
     } catch (e: any) { setError(e.message); }
   };
 
+  const handleEditStart = (entry: TimesheetEntry) => {
+    setEditingEntryId(entry.id);
+    setEditForm({
+      date: entry.work_date,
+      project: entry.project_name,
+      task: entry.task_description,
+      hours: entry.hours
+    });
+    setError(null);
+  };
+
+  const handleEditCancel = () => {
+    setEditingEntryId(null);
+    setError(null);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingEntryId) return;
+
+    // Debug logs
+    console.log("Updating entry:", editForm);
+    console.log("Entry ID:", editingEntryId);
+    if (!editForm.date || !editForm.project || !editForm.task || !editForm.hours) {
+      setError("All fields are required for editing.");
+      return;
+    }
+    if (editForm.hours <= 0 || editForm.hours > 24) {
+      setError("Hours must be between 0.5 and 24.");
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+    try {
+      const { timesheet: updated } = await putUpdateEntry(editingEntryId, editForm);
+      setTimesheet(updated);
+      setEditingEntryId(null);
+    } catch (e: any) {
+      setError(e.message || "Failed to update entry");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!timesheet) return;
     setSubmitting(true);
@@ -72,9 +126,9 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
   const statusBadge = (s: string) => ({ draft: "badge--draft", submitted: "badge--it", reviewed: "badge--published" }[s] || "badge--draft");
 
   return (
-    <DashboardLayout internalUser={internalUser} role="Employee">
+    <DashboardLayout internalUser={internalUser} role={displayRole}>
       <header className="page-header">
-        <div className="breadcrumb"><span>Employee</span><span className="breadcrumb__separator">/</span><span>Timesheets</span></div>
+        <div className="breadcrumb"><span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Timesheets</span></div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">My Timesheet</h1>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
@@ -119,21 +173,112 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
                 <tbody>
                   {!timesheet.entries || timesheet.entries.length === 0 ? (
                     <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No entries yet. Add one below.</td></tr>
-                  ) : timesheet.entries.map((entry: TimesheetEntry) => (
-                    <tr key={entry.id}>
-                      <td>{entry.work_date}</td>
-                      <td style={{ fontWeight: 500 }}>{entry.project_name}</td>
-                      <td style={{ color: "var(--neutral-600)", fontSize: "0.875rem" }}>{entry.task_description}</td>
-                      <td><strong>{entry.hours}h</strong></td>
-                      {isDraft && (
+                  ) : timesheet.entries.map((entry: TimesheetEntry) => {
+                    const isEditing = editingEntryId === entry.id;
+                    return (
+                      <tr key={entry.id}>
                         <td>
-                          <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-500)" }} onClick={() => handleDeleteEntry(entry.id)}>
-                            <Trash2 size={14} />
-                          </button>
+                          {isEditing ? (
+                            <input
+                              className="input input--sm"
+                              type="date"
+                              value={editForm.date}
+                              onChange={e => setEditForm({ ...editForm, date: e.target.value })}
+                            />
+                          ) : (
+                            entry.work_date
+                          )}
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td>
+                          {isEditing ? (
+                            <input
+                              className="input input--sm"
+                              placeholder="Project"
+                              value={editForm.project}
+                              onChange={e => setEditForm({ ...editForm, project: e.target.value })}
+                            />
+                          ) : (
+                            <span style={{ fontWeight: 500 }}>{entry.project_name}</span>
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              className="input input--sm"
+                              placeholder="Task description"
+                              value={editForm.task}
+                              onChange={e => setEditForm({ ...editForm, task: e.target.value })}
+                            />
+                          ) : (
+                            <span style={{ color: "var(--neutral-600)", fontSize: "0.875rem" }}>{entry.task_description}</span>
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              className="input input--sm"
+                              type="number"
+                              min={0.5}
+                              max={24}
+                              step={0.5}
+                              style={{ width: "80px" }}
+                              value={editForm.hours}
+                              onChange={e => setEditForm({ ...editForm, hours: parseFloat(e.target.value) })}
+                            />
+                          ) : (
+                            <strong>{entry.hours}h</strong>
+                          )}
+                        </td>
+                        {isDraft && (
+                          <td>
+                            <div style={{ display: "flex", gap: "var(--space-1)" }}>
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    style={{ color: "var(--primary-600)" }}
+                                    onClick={handleEditSave}
+                                    disabled={isUpdating}
+                                    title="Save"
+                                  >
+                                    <Save size={16} />
+                                  </button>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    style={{ color: "var(--neutral-500)" }}
+                                    onClick={handleEditCancel}
+                                    disabled={isUpdating}
+                                    title="Cancel"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    style={{ color: "var(--primary-600)" }}
+                                    onClick={() => handleEditStart(entry)}
+                                    title="Edit"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    style={{ color: "var(--error-500)" }}
+                                    onClick={() => handleDeleteEntry(entry.id)}
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

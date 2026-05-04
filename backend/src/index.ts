@@ -6,7 +6,17 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // ─── Validate required env vars ───────────────────────────────────────────────
-const required = ["ENTRA_TENANT_ID", "ENTRA_CLIENT_ID", "DATABASE_URL"];
+const required = ["ENTRA_TENANT_ID", "ENTRA_CLIENT_ID", "DATABASE_URL", "ENTRA_CLIENT_SECRET"];
+console.log("--------------------------------------------------");
+console.log("SipraHub Backend Startup: Environment Check");
+console.log(`ENTRA_TENANT_ID exists: ${!!process.env.ENTRA_TENANT_ID}`);
+console.log(`ENTRA_CLIENT_ID exists: ${!!process.env.ENTRA_CLIENT_ID}`);
+console.log(`ENTRA_CLIENT_SECRET exists: ${!!process.env.ENTRA_CLIENT_SECRET && process.env.ENTRA_CLIENT_SECRET !== "your_client_secret_if_used"}`);
+if (process.env.ENTRA_CLIENT_SECRET && process.env.ENTRA_CLIENT_SECRET !== "your_client_secret_if_used") {
+  console.log(`ENTRA_CLIENT_SECRET length: ${process.env.ENTRA_CLIENT_SECRET.length}`);
+}
+console.log("--------------------------------------------------");
+
 for (const key of required) {
   if (!process.env[key] || process.env[key]!.includes("your_")) {
     console.error(`❌ STARTUP ERROR: ${key} is missing or invalid in .env`);
@@ -29,6 +39,7 @@ import hrDocumentRoutes  from "./services/hr-documents/routes";
 import searchRoutes      from "./services/search/routes";
 import performanceRoutes from "./services/performance/routes";
 import adminRoutes       from "./services/admin/routes";
+import managerRoutes     from "./services/manager/routes";
 
 const app = express();
 
@@ -63,6 +74,7 @@ app.use("/api/hr-documents",   hrDocumentRoutes);
 app.use("/api/search",         searchRoutes);
 app.use("/api/performance",    performanceRoutes);
 app.use("/api/admin",          adminRoutes);
+app.use("/api/manager",        managerRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -5,9 +5,7 @@ import { validate } from "../../middleware/validate";
 import { notFound, forbidden, badRequest } from "../../lib/errors";
 import { isAdmin, ADMIN_ROLES, HR_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
-import * as hrRepo from "../hr-documents/repo";
-import * as annRepo from "../announcements/repo";
-import * as leaveRepo from "../leave/repo";
+import { query } from "../../db";
 
 const router = Router();
 
@@ -40,7 +38,17 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) =>
 router.get("/", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]), async (req: AuthRequest, res: Response) => {
   console.log("Fetching users. User roles:", req.user?.roles);
   const users = await repo.listUsers();
-  res.json({ users });
+  
+  // Dynamic role detection for the list
+  const { rows: managerOids } = await query("SELECT DISTINCT manager_entra_oid FROM users WHERE manager_entra_oid IS NOT NULL");
+  const managerSet = new Set(managerOids.map((r: any) => r.manager_entra_oid));
+
+  const decoratedUsers = users.map((u: any) => ({
+    ...u,
+    roleFromEntra: managerSet.has(u.entra_oid) ? 'manager' : 'employee'
+  }));
+
+  res.json({ users: decoratedUsers });
 });
 
 // ─── GET /api/users/:id — view profile (authenticated, field-restricted) ──────

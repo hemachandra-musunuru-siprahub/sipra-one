@@ -71,17 +71,16 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
   const navGroups: Record<string, NavGroup[]> = {
     Admin: [
       {
-        label: "Overview",
+        label: "OVERVIEW",
         items: [
           { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: dashboardPath },
           { label: "System Health",icon: <Shield size={20} />,          path: `${basePath}/health` },
         ],
       },
       {
-        label: "Management",
+        label: "MANAGEMENT",
         items: [
-          { label: "Users",          icon: <Users size={20} />,     path: `${basePath}/users` },
-          { label: "Performance",    icon: <Target size={20} />,    path: `${basePath}/performance` },
+          { label: "Users",          icon: <Users size={20} />,     path: "/admin/users" },
         ],
       },
     ],
@@ -125,9 +124,9 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "My Team",
         items: [
-          { label: "Approvals",   icon: <UserCheck size={20} />,      path: `${basePath}/approvals` },
-          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: `${basePath}/timesheets` },
-          { label: "Performance", icon: <Target size={20} />,         path: `${basePath}/performance` },
+          { label: "Leave Approvals",   icon: <UserCheck size={20} />,      path: "/manager/approvals" },
+          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/manager/timesheets" },
+          { label: "Performance", icon: <Target size={20} />,         path: "/manager/performance" },
         ],
       },
       {

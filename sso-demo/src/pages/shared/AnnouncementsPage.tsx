@@ -7,7 +7,18 @@ import { AnnouncementForm } from "../../components/AnnouncementForm";
 import { reactToAnnouncement, deleteAnnouncement } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
+import { normalizeRole } from "../../lib/roleHelper";
+import type { UserRole } from "../../lib/roleHelper";
+
+interface Props { internalUser: any; isHR?: boolean; role?: string; }
+
+const REACTIONS = [
+  { type: "thumbs_up", icon: "👍" },
+  { type: "heart",     icon: "❤️" },
+  { type: "laugh",     icon: "😄" },
+  { type: "surprised", icon: "😮" },
+  { type: "sad",       icon: "😢" },
+];
 
 export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) => {
   const { announcements, loading, hasMore, loadMore, refresh, setAnnouncements } = useAnnouncements(1, 20);
@@ -77,11 +88,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
     }
   };
 
-  const handleFormSuccess = () => {
-    setShowForm(false);
-    setEditingAnnouncement(null);
-    refresh();
-  };
+  const layoutRole: UserRole = normalizeRole(role);
 
   const displayRole = useMemo(() => {
     if (role) return role;

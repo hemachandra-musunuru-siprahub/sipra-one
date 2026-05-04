@@ -15,7 +15,10 @@ import type { HrDocument, User } from "../../api/types";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../../authConfig";
 
-interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
+import { normalizeRole } from "../../lib/roleHelper";
+import type { UserRole } from "../../lib/roleHelper";
+
+interface Props { internalUser: any; isHR?: boolean; role?: string; }
 
 export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const { instance, accounts } = useMsal();
@@ -79,101 +82,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
-  // ─── OneDrive Flow ──────────────────────────────────────────────────────────
-  
-  const getAccessToken = async () => {
-    const request = { ...loginRequest, account: accounts[0] };
-    const response = await instance.acquireTokenSilent(request);
-    return response.accessToken;
-  };
-
-  const loadOneDrive = async (folderId?: string) => {
-    setOdLoading(true);
-    try {
-      const token = await getAccessToken();
-      const items = await browseOneDrive(token, folderId);
-      setOdItems(items);
-      setOdFolderId(folderId);
-      setOdSearch("");
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setOdLoading(false);
-    }
-  };
-
-  const handleOdSearch = async () => {
-    if (!odSearch.trim()) { loadOneDrive(odFolderId); return; }
-    setOdLoading(true);
-    try {
-      const token = await getAccessToken();
-      const items = await searchOneDrive(token, odSearch);
-      setOdItems(items);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setOdLoading(false);
-    }
-  };
-
-  const openOneDriveFlow = () => {
-    setShowOneDriveModal(true);
-    setOneDriveStep("browse");
-    setSelectedFile(null);
-    setSelectedEmpOids([]);
-    loadOneDrive();
-    // Load employees for next step
-    getUsers().then(data => setAllEmployees(data.users.filter(u => u.is_active))).catch(console.error);
-  };
-
-  const handleFileSelect = (item: any) => {
-    setSelectedFile(item);
-    setOneDriveStep("share");
-  };
-
-  const toggleEmp = (oid: string) => {
-    setSelectedEmpOids(prev => prev.includes(oid) ? prev.filter(x => x !== oid) : [...prev, oid]);
-  };
-
-  const handleShare = async () => {
-    if (!selectedFile || selectedEmpOids.length === 0) return;
-    setSubmitting(true);
-    try {
-      const token = await getAccessToken();
-      // 1. Create a sharing link for the file
-      const shareUrl = await createShareLink(token, selectedFile.id, selectedFile.webUrl);
-      
-      // 2. Save metadata to backend
-      await shareDocument({
-        fileName: selectedFile.name,
-        onedriveUrl: shareUrl,
-        driveItemId: selectedFile.id,
-        documentType: shareDocType,
-        description: shareDesc,
-        recipientOids: selectedEmpOids
-      });
-      
-      setShowOneDriveModal(false);
-      fetchDocs(); // Refresh documents list
-      alert(`Shared "${selectedFile.name}" with ${selectedEmpOids.length} employees.`);
-    } catch (e: any) {
-      alert("Sharing failed: " + e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const displayRole = React.useMemo(() => {
-    if (role) {
-      if (role.toLowerCase() === "hr") return "HR";
-      return role;
-    }
-    const userRoles = internalUser?.roles || [];
-    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
-    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
-    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
-    return "Employee";
-  }, [role, internalUser, isHR]);
+  const layoutRole: UserRole = normalizeRole(role);
 
   return (
     <DashboardLayout internalUser={internalUser} role={displayRole}>

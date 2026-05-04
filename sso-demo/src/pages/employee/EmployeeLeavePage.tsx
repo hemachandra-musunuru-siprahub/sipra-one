@@ -71,15 +71,14 @@ function TableSkeleton() {
 }
 
 /* ─── Main Page ─────────────────────────────────────────── */
-export const EmployeeLeavePage = ({ internalUser }: Props) => {
-  const roles = internalUser?.roles || [];
-  const isAdminRole = roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin");
-  const isHRRole = roles.includes("HR") || roles.includes("SipraHub-HR");
-  const isManagerRole = roles.includes("Manager") || roles.includes("SipraHub-Manager");
+import { normalizeRole } from "../../lib/roleHelper";
+import type { UserRole } from "../../lib/roleHelper";
 
-  let displayRole: "Admin" | "HR" | "Manager" | "Employee" = "Employee";
-  if (isHRRole) displayRole = "HR";
-  else if (isManagerRole) displayRole = "Manager";
+export const EmployeeLeavePage = ({ internalUser }: Props) => {
+  const displayRole: UserRole = normalizeRole(internalUser?.roleFromEntra);
+  const isHRRole = displayRole === "HR";
+  const isManagerRole = displayRole === "Manager";
+  const isAdminRole = displayRole === "Admin";
 
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);

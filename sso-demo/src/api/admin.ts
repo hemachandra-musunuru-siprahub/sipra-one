@@ -1,19 +1,13 @@
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
-/**
- * Fetch all users (flat list). Roles are managed by Entra ID — not stored in DB.
- * Returns: { users: User[] }
- */
-export async function getAllUsers() {
+/** Flat list of all users with roleFromEntra resolved from Microsoft Graph */
+export async function getAdminUsers() {
   const res = await fetch(`${API}/api/admin/users`, { credentials: "include" });
-  if (!res.ok) throw new Error("Failed to fetch users");
-  return res.json() as Promise<{ users: any[] }>;
+  if (!res.ok) throw new Error("Failed to fetch admin users");
+  return res.json(); // { users: [...] }
 }
 
-/**
- * @deprecated Use getAllUsers() instead.
- * Kept for backwards compatibility — now returns { users: [...] } (flat, not grouped).
- */
+/** Grouped users (for the Admin Dashboard overview) */
 export async function getGroupedUsers() {
   return getAllUsers();
 }
@@ -21,7 +15,7 @@ export async function getGroupedUsers() {
 export async function deleteUser(oid: string) {
   const res = await fetch(`${API}/api/admin/users/${oid}`, {
     method: "DELETE",
-    credentials: "include"
+    credentials: "include",
   });
   if (!res.ok) {
     const err = await res.json();
