@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { query } from "../db";
+import { getEffectiveRole } from "../lib/roles";
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_key_change_me";
 
@@ -11,6 +12,7 @@ export interface AuthRequest extends Request {
     email: string;
     name: string;
     roles: string[];
+    effective_role: "admin" | "hr" | "manager" | "employee";
     manager_entra_oid?: string;
     is_active: boolean;
   };
@@ -18,11 +20,11 @@ export interface AuthRequest extends Request {
 
 // ─── In-memory user cache ─────────────────────────────────────────────────────
 // Caches the DB user row for 60 seconds per entra_oid so that every protected
-// API call does NOT hit the database. TTL keeps it fresh for role / status changes.
+// API call does NOT hit the database. TTL keeps it fresh for status changes.
 const USER_CACHE_TTL_MS = 60_000; // 60 seconds
 
 interface CachedUser {
-  user: AuthRequest["user"];
+  user: Omit<AuthRequest["user"], "roles" | "effective_role">; // DB fields only — no role data
   expiresAt: number;
 }
 
@@ -32,7 +34,7 @@ export const invalidateUserCache = (entra_oid: string) => {
   userCache.delete(entra_oid);
 };
 
-const getCachedUser = (entra_oid: string): AuthRequest["user"] | null => {
+const getCachedUser = (entra_oid: string): CachedUser["user"] | null => {
   const entry = userCache.get(entra_oid);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) {
@@ -42,7 +44,7 @@ const getCachedUser = (entra_oid: string): AuthRequest["user"] | null => {
   return entry.user!;
 };
 
-const setCachedUser = (entra_oid: string, user: AuthRequest["user"]) => {
+const setCachedUser = (entra_oid: string, user: CachedUser["user"]) => {
   userCache.set(entra_oid, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
 };
 
@@ -54,16 +56,19 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
     return;
   }
   try {
+    // Roles come ONLY from the JWT — Entra is the source of truth
     const decoded = jwt.verify(token, JWT_SECRET) as { entra_oid: string; roles: string[] };
+    const roles = decoded.roles || [];
+    const effective_role = getEffectiveRole(roles);
 
     // ── Check cache first ──
     const cached = getCachedUser(decoded.entra_oid);
     if (cached) {
-      req.user = { ...cached, roles: decoded.roles || [] };
+      req.user = { ...cached, roles, effective_role } as AuthRequest["user"];
       return next();
     }
 
-    // ── Cache miss: hit the DB once, then cache ──
+    // ── Cache miss: hit the DB once (identity/profile only), then cache ──
     const { rows } = await query(
       "SELECT id, entra_oid, email, name, manager_entra_oid, is_active FROM users WHERE entra_oid = $1 AND is_active = true",
       [decoded.entra_oid]
@@ -74,7 +79,8 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
     }
     const userRow = rows[0];
     setCachedUser(decoded.entra_oid, userRow);
-    req.user = { ...userRow, roles: decoded.roles || [] };
+    // Merge DB profile with JWT roles (roles are NEVER stored in DB)
+    req.user = { ...userRow, roles, effective_role };
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized: Invalid or expired session token" });

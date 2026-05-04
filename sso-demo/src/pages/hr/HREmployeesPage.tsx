@@ -27,8 +27,8 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
   }, []);
 
   const filtered = users.filter(u => {
-    const matchesSearch = (u.name || "").toLowerCase().includes(search.toLowerCase()) || 
-                          (u.email || "").toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (u.name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filter === "all" ? true : filter === "active" ? u.is_active : !u.is_active;
     return matchesSearch && matchesStatus;
   });
@@ -63,23 +63,23 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
             <tbody>
               {loading ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading employee data…</td></tr>
                 : errorMsg ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--error-500)" }}>Error: {errorMsg}</td></tr>
-                : filtered.length === 0 ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No employees found.</td></tr>
-                : filtered.map(u => (
-                  <tr key={u.entra_oid}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                        <div className="avatar avatar--sm" style={{ width: 28, height: 28 }}>{(u.name || "U")[0]}</div>
-                        <span style={{ fontWeight: 500 }}>{u.name || u.entra_oid.slice(0,8)}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontSize: "0.875rem" }}>{u.email}</td>
-                    <td style={{ fontSize: "0.75rem", fontFamily: "monospace", color: u.manager_entra_oid ? "var(--neutral-800)" : "var(--neutral-400)" }}>
-                      {u.manager_entra_oid ? u.manager_entra_oid.slice(0, 12) + "…" : "No Manager"}
-                    </td>
-                    <td><span className={`badge ${u.is_active ? "badge--published" : "badge--draft"}`}>{u.is_active ? "Active" : "Inactive"}</span></td>
-                    <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{u.last_login ? new Date(u.last_login).toLocaleDateString() : "Never"}</td>
-                  </tr>
-                ))}
+                  : filtered.length === 0 ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No employees found.</td></tr>
+                    : filtered.map(u => (
+                      <tr key={u.entra_oid}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                            <div className="avatar avatar--sm" style={{ width: 28, height: 28 }}>{(u.name || "U")[0]}</div>
+                            <span style={{ fontWeight: 500 }}>{u.name || u.entra_oid.slice(0, 8)}</span>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: "0.875rem" }}>{u.email}</td>
+                        <td style={{ fontSize: "0.75rem", fontFamily: "monospace", color: u.manager_entra_oid ? "var(--neutral-800)" : "var(--neutral-400)" }}>
+                          {u.manager_entra_oid ? u.manager_entra_oid.slice(0, 12) + "…" : "No Manager"}
+                        </td>
+                        <td><span className={`badge ${u.is_active ? "badge--published" : "badge--draft"}`}>{u.is_active ? "Active" : "Inactive"}</span></td>
+                        <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{u.last_login ? new Date(u.last_login).toLocaleDateString() : "Never"}</td>
+                      </tr>
+                    ))}
             </tbody>
           </table>
         </div>

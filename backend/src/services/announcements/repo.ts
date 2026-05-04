@@ -120,12 +120,7 @@ export const findById = async (id: string, userOid?: string) => {
   return rows[0] || null;
 };
 
-// ─── Get user reaction ────────────────────────────────────────────────────────
-export const getUserReaction = async (announcementId: string, userOid: string) => {
-  const { rows } = await query(
-    `SELECT reaction_type FROM announcement_reactions 
-     WHERE announcement_id = $1 AND user_oid = $2 LIMIT 1`,
-    [announcementId, userOid]
-  );
-  return rows[0]?.reaction_type || null;
+export const countAnnouncements = async () => {
+  const { rows } = await query(`SELECT COUNT(*)::int FROM announcements`);
+  return rows[0].count;
 };

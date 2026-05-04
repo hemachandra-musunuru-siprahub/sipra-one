@@ -77,6 +77,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         label: "Management",
         items: [
           { label: "Users",          icon: <Users size={20} />,     path: "/admin/users" },
+          { label: "Performance",    icon: <Target size={20} />,    path: "/admin/performance" },
         ],
       },
     ],

@@ -95,41 +95,21 @@ function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
   );
 }
 
-// ─── Announcements redirect ───────────────────────────────────────────────────
-function AnnouncementsRedirect({ internalUser }: { internalUser: InternalUser | null }) {
-  const navigate = useNavigate();
-  useEffect(() => {
-    if (!internalUser) return;
-    const roles = internalUser.roles || [];
-    if (isAdminRole(roles) || isHRRole(roles)) {
-      navigate("/hr/announcements", { replace: true });
-    } else if (isManagerRole(roles)) {
-      navigate("/manager/announcements", { replace: true });
-    } else {
-      navigate("/employee/announcements", { replace: true });
-    }
-  }, [internalUser, navigate]);
-  return (
-    <div className="spinner-wrap">
-      <div className="spinner" />
-      <p style={{ color: "var(--neutral-50)", fontFamily: "Inter, sans-serif" }}>Opening announcements…</p>
-    </div>
-  );
-}
+import { getAllUsers, deleteUser } from "./api/admin";
+import { setActive } from "./api/users";
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null }) => {
   const navigate = useNavigate();
   const [dbStatus, setDbStatus] = useState<string>("Checking…");
-  const [groupedUsers, setGroupedUsers] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"hr" | "manager" | "employee" | "admin">("hr");
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getGroupedUsers();
-      setGroupedUsers(data);
+      const data = await getAllUsers();
+      setUsers(data.users || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -157,10 +137,10 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
     } catch (e: any) { alert(e.message); }
   };
 
-  const UserTable = ({ users, title }: { users: any[], title: string }) => (
+  const UserTable = ({ userList, title }: { userList: any[], title: string }) => (
     <div className="card" style={{ marginBottom: "var(--space-6)" }}>
       <div className="card__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h3 className="card__title">{title} ({users.length})</h3>
+        <h3 className="card__title">{title} ({userList.length})</h3>
         <button className="btn btn--ghost btn--sm" onClick={() => navigate("/admin/users")}>Manage All</button>
       </div>
       <div className="table-container">
@@ -176,9 +156,9 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
             </tr>
           </thead>
           <tbody>
-            {users.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-6)" }}>No members found in this role group.</td></tr>
-            ) : users.map(user => (
+            {userList.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-6)" }}>No users found.</td></tr>
+            ) : userList.map(user => (
               <tr key={user.entra_oid}>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
@@ -207,7 +187,7 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
   );
 
   const stats = [
-    { label: "Active Users",    value: groupedUsers ? Object.values(groupedUsers).flat().filter((u: any) => u.is_active).length : "…", trend: "Live", icon: <Users size={20} />,    color: "#3B82F6" },
+    { label: "Active Users",    value: users.filter(u => u.is_active).length || "…", trend: "Live", icon: <Users size={20} />,    color: "#3B82F6" },
     { label: "Database",        value: dbStatus,                                      trend: "Health",    icon: <Server size={20} />,   color: "#10B981" },
     { label: "Sync Status",     value: "Active",                                      trend: "Real-time", icon: <Activity size={20} />, color: "#F59E0B" },
     { label: "Security Health", value: "Verified",                                    trend: "Entra ID",  icon: <Shield size={18} />,   color: "#CE2124" },
@@ -240,28 +220,15 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
 
       <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>
         <div className="card">
-          <div className="card__header" style={{ borderBottom: "1px solid var(--neutral-100)" }}>
-            <h3 className="card__title">Role Members</h3>
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
-              {(["hr", "manager", "employee", "admin"] as const).map(role => (
-                <button 
-                  key={role}
-                  className={`btn btn--sm ${activeTab === role ? "btn--primary" : "btn--secondary"}`}
-                  onClick={() => setActiveTab(role)}
-                  style={{ textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: "0.05em" }}
-                >
-                  {role} {groupedUsers?.[role]?.length ? `(${groupedUsers[role].length})` : ""}
-                </button>
-              ))}
-            </div>
+          <div className="card__header" style={{ borderBottom: "1px solid var(--neutral-100)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 className="card__title">All Users</h3>
+            <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>Roles are managed by Microsoft Entra ID</span>
           </div>
           <div className="card__body">
             {loading ? (
-              <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--neutral-500)" }}>Fetching role data…</div>
-            ) : groupedUsers ? (
-              <UserTable users={groupedUsers[activeTab] || []} title={`${activeTab.toUpperCase()} Members`} />
+              <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--neutral-500)" }}>Fetching users…</div>
             ) : (
-              <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--error-500)" }}>Failed to load members.</div>
+              <UserTable userList={users} title="Registered Users" />
             )}
           </div>
         </div>

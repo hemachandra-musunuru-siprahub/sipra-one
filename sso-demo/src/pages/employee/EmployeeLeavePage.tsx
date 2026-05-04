@@ -141,8 +141,8 @@ export const EmployeeLeavePage = ({ internalUser }: Props) => {
       fetchData(); // Immediately refresh the leave balances from DB
       const isAutoApproved = isHRRole || isManagerRole;
       addToast(
-        "success", 
-        isAutoApproved ? "Leave approved" : "Leave request submitted", 
+        "success",
+        isAutoApproved ? "Leave approved" : "Leave request submitted",
         isAutoApproved ? "Your leave has been automatically approved and balance updated." : "Your manager has been notified."
       );
     } catch (e: any) {

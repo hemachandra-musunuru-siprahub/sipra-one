@@ -2,10 +2,8 @@ import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import { Calendar, Clock, Megaphone, FileText, User, HelpCircle } from "lucide-react";
 import { getAnnouncements } from "../api/announcements";
-import { getLeaveBalances } from "../api/leave";
 import { getMyTimesheet } from "../api/timesheets";
-
-import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
+import { getDashboardSummary } from "../api/users";
 import type { Announcement, LeaveBalance, Timesheet } from "../api/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,14 +13,20 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null);
+  const [counts, setCounts] = useState({ documents: 0, announcements: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getAnnouncements(1, 5), getLeaveBalances(), getMyTimesheet()])
-      .then(([annData, balData, tsData]) => {
+    Promise.all([
+      getAnnouncements(1, 5),
+      getMyTimesheet(),
+      getDashboardSummary()
+    ])
+      .then(([annData, tsData, dashData]) => {
         setAnnouncements(annData.announcements);
-        setBalances(balData.balances);
         setTimesheet(tsData.timesheet);
+        setBalances(dashData.leaveBalances);
+        setCounts(dashData.counts);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -35,8 +39,8 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
   const stats = [
     { label: "Annual Leave",      value: loading ? "…" : annualDays, trend: "Remaining",     icon: <Calendar size={20} />, color: "#CE2124" },
     { label: "Timesheet Status",  value: loading ? "…" : tsStatus,   trend: "Current Week",  icon: <Clock size={20} />,    color: "#3B82F6" },
-    { label: "Announcements",     value: loading ? "…" : `${announcements.length}`, trend: "Unread", icon: <Megaphone size={20} />, color: "#F59E0B" },
-    { label: "Documents",         value: "—",                          trend: "Company Docs",  icon: <FileText size={20} />, color: "#10B981" },
+    { label: "Announcements",     value: loading ? "…" : `${counts.announcements}`, trend: "Latest", icon: <Megaphone size={20} />, color: "#F59E0B" },
+    { label: "Documents",         value: loading ? "…" : `${counts.documents}`, trend: "Shared with me", icon: <FileText size={20} />, color: "#10B981" },
   ];
 
   const modules = [

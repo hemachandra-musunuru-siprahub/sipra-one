@@ -25,7 +25,7 @@ import { query } from "../../db";
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     // Upgrade constraints to allow 'casual' and additional leave types
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_type`);
     await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('annual', 'sick', 'casual', 'unpaid', 'other'))`);
@@ -49,7 +49,7 @@ const CreatePolicySchema = z.object({
 
 router.post("/policies", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]), validate(CreatePolicySchema), async (req: AuthRequest, res: Response) => {
   const { name, leaveType, totalDays, scope, target } = req.body;
-  
+
   const { rows } = await query(
     `INSERT INTO leave_policies (name, leave_type, total_days, scope, target)
      VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -99,9 +99,45 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   res.json({ requests });
 });
 
-router.get("/all", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
+/**
+ * GET /api/leave-requests/all
+ *
+ * Role-aware, server-side filtered:
+ *   - HR / Admin  → all leave requests in the system (unfiltered)
+ *   - Manager     → only requests where manager_oid = caller's Entra OID
+ *
+ * No client-side filtering is needed or expected.
+ */
+router.get("/all", requireAuth,
   async (req: AuthRequest, res: Response) => {
-    const requests = await repo.getAllRequests();
+    const roles = req.user!.roles || [];
+
+    if (isHR(roles) || isAdmin(roles)) {
+      // HR and Admin see every request in the system
+      const requests = await repo.getAllRequests();
+      res.json({ requests });
+    } else if (isManager(roles)) {
+      // Managers see only the requests assigned to them as approver
+      const requests = await repo.getManagerRequests(req.user!.entra_oid);
+      res.json({ requests });
+    } else {
+      throw forbidden("Only HR, Admin, or Manager roles can access this endpoint");
+    }
+  }
+);
+
+/**
+ * GET /api/leave-requests/manager
+ *
+ * Returns leave requests where manager_oid = logged-in user's Entra OID.
+ * Accessible by: Manager, HR, Admin.
+ * Filtering is purely server-side; the frontend sends no filter params.
+ */
+router.get("/manager", requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    const roles = req.user!.roles || [];
+    if (!canAccess(roles, isManager)) throw forbidden("Managers only");
+    const requests = await repo.getManagerRequests(req.user!.entra_oid);
     res.json({ requests });
   }
 );
@@ -127,8 +163,8 @@ router.get("/balances", requireAuth,
 const CreateLeaveSchema = z.object({
   leaveType: z.enum(["annual", "sick", "casual", "unpaid", "other"]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  reason:    z.string().optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reason: z.string().optional(),
 }).refine(d => new Date(d.startDate) <= new Date(d.endDate), {
   message: "start_date must be on or before end_date",
 });
@@ -172,7 +208,7 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
 );
 
 const ActionSchema = z.object({
-  action:          z.enum(["approved", "rejected"]),
+  action: z.enum(["approved", "rejected"]),
   rejectionReason: z.string().optional(),
 }).refine(d => d.action !== "rejected" || !!d.rejectionReason, {
   message: "rejectionReason is required when rejecting",
@@ -214,7 +250,7 @@ router.delete("/:id", requireAuth,
 
 const SetBalanceSchema = z.object({
   leaveType: z.enum(["annual", "sick", "unpaid", "other"]),
-  year:      z.number().int().min(2020).max(2100),
+  year: z.number().int().min(2020).max(2100),
   totalDays: z.number().min(0).max(365),
 });
 

@@ -5,8 +5,36 @@ import { validate } from "../../middleware/validate";
 import { notFound, forbidden, badRequest } from "../../lib/errors";
 import { isAdmin, ADMIN_ROLES, HR_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
+import * as hrRepo from "../hr-documents/repo";
+import * as annRepo from "../announcements/repo";
+import * as leaveRepo from "../leave/repo";
 
 const router = Router();
+
+// ─── GET /api/users/dashboard — unified summary for dashboard ─────────────────
+router.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) => {
+  const oid = req.user!.entra_oid;
+  const currentYear = new Date().getFullYear();
+
+  try {
+    const [docCount, annCount, leaveBalances] = await Promise.all([
+      hrRepo.countDocuments(oid),
+      annRepo.countAnnouncements(),
+      leaveRepo.getBalances(oid, currentYear),
+    ]);
+
+    res.json({
+      counts: {
+        documents: docCount,
+        announcements: annCount,
+      },
+      leaveBalances,
+    });
+  } catch (error: any) {
+    console.error("Dashboard data error:", error);
+    res.status(500).json({ error: "INTERNAL_ERROR", details: error.message });
+  }
+});
 
 // ─── GET /api/users — list all (admin and hr) ───────────────────────────────────
 router.get("/", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]), async (req: AuthRequest, res: Response) => {

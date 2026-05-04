@@ -1,11 +1,13 @@
 // ─── Centralized Role Helpers ───────────────────────────────────────────────
-// Supports both short names (Admin, HR, Manager, Employee) and
-// Entra app role names (SipraHub-SystemAdmin, SipraHub-HR, etc.)
+// Microsoft Entra ID is the single source of truth for all roles.
+// Roles are read ONLY from the JWT session token (req.user.roles).
+// Priority: Admin > HR > Manager > Employee (default).
+// The database stores NO role information.
 
-export const ADMIN_ROLES    = ["Admin", "SipraHub-SystemAdmin"] as const;
-export const HR_ROLES       = ["HR", "SipraHub-HR"] as const;
-export const MANAGER_ROLES  = ["Manager", "SipraHub-Manager"] as const;
-export const EMPLOYEE_ROLES = ["Employee", "SipraHub-Employee", "Default Access"] as const;
+export const ADMIN_ROLES    = ["Admin", "SipraHub-SystemAdmin", "SipraHub_Admin"] as const;
+export const HR_ROLES       = ["HR", "SipraHub-HR", "SipraHub_HR"] as const;
+export const MANAGER_ROLES  = ["Manager", "SipraHub-Manager", "SipraHub_Manager"] as const;
+export const EMPLOYEE_ROLES = ["Employee", "SipraHub-Employee", "SipraHub_Employee", "Default Access"] as const;
 
 export const isAdmin   = (roles: string[]): boolean => ADMIN_ROLES.some(r => roles.includes(r));
 export const isHR      = (roles: string[]): boolean => HR_ROLES.some(r => roles.includes(r));
@@ -15,6 +17,18 @@ export const isEmployee= (roles: string[]): boolean => EMPLOYEE_ROLES.some(r => 
 // Admin bypasses all role checks
 export const canAccess = (roles: string[], check: (r: string[]) => boolean): boolean =>
   isAdmin(roles) || check(roles);
+
+/**
+ * Derive a single canonical role string from Entra JWT roles.
+ * Priority: Admin > HR > Manager > Employee (default fallback).
+ * This is computed at runtime — never stored in the database.
+ */
+export const getEffectiveRole = (roles: string[]): "admin" | "hr" | "manager" | "employee" => {
+  if (isAdmin(roles))   return "admin";
+  if (isHR(roles))      return "hr";
+  if (isManager(roles)) return "manager";
+  return "employee";
+};
 
 // Combined role arrays for use with requireRole middleware
 export const ADMIN_AND_HR_ROLES      = [...ADMIN_ROLES, ...HR_ROLES];

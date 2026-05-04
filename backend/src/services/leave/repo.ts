@@ -38,12 +38,33 @@ export const getTeamRequests = async (directReportOids: string[]) => {
   return rows;
 };
 
-// ─── Get all leave requests (hr_admin) ───────────────────────────────────────
+// ─── Get all leave requests (HR/Admin only — no filter) ───────────────────────
 export const getAllRequests = async () => {
   const { rows } = await query(
-    `SELECT lr.*, u.name AS employee_name FROM leave_requests lr
-     JOIN users u ON u.entra_oid = lr.employee_oid
+    `SELECT lr.*,
+            emp.name AS employee_name,
+            mgr.name AS manager_name
+     FROM leave_requests lr
+     JOIN users emp ON emp.entra_oid = lr.employee_oid
+     LEFT JOIN users mgr ON mgr.entra_oid = lr.manager_oid
      ORDER BY lr.created_at DESC`
+  );
+  return rows;
+};
+
+// ─── Get leave requests where the caller is the approving manager ──────────────
+// Filters server-side: WHERE manager_oid = <logged-in OID>
+export const getManagerRequests = async (managerOid: string) => {
+  const { rows } = await query(
+    `SELECT lr.*,
+            emp.name AS employee_name,
+            mgr.name AS manager_name
+     FROM leave_requests lr
+     JOIN users emp ON emp.entra_oid = lr.employee_oid
+     LEFT JOIN users mgr ON mgr.entra_oid = lr.manager_oid
+     WHERE lr.manager_oid = $1
+     ORDER BY lr.created_at DESC`,
+    [managerOid]
   );
   return rows;
 };

@@ -85,6 +85,8 @@ export interface HrDocument {
   scope: "company" | "individual";
   department_name: string | null;
   assigned_to_oid: string | null;
+  assigned_to_name?: string;
+  assigned_to_email?: string;
   created_by_oid: string;
   created_at: string;
   updated_at: string;

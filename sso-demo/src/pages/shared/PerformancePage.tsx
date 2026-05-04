@@ -44,7 +44,11 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   const [reviewForm, setReviewForm] = useState({ employee_oid: "", review_period: CURRENT_REVIEW_PERIOD, rating: 3, strengths: "", improvements: "", comments: "" });
 
   const currentRole = (role?.toLowerCase() || "employee") as "admin" | "hr" | "manager" | "employee";
-  const layoutRole = (currentRole === "hr" ? "HR" : currentRole.charAt(0).toUpperCase() + currentRole.slice(1)) as "Admin" | "HR" | "Manager" | "Employee";
+  let layoutRole: "Admin" | "HR" | "Manager" | "Employee" = "Employee";
+  if (currentRole === "admin") layoutRole = "Admin";
+  else if (currentRole === "hr") layoutRole = "HR";
+  else if (currentRole === "manager") layoutRole = "Manager";
+  else layoutRole = "Employee";
 
   useEffect(() => {
     loadData();

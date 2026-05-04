@@ -9,6 +9,11 @@ import type { LeaveRequest, User } from "../../api/types";
 
 interface Props { internalUser: any; }
 
+/** Extends the base type with the server-joined manager_name field. */
+interface EnrichedLeaveRequest extends LeaveRequest {
+  manager_name?: string;
+}
+
 export const HRLeavePage = ({ internalUser }: Props) => {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"requests" | "policies">(
@@ -20,7 +25,9 @@ export const HRLeavePage = ({ internalUser }: Props) => {
     if (tab === "policies") setActiveTab("policies");
     else setActiveTab("requests");
   }, [searchParams]);
-  const [requests, setRequests] = useState<LeaveRequest[]>([]);
+
+  // All data is server-side scoped by role — no client-side role filtering needed
+  const [requests, setRequests] = useState<EnrichedLeaveRequest[]>([]);
   const [policies, setPolicies] = useState<LeavePolicy[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,24 +102,34 @@ export const HRLeavePage = ({ internalUser }: Props) => {
     }
   };
 
+  /**
+   * UI-only convenience filter applied to the server-returned (role-scoped) dataset.
+   * The backend has already applied role-based scoping; this is purely for searching
+   * within the results the server returned.
+   */
   const filteredRequests = requests.filter(r => {
-    const matchesSearch = (r.employee_name || "").toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (r.employee_name || "").toLowerCase().includes(search.toLowerCase())
+      || (r.manager_name || "").toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filter === "all" ? true : r.status === filter;
     return matchesSearch && matchesStatus;
   });
 
   const roles = internalUser?.roles || [];
   const isAdminRole = roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin");
-  const displayRole = isAdminRole ? "Admin" : "HR";
+  const isManagerRole = roles.includes("Manager") || roles.includes("SipraHub-Manager");
+  const displayRole = isAdminRole ? "Admin" : isManagerRole ? "Manager" : "HR";
+  const pageTitle = isManagerRole && !isAdminRole
+    ? "My Team Leave Requests"
+    : "Leave Administration";
 
   return (
     <DashboardLayout internalUser={internalUser} role={displayRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>HR</span><span className="breadcrumb__separator">/</span><span>Leave Management</span>
+          <span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Leave Management</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 className="page-title">Leave Administration</h1>
+          <h1 className="page-title">{pageTitle}</h1>
         </div>
       </header>
 
@@ -135,8 +152,11 @@ export const HRLeavePage = ({ internalUser }: Props) => {
       {activeTab === "requests" ? (
         <div className="card">
           <div className="card__header">
-            <h3 className="card__title"><Calendar size={18} style={{ marginRight: "var(--space-2)" }} /> Employee Requests</h3>
-            <div style={{ display: "flex", gap: "var(--space-3)" }}>
+            <h3 className="card__title"><Calendar size={18} style={{ marginRight: "var(--space-2)" }} />
+              {isManagerRole && !isAdminRole ? "My Team's Requests" : "All Employee Requests"}
+            </h3>
+            <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
+              {/* Search filters within the server-scoped result set */}
               <div className="topbar__search" style={{ border: "1px solid var(--neutral-200)", borderRadius: "var(--rounded-md)", padding: "0 var(--space-3)" }}>
                 <Search size={16} color="var(--neutral-400)" />
                 <input className="topbar__search-input" placeholder="Search by name…" value={search} onChange={e => setSearch(e.target.value)} />
@@ -152,7 +172,7 @@ export const HRLeavePage = ({ internalUser }: Props) => {
           </div>
           <div className="table-container">
             <table>
-              <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Manager (OID)</th></tr></thead>
+              <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Manager</th></tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading leave data…</td></tr>
                   : filteredRequests.length === 0 ? <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No leave requests found.</td></tr>
@@ -168,12 +188,15 @@ export const HRLeavePage = ({ internalUser }: Props) => {
                       <td style={{ fontSize: "0.875rem" }}>{r.start_date} → {r.end_date}</td>
                       <td>{r.total_days}</td>
                       <td>
-                        <span className={`badge ${r.status === "approved" ? "badge--published" : r.status === "rejected" ? "badge--urgent" : r.status === "cancelled" ? "badge--it" : "badge--draft"}`}>
-                          {r.status}
-                        </span>
+                        <span className={`badge ${
+                          r.status === "approved" ? "badge--published"
+                          : r.status === "rejected" ? "badge--urgent"
+                          : r.status === "cancelled" ? "badge--it"
+                          : "badge--draft"
+                        }`}>{r.status}</span>
                       </td>
-                      <td style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "var(--neutral-500)" }}>
-                        {r.manager_oid ? r.manager_oid.slice(0, 12) + "…" : "—"}
+                      <td style={{ fontSize: "0.875rem", color: "var(--neutral-600)" }}>
+                        {(r as EnrichedLeaveRequest).manager_name || (r.manager_oid ? r.manager_oid.slice(0, 12) + "…" : "—")}
                       </td>
                     </tr>
                   ))}

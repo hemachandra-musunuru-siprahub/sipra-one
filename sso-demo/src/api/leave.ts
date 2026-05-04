@@ -7,8 +7,20 @@ export const getMyLeave = () =>
 export const getTeamLeave = () =>
   api.get<{ requests: LeaveRequest[] }>("/api/leave-requests/team");
 
+/**
+ * HR/Admin: returns ALL leave requests (unfiltered).
+ * Manager: returns only requests where manager_oid = caller's OID.
+ * Filtering is server-side; no params needed.
+ */
 export const getAllLeave = () =>
   api.get<{ requests: LeaveRequest[] }>("/api/leave-requests/all");
+
+/**
+ * Explicit manager-scoped endpoint: requests where manager_oid = caller.
+ * Prefer getAllLeave() from the HR/Manager pages — it auto-branches by role.
+ */
+export const getManagerLeave = () =>
+  api.get<{ requests: LeaveRequest[] }>("/api/leave-requests/manager");
 
 export const getLeaveBalances = (year?: number) =>
   api.get<{ balances: LeaveBalance[]; year: number }>(

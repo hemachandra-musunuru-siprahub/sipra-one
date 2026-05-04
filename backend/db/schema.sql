@@ -9,6 +9,10 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ==========================================
 -- 0. User Profile Cache
 -- ==========================================
+-- NOTE: Microsoft Entra ID is the SINGLE SOURCE OF TRUTH for roles.
+-- Roles are read from the Entra ID token at login, stored in the
+-- session JWT, and NEVER persisted to this table.
+-- This table stores identity/profile data only.
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     entra_oid VARCHAR(255) UNIQUE NOT NULL,

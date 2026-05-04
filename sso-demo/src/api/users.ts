@@ -7,3 +7,6 @@ export const setManager = (oid: string, managerEntraOid: string | null) =>
   api.patch<{ user: User }>(`/api/users/${oid}/manager`, { managerEntraOid });
 export const setActive  = (oid: string, isActive: boolean) =>
   api.patch<{ user: User }>(`/api/users/${oid}/active`, { isActive });
+
+export const getDashboardSummary = () =>
+  api.get<{ counts: { documents: number; announcements: number }; leaveBalances: any[] }>("/api/users/dashboard");
