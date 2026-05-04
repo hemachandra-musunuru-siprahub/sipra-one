@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { Users, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { setActive, setManager } from "../../api/users";
-import { getAdminUsers, deleteUser } from "../../api/admin";
+import { getAllUsers, deleteUser } from "../../api/admin";
 
 interface Props { internalUser: any; }
 
@@ -62,7 +62,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
     else setRefreshing(true);
     setError(null);
     try {
-      const data = await getAdminUsers();
+      const data = await getAllUsers();
       setUsers(data.users || []);
     } catch (e: any) {
       setError(e.message || "Failed to load users");

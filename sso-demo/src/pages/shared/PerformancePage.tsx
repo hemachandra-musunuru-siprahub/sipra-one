@@ -246,10 +246,10 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
     : summary;
 
   return (
-    <DashboardLayout internalUser={internalUser} role={displayRole}>
+    <DashboardLayout internalUser={internalUser} role={layoutRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
+          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Performance Management</h1>

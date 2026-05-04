@@ -40,6 +40,7 @@ import searchRoutes      from "./services/search/routes";
 import performanceRoutes from "./services/performance/routes";
 import adminRoutes       from "./services/admin/routes";
 import managerRoutes     from "./services/manager/routes";
+import employeeRoutes    from "./services/employee/routes";
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use("/api/search",         searchRoutes);
 app.use("/api/performance",    performanceRoutes);
 app.use("/api/admin",          adminRoutes);
 app.use("/api/manager",        managerRoutes);
+app.use("/api/employee",       employeeRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

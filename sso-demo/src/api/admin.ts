@@ -1,7 +1,7 @@
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
 /** Flat list of all users with roleFromEntra resolved from Microsoft Graph */
-export async function getAdminUsers() {
+export async function getAllUsers() {
   const res = await fetch(`${API}/api/admin/users`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch admin users");
   return res.json(); // { users: [...] }
@@ -9,7 +9,9 @@ export async function getAdminUsers() {
 
 /** Grouped users (for the Admin Dashboard overview) */
 export async function getGroupedUsers() {
-  return getAllUsers();
+  const res = await fetch(`${API}/api/admin/users/grouped-by-role`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch grouped users");
+  return res.json(); // { groups: {...}, users: [...] }
 }
 
 export async function deleteUser(oid: string) {

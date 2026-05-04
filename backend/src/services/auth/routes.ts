@@ -147,36 +147,11 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Roles are extracted from ID token but NOT stored in DB
-    let appRoles: string[] = decodedIdToken?.roles || [];
-    if (appRoles.length === 0 && process.env.NODE_ENV !== "production") {
-      appRoles = ["Admin", "HR", "Manager", "Employee", "SipraHub-HR"];
-    }
-    
-    // Calculate effective role based on Entra App Roles / Groups
-    let effectiveRole = 'employee';
-    
-    const hasAdmin = appRoles.some(r => ['Admin', 'SipraHub-SystemAdmin', 'SipraHub_Admin'].includes(r));
-    const hasHR    = appRoles.some(r => ['HR', 'SipraHub-HR', 'SipraHub_HR'].includes(r));
-    const hasMgr   = appRoles.some(r => ['Manager', 'SipraHub-Manager', 'SipraHub_Manager'].includes(r));
-    const hasEmp   = appRoles.some(r => ['Employee', 'SipraHub-Employee', 'SipraHub_Employee'].includes(r));
-
-    if (hasAdmin) effectiveRole = 'admin';
-    else if (hasHR) effectiveRole = 'hr';
-    else if (hasMgr) effectiveRole = 'manager';
-    else if (hasEmp) effectiveRole = 'employee';
-
-    console.log(`[SYNC] --- ROLE MAPPING DEBUG ---`);
-    console.log(`[SYNC] User: ${profile.mail || profile.userPrincipalName}`);
-    console.log(`[SYNC] Entra roles received: ${JSON.stringify(appRoles)}`);
-    console.log(`[SYNC] Mapped roleFromEntra: ${effectiveRole}`);
-    console.log(`[SYNC] --------------------------`);
-
   // 3. Extract roles from ID token — Entra is the ONLY source of truth
   //    In dev with no app roles assigned, fall back to a full set for testing.
   let appRoles: string[] = decodedIdToken?.roles || [];
   if (appRoles.length === 0 && process.env.NODE_ENV !== "production") {
-    appRoles = ["Admin", "HR", "Manager", "Employee"];
+    appRoles = ["Admin", "HR", "Manager", "Employee", "SipraHub-HR"];
     console.warn("[SYNC] No Entra app roles found — using dev fallback roles:", appRoles);
   }
 
@@ -194,84 +169,74 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
   const name = profile.displayName;
   const finalManagerOid = managerEntraOid && managerEntraOid.trim() !== "" ? managerEntraOid : null;
 
-    console.log("[SYNC] 3. Creating/updating user profile cache in database...");
-    const upsertQuery = `
-      INSERT INTO users (
-        entra_oid,
-        email,
-        name,
-        manager_entra_oid,
-        last_login
-      )
-      VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
-      ON CONFLICT (entra_oid) 
-      DO UPDATE SET 
-        email = EXCLUDED.email,
-        name = EXCLUDED.name,
-        manager_entra_oid = CASE
-          WHEN EXCLUDED.manager_entra_oid IS NOT NULL
-          THEN EXCLUDED.manager_entra_oid
-          ELSE users.manager_entra_oid
-        END,
-        last_login = NOW()
-      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
-    `;
-    
-    let user;
-    try {
-      const { rows } = await query(upsertQuery, [
-        entra_oid, 
-        email, 
-        name, 
-        finalManagerOid
-      ]);
-      user = rows[0];
-      console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}`);
-    } catch (e: any) {
-      console.error("[SYNC] Database upsert failed:", e.message);
-      res.status(500).json({ error: "DATABASE_ERROR", details: e.message });
-      return;
-    }
-    
-    console.log("[SYNC] 4. Creating session cookie with roles...");
-    try {
-      // Include roles directly in the JWT session token
-      const sessionToken = jwt.sign(
-        { 
-          entra_oid: user.entra_oid, 
-          id: user.id,
-          roles: appRoles 
-        }, 
-        JWT_SECRET, 
-        { expiresIn: "8h" }
-      );
-      
-      const isProd = process.env.NODE_ENV === "production";
-      res.cookie("session_token", sessionToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "strict" : "lax",
-        path: "/",
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-      });
-
-      // Add roles to user object for response (Dynamic from Entra, not DB)
-      user.roleFromEntra = effectiveRole;
-      user.roles = appRoles;
-    } catch (e: any) {
-      console.error("[SYNC] Session cookie creation failed:", e.message);
-      res.status(500).json({ error: "SESSION_CREATION_FAILED", details: e.message });
-      return;
-    }
-    
-    console.log("[SYNC] Sync completely successful");
-    res.json({ message: "Sync successful", user });
-  } catch (error: any) {
-    console.error("[SYNC] Unexpected error:", error);
-    res.status(500).json({ error: "INTERNAL_SERVER_ERROR", details: error.message });
+  console.log("[SYNC] 3. Creating/updating user profile cache in database...");
+  const upsertQuery = `
+    INSERT INTO users (
+      entra_oid,
+      email,
+      name,
+      manager_entra_oid,
+      last_login
+    )
+    VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
+    ON CONFLICT (entra_oid) 
+    DO UPDATE SET 
+      email = EXCLUDED.email,
+      name = EXCLUDED.name,
+      manager_entra_oid = CASE
+        WHEN EXCLUDED.manager_entra_oid IS NOT NULL
+        THEN EXCLUDED.manager_entra_oid
+        ELSE users.manager_entra_oid
+      END,
+      last_login = NOW()
+    RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
+  `;
+  
+  let user;
+  try {
+    const { rows } = await query(upsertQuery, [
+      entra_oid, 
+      email, 
+      name, 
+      finalManagerOid
+    ]);
+    user = rows[0];
+    console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}`);
+  } catch (e: any) {
+    console.error("[SYNC] Database upsert failed:", e.message);
+    res.status(500).json({ error: "DATABASE_ERROR", details: e.message });
+    return;
   }
+  
+  console.log("[SYNC] 4. Creating session cookie with roles...");
+  try {
+    // Include roles directly in the JWT session token
+    const sessionToken = jwt.sign(
+      { 
+        entra_oid: user.entra_oid, 
+        id: user.id,
+        roles: appRoles 
+      }, 
+      JWT_SECRET, 
+      { expiresIn: "8h" }
+    );
+    
+    const isProd = process.env.NODE_ENV === "production";
+    res.cookie("session_token", sessionToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "strict" : "lax",
+      path: "/",
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
 
-  console.log("[SYNC] Sync successful");
+  } catch (e: any) {
+    console.error("[SYNC] Session cookie creation failed:", e.message);
+    res.status(500).json({ error: "SESSION_CREATION_FAILED", details: e.message });
+    return;
+  }
+  
+  console.log("[SYNC] Sync completely successful");
   // Return user profile + roles + computed effective_role to frontend
   res.json({
     message: "Sync successful",

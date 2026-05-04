@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Calendar, CheckCircle, Download, Eye, X, RotateCcw, Search } from "lucide-react";
+import { Calendar, CheckCircle, Download, Eye, X, Search } from "lucide-react";
 import { getTeamTimesheets, reviewTimesheet, exportManagerTimesheets, getTimesheetDetail } from "../../api/timesheets";
 import { getTeamMembers } from "../../api/users";
 import type { Timesheet, User } from "../../api/types";
@@ -502,14 +502,6 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
               <button className="btn btn--secondary" onClick={() => setIsModalOpen(false)}>Close</button>
               {selectedTs.status === "submitted" && (
                 <>
-                  <button
-                    className="btn btn--secondary"
-                    style={{ borderColor: "var(--warning-500)", color: "var(--warning-700)" }}
-                    onClick={() => handleReviewTs(selectedTs.id, "draft")}
-                    disabled={isReviewing}
-                  >
-                    <RotateCcw size={16} /> Send Back for Revision
-                  </button>
                   <button
                     className="btn btn--primary"
                     onClick={() => handleReviewTs(selectedTs.id, "reviewed")}

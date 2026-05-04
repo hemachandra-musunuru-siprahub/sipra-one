@@ -156,12 +156,6 @@ router.get("/users/grouped-by-role", requireAuth, requireRole([...ADMIN_ROLES]),
       FROM users
       ORDER BY name ASC
     `);
-    res.json({ users: rows });
-  } catch (error: any) {
-    console.error("Error fetching users:", error);
-    res.status(500).json({ error: "DB_ERROR", details: error.message });
-  }
-});
 
     console.log(`[ADMIN /grouped] ${rows.length} user(s). Resolving Entra roles...`);
 
@@ -197,8 +191,7 @@ router.get("/users/grouped-by-role", requireAuth, requireRole([...ADMIN_ROLES]),
       }
     });
 
-    // Roles are not in the DB. Return flat list; frontend groups by session role where needed.
-    res.json({ users: rows });
+    res.json({ groups, users: rows });
   } catch (error: any) {
     console.error("[ADMIN /grouped] Error:", error);
     res.status(500).json({ error: "DB_ERROR", details: error.message });

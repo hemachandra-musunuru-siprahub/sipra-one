@@ -14,11 +14,21 @@ const ALLOWED_REACTIONS = ["thumbs_up", "heart", "laugh", "surprised", "sad"] as
 
 // ─── GET /api/announcements — paginated feed ───────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
-  const page   = Math.max(1, parseInt(req.query.page as string) || 1);
-  const limit  = Math.min(50, parseInt(req.query.limit as string) || 20);
-  const latest = req.query.latest === "true";
-  const items  = await repo.getFeed(page, limit, req.user!.entra_oid, latest);
-  res.json({ announcements: items, page, limit });
+  try {
+    const page   = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit  = Math.min(50, parseInt(req.query.limit as string) || 20);
+    const latest = req.query.latest === "true";
+    const items  = await repo.getFeed(page, limit, req.user!.entra_oid, latest);
+    res.json({ announcements: items, page, limit });
+  } catch (err: any) {
+    logger.error({ err, path: "/api/announcements" }, "Failed to fetch announcements feed");
+    console.error("[GET /api/announcements] SQL Error:", err.message, err.detail || "");
+    res.status(500).json({
+      error: "INTERNAL_SERVER_ERROR",
+      message: "Failed to load announcements",
+      details: err.message,
+    });
+  }
 });
 
 // ─── GET /api/announcements/:id — single item ─────────────────────────────────
@@ -167,30 +177,41 @@ const ReactionSchema = z.object({
 router.post("/:id/reactions", requireAuth,
   validate(ReactionSchema),
   async (req: AuthRequest, res: Response) => {
-    const post = await repo.findById(req.params.id);
-    if (!post) throw notFound("Announcement not found");
-    
-    // Check if we already have this reaction
-    const currentReaction = await repo.getUserReaction(req.params.id, req.user!.entra_oid);
-    
-    if (currentReaction === req.body.reactionType) {
-      // Same reaction -> remove (undo)
-      await repo.removeReaction(req.params.id, req.user!.entra_oid);
-    } else {
-      // Different or none -> upsert
-      await repo.upsertReaction(req.params.id, req.user!.entra_oid, req.body.reactionType);
-    }
+    try {
+      const post = await repo.findById(req.params.id);
+      if (!post) throw notFound("Announcement not found");
+      
+      // Check if we already have this reaction
+      const currentReaction = await repo.getUserReaction(req.params.id, req.user!.entra_oid);
+      
+      if (currentReaction === req.body.reactionType) {
+        // Same reaction -> remove (undo)
+        await repo.removeReaction(req.params.id, req.user!.entra_oid);
+      } else {
+        // Different or none -> upsert
+        await repo.upsertReaction(req.params.id, req.user!.entra_oid, req.body.reactionType);
+      }
 
-    const summary = await repo.getReactionSummary(req.params.id);
-    const reactions_count: Record<string, number> = {};
-    summary.forEach(r => { reactions_count[r.reaction_type] = parseInt(r.count); });
-    
-    const newUserReaction = await repo.getUserReaction(req.params.id, req.user!.entra_oid);
-    
-    res.json({ 
-      reactions_count, 
-      user_reaction: newUserReaction 
-    });
+      const summary = await repo.getReactionSummary(req.params.id);
+      const reactions_count: Record<string, number> = {};
+      summary.forEach(r => { reactions_count[r.reaction_type] = parseInt(r.count); });
+      
+      const newUserReaction = await repo.getUserReaction(req.params.id, req.user!.entra_oid);
+      
+      res.json({ 
+        reactions_count, 
+        user_reaction: newUserReaction 
+      });
+    } catch (err: any) {
+      if (err.status === 404) {
+        res.status(404).json({ error: "NOT_FOUND", message: err.message });
+        return;
+      }
+      logger.error({ err, announcementId: req.params.id, userOid: req.user?.entra_oid }, "Database error updating reaction");
+      console.error("[Reaction DB Error]:", err);
+      // Return 200 with unchanged state instead of 500 on constraint violations or other DB issues
+      res.json({ error: "Reaction update failed", details: err.message });
+    }
   }
 );
 

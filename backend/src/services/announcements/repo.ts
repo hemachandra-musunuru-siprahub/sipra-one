@@ -5,12 +5,12 @@ export const getFeed = async (page = 1, limit = 20, userOid?: string, latest = f
   const offset = (page - 1) * limit;
   const orderBy = latest ? "a.created_at DESC" : "a.is_pinned DESC, a.created_at DESC";
   const { rows } = await query(
-    `SELECT a.*, 
+    `SELECT a.*,
        COALESCE(
          json_object_agg(r.reaction_type, r.cnt) FILTER (WHERE r.reaction_type IS NOT NULL),
          '{}'
        ) AS reactions,
-       (SELECT reaction_type FROM announcement_reactions 
+       (SELECT reaction_type FROM announcement_reactions
         WHERE announcement_id = a.id AND user_oid = $3 LIMIT 1) AS user_reaction
      FROM announcements a
      LEFT JOIN (
@@ -66,15 +66,13 @@ export const deleteAnnouncement = async (id: string) => {
   return (rowCount ?? 0) > 0;
 };
 
-// ─── Upsert reaction ─────────────────────────────────────────────────────────
+// ─── Upsert reaction (safe ON CONFLICT) ──────────────────────────────────────
 export const upsertReaction = async (announcementId: string, userOid: string, reactionType: string) => {
-  // Delete any existing reaction from this user on this post
   await query(
-    `DELETE FROM announcement_reactions WHERE announcement_id = $1 AND user_oid = $2`,
-    [announcementId, userOid]
-  );
-  await query(
-    `INSERT INTO announcement_reactions (announcement_id, user_oid, reaction_type) VALUES ($1, $2, $3)`,
+    `INSERT INTO announcement_reactions (announcement_id, user_oid, reaction_type)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (announcement_id, user_oid)
+     DO UPDATE SET reaction_type = EXCLUDED.reaction_type`,
     [announcementId, userOid, reactionType]
   );
 };
@@ -87,7 +85,16 @@ export const removeReaction = async (announcementId: string, userOid: string) =>
   );
 };
 
-// ─── Get reaction summary ─────────────────────────────────────────────────────
+// ─── Get single user's reaction on a post ────────────────────────────────────
+export const getUserReaction = async (announcementId: string, userOid: string) => {
+  const { rows } = await query(
+    `SELECT reaction_type FROM announcement_reactions WHERE announcement_id = $1 AND user_oid = $2`,
+    [announcementId, userOid]
+  );
+  return rows[0]?.reaction_type || null;
+};
+
+// ─── Get reaction summary (all reactions grouped by type) ─────────────────────
 export const getReactionSummary = async (announcementId: string) => {
   const { rows } = await query(
     `SELECT reaction_type, COUNT(*) AS count
@@ -101,12 +108,12 @@ export const getReactionSummary = async (announcementId: string) => {
 // ─── Find by ID ───────────────────────────────────────────────────────────────
 export const findById = async (id: string, userOid?: string) => {
   const { rows } = await query(
-    `SELECT a.*, 
+    `SELECT a.*,
        COALESCE(
          json_object_agg(r.reaction_type, r.cnt) FILTER (WHERE r.reaction_type IS NOT NULL),
          '{}'
        ) AS reactions,
-       (SELECT reaction_type FROM announcement_reactions 
+       (SELECT reaction_type FROM announcement_reactions
         WHERE announcement_id = a.id AND user_oid = $2 LIMIT 1) AS user_reaction
      FROM announcements a
      LEFT JOIN (

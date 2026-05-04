@@ -83,12 +83,13 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   };
 
   const layoutRole: UserRole = normalizeRole(role);
+  const displayRole = role || internalUser?.role || "employee";
 
   return (
     <DashboardLayout internalUser={internalUser} role={displayRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
+          <span style={{ textTransform: "capitalize" }}>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">HR Documents</h1>
