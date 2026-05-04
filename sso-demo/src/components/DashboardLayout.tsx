@@ -16,6 +16,9 @@ import {
   Target
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
+import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { SearchDropdown } from "./SearchDropdown";
+import { useState, useRef, useEffect } from "react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -47,6 +50,23 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
   const location = useLocation();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const navigate = useNavigate();
+
+  // ── Global Search State ──
+  const [searchQuery, setSearchQuery] = useState("");
+  const { results, isLoading } = useGlobalSearch(searchQuery);
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Close search when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsSearchVisible(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
@@ -228,12 +248,24 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
 
       {/* ── Topbar ── */}
       <header className="topbar">
-        <div className="topbar__search">
+        <div ref={searchRef} className="topbar__search relative">
           <Search size={16} />
           <input
             type="text"
             placeholder="Search SipraHub…"
             className="topbar__search-input"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setIsSearchVisible(true);
+            }}
+            onFocus={() => setIsSearchVisible(true)}
+          />
+          <SearchDropdown 
+            results={results} 
+            isLoading={isLoading} 
+            isVisible={isSearchVisible && searchQuery.length >= 2} 
+            onClose={() => setIsSearchVisible(false)}
           />
         </div>
         <div className="topbar__actions">

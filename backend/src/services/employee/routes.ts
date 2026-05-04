@@ -16,7 +16,7 @@ router.get("/dashboard-summary", requireAuth, async (req: AuthRequest, res: Resp
 
     // 1. Fetch leave balances
     const { rows: leaveBalances } = await query(
-      "SELECT leave_type, total_days, used_days, remaining_days FROM leave_balances WHERE user_entra_oid = $1",
+      "SELECT leave_type, total_days, used_days, remaining_days FROM leave_balances WHERE employee_oid = $1",
       [entraOid]
     );
 
@@ -26,7 +26,7 @@ router.get("/dashboard-summary", requireAuth, async (req: AuthRequest, res: Resp
       "SELECT count(*) FROM hr_documents"
     );
     const { rows: annCounts } = await query(
-      "SELECT count(*) FROM announcements WHERE status = 'published' OR status = 'published' IS NULL"
+      "SELECT count(*) FROM announcements"
     );
 
     const counts = {
