@@ -4,6 +4,7 @@ import { Calendar, Clock, Megaphone, FileText, User, HelpCircle } from "lucide-r
 import { getAnnouncements } from "../api/announcements";
 import { getMyTimesheet } from "../api/timesheets";
 import { getDashboardSummary } from "../api/users";
+import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import type { Announcement, LeaveBalance, Timesheet } from "../api/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

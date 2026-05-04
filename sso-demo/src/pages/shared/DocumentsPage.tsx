@@ -15,7 +15,7 @@ import type { HrDocument, User } from "../../api/types";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../../authConfig";
 
-interface Props { internalUser: any; isHR?: boolean; roleOverride?: "Admin" | "HR" | "Manager" | "Employee"; }
+interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
 
 export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const { instance, accounts } = useMsal();
@@ -163,18 +163,23 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     }
   };
 
-  const currentRole = role || "employee";
-  let layoutRole: "Admin" | "HR" | "Manager" | "Employee" = "Employee";
-  if (currentRole === "admin") layoutRole = "Admin";
-  else if (currentRole === "hr") layoutRole = "HR";
-  else if (currentRole === "manager") layoutRole = "Manager";
-  else layoutRole = "Employee";
+  const displayRole = React.useMemo(() => {
+    if (role) {
+      if (role.toLowerCase() === "hr") return "HR";
+      return role;
+    }
+    const userRoles = internalUser?.roles || [];
+    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
+    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
+    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
+    return "Employee";
+  }, [role, internalUser, isHR]);
 
   return (
-    <DashboardLayout internalUser={internalUser} role={layoutRole}>
+    <DashboardLayout internalUser={internalUser} role={displayRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
+          <span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">HR Documents</h1>

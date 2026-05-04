@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { Target, Star, Plus, CheckCircle, Clock, User, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import { 
@@ -27,12 +28,17 @@ interface Props {
 const CURRENT_REVIEW_PERIOD = "Q2 2026";
 
 export const PerformancePage = ({ internalUser, role }: Props) => {
-  const [activeTab, setActiveTab] = useState<"goals" | "reviews">("goals");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get("tab") as "goals" | "reviews") || "goals";
   const [managerReviewSubTab, setManagerReviewSubTab] = useState<"pending" | "reviewed">("pending");
   const [goals, setGoals] = useState<Goal[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [summary, setSummary] = useState<EmployeeSummary[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const setActiveTab = (tab: "goals" | "reviews") => {
+    setSearchParams({ tab });
+  };
   const [expandedEmployees, setExpandedEmployees] = useState<Record<string, boolean>>({});
 
   // Forms
@@ -43,12 +49,19 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   const [goalForm, setGoalForm] = useState({ title: "", description: "", target_date: "", employee_oid: "" });
   const [reviewForm, setReviewForm] = useState({ employee_oid: "", review_period: CURRENT_REVIEW_PERIOD, rating: 3, strengths: "", improvements: "", comments: "" });
 
-  const currentRole = (role?.toLowerCase() || "employee") as "admin" | "hr" | "manager" | "employee";
-  let layoutRole: "Admin" | "HR" | "Manager" | "Employee" = "Employee";
-  if (currentRole === "admin") layoutRole = "Admin";
-  else if (currentRole === "hr") layoutRole = "HR";
-  else if (currentRole === "manager") layoutRole = "Manager";
-  else layoutRole = "Employee";
+  const displayRole = React.useMemo(() => {
+    if (role) {
+      if (role.toLowerCase() === "hr") return "HR";
+      return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() as any;
+    }
+    const userRoles = internalUser?.roles || [];
+    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
+    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r))) return "HR";
+    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
+    return "Employee";
+  }, [role, internalUser]);
+
+  const currentRole = displayRole.toLowerCase() as "admin" | "hr" | "manager" | "employee";
 
   useEffect(() => {
     loadData();
@@ -241,10 +254,10 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
     : summary;
 
   return (
-    <DashboardLayout internalUser={internalUser} role={layoutRole}>
+    <DashboardLayout internalUser={internalUser} role={displayRole}>
       <header className="page-header">
         <div className="breadcrumb">
-          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
+          <span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Performance Management</h1>

@@ -7,9 +7,9 @@ import { AnnouncementForm } from "../../components/AnnouncementForm";
 import { reactToAnnouncement, deleteAnnouncement } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-interface Props { internalUser: any; isHR?: boolean; roleOverride?: "Admin" | "HR" | "Manager" | "Employee"; }
+interface Props { internalUser: any; isHR?: boolean; role?: "Admin" | "HR" | "Manager" | "Employee"; }
 
-export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: Props) => {
+export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) => {
   const { announcements, loading, hasMore, loadMore, refresh, setAnnouncements } = useAnnouncements(1, 20);
   const [showForm, setShowForm] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
@@ -84,13 +84,13 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, roleOverride }: 
   };
 
   const displayRole = useMemo(() => {
-    if (roleOverride) return roleOverride;
+    if (role) return role;
     const userRoles = internalUser?.roles || [];
     if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
     if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
     if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
     return "Employee";
-  }, [roleOverride, internalUser, isHR]);
+  }, [role, internalUser, isHR]);
 
   // Filter announcements
   const filteredAnnouncements = useMemo(() => {

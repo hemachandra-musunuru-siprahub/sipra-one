@@ -55,6 +55,10 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
     });
   };
 
+  const currentRole = role || "Employee";
+  const basePath = currentRole === "Admin" ? "/admin" : currentRole === "HR" ? "/hr" : currentRole === "Manager" ? "/manager" : "/employee";
+  const dashboardPath = currentRole === "Admin" ? "/admin-dashboard" : currentRole === "HR" ? "/hr-dashboard" : currentRole === "Manager" ? "/manager-dashboard" : "/employee-dashboard";
+
   const userName = internalUser?.name || accounts[0]?.name || "User";
   const userEmail = internalUser?.email || accounts[0]?.username || "";
   const initials = userName
@@ -69,15 +73,15 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: "/admin-dashboard" },
-          { label: "System Health",icon: <Shield size={20} />,          path: "/admin/health" },
+          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: dashboardPath },
+          { label: "System Health",icon: <Shield size={20} />,          path: `${basePath}/health` },
         ],
       },
       {
         label: "Management",
         items: [
-          { label: "Users",          icon: <Users size={20} />,     path: "/admin/users" },
-          { label: "Performance",    icon: <Target size={20} />,    path: "/admin/performance" },
+          { label: "Users",          icon: <Users size={20} />,     path: `${basePath}/users` },
+          { label: "Performance",    icon: <Target size={20} />,    path: `${basePath}/performance` },
         ],
       },
     ],
@@ -85,23 +89,23 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: "/hr-dashboard" },
+          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: dashboardPath },
         ],
       },
       {
         label: "People",
         items: [
-          { label: "Employees",      icon: <Users size={20} />,         path: "/hr/employees" },
-          { label: "Leave Requests", icon: <Calendar size={20} />,      path: "/hr/leave" },
-          { label: "Leave Policies", icon: <ClipboardList size={20} />, path: "/hr/leave?tab=policies" },
-          { label: "Performance",    icon: <Target size={20} />,        path: "/hr/performance" },
+          { label: "Employees",      icon: <Users size={20} />,         path: `${basePath}/employees` },
+          { label: "Leave Requests", icon: <Calendar size={20} />,      path: `${basePath}/leave` },
+          { label: "Leave Policies", icon: <ClipboardList size={20} />, path: `${basePath}/leave?tab=policies` },
+          { label: "Performance",    icon: <Target size={20} />,        path: `${basePath}/performance` },
         ],
       },
       {
         label: "Content",
         items: [
-          { label: "Documents",    icon: <FileText size={20} />,    path: "/hr/documents" },
-          { label: "Announcements",icon: <Megaphone size={20} />,   path: "/hr/announcements" },
+          { label: "Documents",    icon: <FileText size={20} />,    path: `${basePath}/documents` },
+          { label: "Announcements",icon: <Megaphone size={20} />,   path: `${basePath}/announcements` },
         ],
       },
       {
@@ -115,22 +119,22 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: "/manager-dashboard" },
+          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: dashboardPath },
         ],
       },
       {
         label: "My Team",
         items: [
-          { label: "Approvals",   icon: <UserCheck size={20} />,      path: "/manager/approvals" },
-          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/manager/timesheets" },
-          { label: "Performance", icon: <Target size={20} />,         path: "/manager/performance" },
+          { label: "Approvals",   icon: <UserCheck size={20} />,      path: `${basePath}/approvals` },
+          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: `${basePath}/timesheets` },
+          { label: "Performance", icon: <Target size={20} />,         path: `${basePath}/performance` },
         ],
       },
       {
         label: "Resources",
         items: [
-          { label: "Notices",     icon: <Megaphone size={20} />,      path: "/manager/announcements" },
-          { label: "Documents",   icon: <FileText size={20} />,       path: "/manager/documents" },
+          { label: "Notices",     icon: <Megaphone size={20} />,      path: `${basePath}/announcements` },
+          { label: "Documents",   icon: <FileText size={20} />,       path: `${basePath}/documents` },
         ],
       },
       {
@@ -144,29 +148,29 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: "/employee-dashboard" },
+          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: dashboardPath },
         ],
       },
       {
         label: "Self Service",
         items: [
-          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/employee/leave" },
-          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/employee/timesheets" },
-          { label: "Performance", icon: <Target size={20} />,         path: "/employee/performance" },
+          { label: "My Leave",    icon: <Calendar size={20} />,       path: `${basePath}/leave` },
+          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: `${basePath}/timesheets` },
+          { label: "Performance", icon: <Target size={20} />,         path: `${basePath}/performance` },
         ],
       },
       {
         label: "Company",
         items: [
-          { label: "Notices",     icon: <Megaphone size={20} />,      path: "/employee/announcements" },
-          { label: "Documents",   icon: <FileText size={20} />,       path: "/employee/documents" },
+          { label: "Notices",     icon: <Megaphone size={20} />,      path: `${basePath}/announcements` },
+          { label: "Documents",   icon: <FileText size={20} />,       path: `${basePath}/documents` },
         ],
       },
     ],
   };
 
-  const currentGroups = navGroups[role] || navGroups.Employee;
-  const roleAccent = ROLE_COLOR[role] || "var(--primary-500)";
+  const currentGroups = navGroups[currentRole] || navGroups.Employee;
+  const roleAccent = ROLE_COLOR[currentRole] || "var(--primary-500)";
 
   return (
     <div className="app-container">
