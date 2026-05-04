@@ -53,6 +53,8 @@ export interface LeaveRequest {
   id: string;
   employee_oid: string;
   employee_name?: string;
+  requester_name?: string;
+  employee?: { name: string };
   manager_oid: string;
   leave_type: "annual" | "sick" | "casual" | "unpaid" | "other";
   start_date: string;

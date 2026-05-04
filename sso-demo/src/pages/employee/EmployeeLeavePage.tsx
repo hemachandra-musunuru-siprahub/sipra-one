@@ -106,11 +106,19 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
 
   /* ─── Load data ── */
   const fetchData = useCallback(() => {
+    console.log(`[DEBUG] Fetching leave data for user: ${internalUser?.entra_oid || "unknown"}`);
     Promise.all([getMyLeave(), getLeaveBalances()])
-      .then(([lData, bData]) => { setRequests(lData.requests); setBalances(bData.balances); })
-      .catch(() => addToast("error", "Failed to load leave data", "Please refresh the page."))
+      .then(([lData, bData]) => {
+        console.log(`[DEBUG] Loaded ${lData.requests?.length || 0} leave requests from DB.`);
+        setRequests(lData.requests || []);
+        setBalances(bData.balances || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load leave data:", err);
+        addToast("error", "Failed to load leave data", "Please refresh the page.");
+      })
       .finally(() => setLoading(false));
-  }, [addToast]);
+  }, [addToast, internalUser?.entra_oid]);
 
   useEffect(() => {
     fetchData();
@@ -170,6 +178,8 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   const filteredRequests = requests.filter(r =>
     activeTab === "all" ? true : r.status === activeTab
   );
+
+  console.log(`[DEBUG] Rendering ${filteredRequests.length} rows. Tab: ${activeTab}. Total State Count: ${requests.length}`);
 
   const selectedBalance = balances.find(b => b.leave_type === form.leaveType);
   const isLowBalance = selectedBalance && selectedBalance.remaining_days <= 2;

@@ -3,7 +3,11 @@ import { query, pool } from "../../db";
 // ─── Get own leave requests ───────────────────────────────────────────────────
 export const getOwnRequests = async (employeeOid: string) => {
   const { rows } = await query(
-    `SELECT * FROM leave_requests WHERE employee_oid = $1 ORDER BY created_at DESC`,
+    `SELECT lr.*, m.name AS manager_name
+     FROM leave_requests lr
+     LEFT JOIN users m ON m.entra_oid = lr.manager_oid
+     WHERE lr.employee_oid = $1
+     ORDER BY lr.created_at DESC`,
     [employeeOid]
   );
   return rows;
@@ -28,9 +32,9 @@ export const getTeamRequests = async (directReportOids: string[]) => {
   if (directReportOids.length === 0) return [];
   const placeholders = directReportOids.map((_, i) => `$${i + 1}`).join(", ");
   const { rows } = await query(
-    `SELECT lr.*, u.name AS employee_name
+    `SELECT DISTINCT lr.*, u.name AS employee_name
      FROM leave_requests lr
-     JOIN users u ON u.entra_oid = lr.employee_oid
+     LEFT JOIN users u ON u.entra_oid = lr.employee_oid
      WHERE lr.employee_oid IN (${placeholders})
      ORDER BY lr.created_at DESC`,
     directReportOids
@@ -41,11 +45,11 @@ export const getTeamRequests = async (directReportOids: string[]) => {
 // ─── Get all leave requests (HR/Admin only — no filter) ───────────────────────
 export const getAllRequests = async () => {
   const { rows } = await query(
-    `SELECT lr.*,
+    `SELECT DISTINCT lr.*,
             emp.name AS employee_name,
             mgr.name AS manager_name
      FROM leave_requests lr
-     JOIN users emp ON emp.entra_oid = lr.employee_oid
+     LEFT JOIN users emp ON emp.entra_oid = lr.employee_oid
      LEFT JOIN users mgr ON mgr.entra_oid = lr.manager_oid
      ORDER BY lr.created_at DESC`
   );
@@ -56,11 +60,11 @@ export const getAllRequests = async () => {
 // Filters server-side: WHERE manager_oid = <logged-in OID>
 export const getManagerRequests = async (managerOid: string) => {
   const { rows } = await query(
-    `SELECT lr.*,
+    `SELECT DISTINCT lr.*,
             emp.name AS employee_name,
             mgr.name AS manager_name
      FROM leave_requests lr
-     JOIN users emp ON emp.entra_oid = lr.employee_oid
+     LEFT JOIN users emp ON emp.entra_oid = lr.employee_oid
      LEFT JOIN users mgr ON mgr.entra_oid = lr.manager_oid
      WHERE lr.manager_oid = $1
      ORDER BY lr.created_at DESC`,
@@ -71,7 +75,13 @@ export const getManagerRequests = async (managerOid: string) => {
 
 // ─── Find by ID ───────────────────────────────────────────────────────────────
 export const findById = async (id: string) => {
-  const { rows } = await query(`SELECT * FROM leave_requests WHERE id = $1`, [id]);
+  const { rows } = await query(
+    `SELECT lr.*, u.name AS employee_name
+     FROM leave_requests lr
+     LEFT JOIN users u ON u.entra_oid = lr.employee_oid
+     WHERE lr.id = $1`,
+    [id]
+  );
   return rows[0] || null;
 };
 
@@ -83,10 +93,15 @@ export const approveRequest = async (
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query(
-      `UPDATE leave_requests
-       SET status = 'approved', actioned_by_oid = $2, actioned_at = NOW(), updated_at = NOW()
-       WHERE id = $1 RETURNING *`,
+    const { rows: updatedRows } = await client.query(
+      `WITH updated AS (
+        UPDATE leave_requests
+        SET status = 'approved', actioned_by_oid = $2, actioned_at = NOW(), updated_at = NOW()
+        WHERE id = $1 RETURNING *
+      )
+      SELECT u.*, emp.name AS employee_name
+      FROM updated u
+      LEFT JOIN users emp ON emp.entra_oid = u.employee_oid`,
       [id, actionedByOid]
     );
     // Decrement balance for managed leave types
@@ -99,7 +114,7 @@ export const approveRequest = async (
       );
     }
     await client.query("COMMIT");
-    return rows[0];
+    return updatedRows[0];
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -111,10 +126,15 @@ export const approveRequest = async (
 // ─── Reject ───────────────────────────────────────────────────────────────────
 export const rejectRequest = async (id: string, actionedByOid: string, rejectionReason: string) => {
   const { rows } = await query(
-    `UPDATE leave_requests
-     SET status = 'rejected', actioned_by_oid = $2, actioned_at = NOW(),
-         manager_comment = $3, updated_at = NOW()
-     WHERE id = $1 RETURNING *`,
+    `WITH updated AS (
+      UPDATE leave_requests
+      SET status = 'rejected', actioned_by_oid = $2, actioned_at = NOW(),
+          manager_comment = $3, updated_at = NOW()
+      WHERE id = $1 RETURNING *
+    )
+    SELECT u.*, emp.name AS employee_name
+    FROM updated u
+    LEFT JOIN users emp ON emp.entra_oid = u.employee_oid`,
     [id, actionedByOid, rejectionReason]
   );
   return rows[0];

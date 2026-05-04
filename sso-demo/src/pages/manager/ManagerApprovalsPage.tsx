@@ -12,7 +12,7 @@ import {
   Check,
   FileText,
 } from "lucide-react";
-import { getTeamLeave, actionLeave } from "../../api/leave";
+import { getAllLeave, actionLeave } from "../../api/leave";
 import type { LeaveRequest } from "../../api/types";
 
 interface Props { internalUser: any; }
@@ -79,9 +79,16 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
 
   /* ─── Load ── */
   useEffect(() => {
-    getTeamLeave()
-      .then(data => setLeaveRequests(data.requests))
-      .catch(() => addToast("error", "Failed to load team leave", "Please refresh the page."))
+    setLoading(true);
+    getAllLeave()
+      .then(data => {
+        console.log(`[DEBUG] Loaded ${data.requests?.length || 0} leave requests from API.`);
+        setLeaveRequests(data.requests || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load team leave:", err);
+        addToast("error", "Failed to load team leave", "Please refresh the page.");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -90,8 +97,9 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
     const req = leaveRequests.find(r => r.id === id);
     try {
       const { request } = await actionLeave(id, "approved");
-      setLeaveRequests(prev => prev.map(r => r.id === id ? request : r));
-      addToast("success", "Leave approved", `Approved for ${req?.employee_name ?? "employee"}.`);
+      // Merge only updated fields from backend to preserve existing fields like employee_name if they were missing in response
+      setLeaveRequests(prev => prev.map(r => r.id === id ? { ...r, ...request } : r));
+      addToast("success", "Leave approved", `Approved for ${request.employee_name || req?.employee_name || "employee"}.`);
     } catch (e: any) {
       addToast("error", "Could not approve", e.message);
     }
@@ -105,8 +113,9 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
     }
     try {
       const { request } = await actionLeave(id, "rejected", rejectReason);
-      setLeaveRequests(prev => prev.map(r => r.id === id ? request : r));
-      addToast("warning", "Leave rejected", `Rejection sent to ${leaveRequests.find(r => r.id === id)?.employee_name ?? "employee"}.`);
+      setLeaveRequests(prev => prev.map(r => r.id === id ? { ...r, ...request } : r));
+      const empName = request.employee_name || leaveRequests.find(r => r.id === id)?.employee_name || "employee";
+      addToast("warning", "Leave rejected", `Rejection sent to ${empName}.`);
       setRejectingId(null);
       setRejectReason("");
       setRejectError("");
@@ -119,6 +128,8 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
   const filteredRequests = leaveRequests.filter(r =>
     filter === "all" ? true : r.status === filter
   );
+
+  console.log(`[DEBUG] Rendering ${filteredRequests.length} rows. Filter: ${filter}. Total State Count: ${leaveRequests.length}`);
 
   const pendingCount  = leaveRequests.filter(r => r.status === "pending").length;
   const approvedCount = leaveRequests.filter(r => r.status === "approved").length;
@@ -247,10 +258,10 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                         <div className="emp-avatar">
-                          {initials(req.employee_name || "E")}
+                          {initials(req.employee_name || req.employee?.name || req.requester_name || "E")}
                         </div>
                         <span style={{ fontWeight: 500, color: "var(--neutral-800)", fontSize: "0.9375rem" }}>
-                          {req.employee_name || req.employee_oid.slice(0, 8)}
+                          {req.employee_name || req.employee?.name || req.requester_name || req.employee_oid?.slice(0, 8) || "Unknown Employee"}
                         </span>
                       </div>
                     </td>
@@ -359,7 +370,7 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
                     {initials(detailRequest.employee_name || "E")}
                   </div>
                   <span style={{ fontWeight: 500, color: "var(--neutral-800)" }}>
-                    {detailRequest.employee_name || detailRequest.employee_oid.slice(0, 8)}
+                    {detailRequest.employee_name || detailRequest.employee?.name || detailRequest.requester_name || detailRequest.employee_oid?.slice(0, 8) || "Unknown Employee"}
                   </span>
                 </div>
 
