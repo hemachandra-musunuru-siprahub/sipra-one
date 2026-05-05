@@ -7,6 +7,9 @@ import { isAdmin, isHR, HR_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
 import { processBase64Image } from "../../lib/imageUtils";
 import { logger } from "../../lib/logger";
+import * as notifRepo from "../notifications/repo";
+import { emitNotification, getSocketServer } from "../../lib/socketServer";
+import { query } from "../../db";
 
 const router = Router();
 
@@ -90,6 +93,33 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
       );
       
       res.status(201).json({ announcement: item });
+
+      // ── Fan-out notification to all active users (fire-and-forget) ─────
+      try {
+        const { rows } = await query(`SELECT entra_oid FROM users WHERE is_active = true`);
+        let recipientOids: string[] = rows.map((r: any) => r.entra_oid);
+        
+        // Filter out the HR user who created it
+        recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
+
+        if (recipientOids.length > 0) {
+          const notifTitle = type === "IMPORTANT" ? `🚨 ${title}` : `📢 ${title}`;
+          const notifMsg = `New announcement: ${body.slice(0, 120)}${body.length > 120 ? "..." : ""}`;
+          const notifications = await notifRepo.createNotifications(
+            recipientOids, "announcement", notifTitle, notifMsg, "announcement", item.id
+          );
+          notifications.forEach(n => emitNotification(n.recipient_oid, n));
+          const io = getSocketServer();
+          if (io) {
+            for (const oid of recipientOids) {
+              const count = await notifRepo.unreadCount(oid);
+              io.to(`user:${oid}`).emit("unread_count", { count });
+            }
+          }
+        }
+      } catch (nErr) {
+        console.error("[NOTIF] Failed to send announcement notification:", nErr);
+      }
     } catch (err: any) {
       logger.error({ err }, "Error creating announcement");
       console.error(err);

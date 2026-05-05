@@ -206,6 +206,14 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
         </div>
       </header>
 
+      <section className="welcome-card" style={{ height: "140px", padding: "var(--space-6) var(--space-10)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "var(--space-6)" }}>
+        <div className="welcome-card__content" style={{ textAlign: "center", width: "100%" }}>
+          <h1 className="welcome-card__title" style={{ fontSize: "2.5rem", fontWeight: 700, margin: 0, color: "white" }}>
+            Welcome back, {internalUser?.name?.split(" ")[0] || "there"}!
+          </h1>
+        </div>
+      </section>
+
       <section className="stats-grid">
         {stats.map((stat, idx) => (
           <div className="stat-card" key={idx}>

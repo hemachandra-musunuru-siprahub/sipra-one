@@ -5,6 +5,9 @@ import { validate } from "../../middleware/validate";
 import { notFound, forbidden } from "../../lib/errors";
 import { HR_ROLES, ADMIN_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
+import * as notifRepo from "../notifications/repo";
+import { emitNotification, getSocketServer } from "../../lib/socketServer";
+import { query } from "../../db";
 
 const router = Router();
 
@@ -48,6 +51,40 @@ router.post("/", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
       title, documentType, scope, onedriveUrl, req.user!.entra_oid, description, assignedToOid
     );
     res.status(201).json({ document: doc });
+
+    // ── Notify users based on scope (fire-and-forget) ────────────────────
+    try {
+      const notifTitle = "New HR Document";
+      const notifMsg = `A new document "${title}" is available.`;
+      
+      let recipientOids: string[] = [];
+
+      if (scope === "company") {
+        const { rows } = await query(`SELECT entra_oid FROM users WHERE is_active = true`);
+        recipientOids = rows.map((r: any) => r.entra_oid);
+      } else if (scope === "individual" && assignedToOid) {
+        recipientOids = [assignedToOid];
+      }
+
+      // Filter out the HR user who uploaded it
+      recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
+
+      if (recipientOids.length > 0) {
+        const notifications = await notifRepo.createNotifications(
+          recipientOids, "hr_document", notifTitle, notifMsg, "hr_document", doc.id
+        );
+        notifications.forEach(n => emitNotification(n.recipient_oid, n));
+        const io = getSocketServer();
+        if (io) {
+          for (const oid of recipientOids) {
+            const count = await notifRepo.unreadCount(oid);
+            io.to(`user:${oid}`).emit("unread_count", { count });
+          }
+        }
+      }
+    } catch (nErr) {
+      console.error("[NOTIF] Failed to send document creation notification:", nErr);
+    }
   }
 );
 
@@ -72,6 +109,25 @@ router.post("/share", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
       fileName, documentType, onedriveUrl, sharedByOid, recipientOids, description
     );
     res.status(201).json({ documents: docs });
+
+    // ── Notify each recipient about the new shared document ──────────────
+    try {
+      const notifTitle = "New Document Shared With You";
+      const notifMsg = `HR has shared a document with you: "${fileName}". Click to view.`;
+      const notifications = await notifRepo.createNotifications(
+        recipientOids, "hr_document", notifTitle, notifMsg, "hr_document", docs[0]?.id
+      );
+      notifications.forEach(n => emitNotification(n.recipient_oid, n));
+      const io = getSocketServer();
+      if (io) {
+        for (const oid of recipientOids) {
+          const count = await notifRepo.unreadCount(oid);
+          io.to(`user:${oid}`).emit("unread_count", { count });
+        }
+      }
+    } catch (nErr) {
+      console.error("[NOTIF] Failed to send document share notification:", nErr);
+    }
   }
 );
 

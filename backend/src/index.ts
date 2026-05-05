@@ -1,3 +1,4 @@
+import http from "http";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -38,11 +39,14 @@ import leaveRoutes       from "./services/leave/routes";
 import hrDocumentRoutes  from "./services/hr-documents/routes";
 import searchRoutes      from "./services/search/routes";
 import performanceRoutes from "./services/performance/routes";
-import adminRoutes       from "./services/admin/routes";
-import managerRoutes     from "./services/manager/routes";
-import employeeRoutes    from "./services/employee/routes";
+import adminRoutes         from "./services/admin/routes";
+import managerRoutes       from "./services/manager/routes";
+import employeeRoutes      from "./services/employee/routes";
+import notificationRoutes  from "./services/notifications/routes";
+import { initSocketServer } from "./lib/socketServer";
 
 const app = express();
+const httpServer = http.createServer(app);
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 app.use(cors({
@@ -77,6 +81,7 @@ app.use("/api/performance",    performanceRoutes);
 app.use("/api/admin",          adminRoutes);
 app.use("/api/manager",        managerRoutes);
 app.use("/api/employee",       employeeRoutes);
+app.use("/api/notifications",  notificationRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -88,9 +93,15 @@ app.use(errorHandler);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+
+// Initialize Socket.IO (must be before httpServer.listen)
+initSocketServer(httpServer, FRONTEND_URL);
+
+httpServer.listen(PORT, () => {
   logger.info(`🚀 SipraHub backend running on port ${PORT}`);
   logger.info(`   Tenant:   ${process.env.ENTRA_TENANT_ID}`);
-  logger.info(`   Frontend: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
+  logger.info(`   Frontend: ${FRONTEND_URL}`);
+  logger.info(`   WebSocket: Socket.IO ready`);
 });
 

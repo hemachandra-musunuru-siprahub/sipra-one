@@ -5,6 +5,9 @@ import { validate } from "../../middleware/validate";
 import { notFound, forbidden, badRequest } from "../../lib/errors";
 import { isAdmin, ADMIN_ROLES, HR_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
+import * as hrRepo from "../hr-documents/repo";
+import * as annRepo from "../announcements/repo";
+import * as leaveRepo from "../leave/repo";
 import { query } from "../../db";
 
 const router = Router();

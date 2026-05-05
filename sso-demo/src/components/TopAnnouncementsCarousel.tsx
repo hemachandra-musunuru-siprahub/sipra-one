@@ -65,9 +65,9 @@ const FeaturedUpdateCard = ({ ann, onClick, getImageUrl }: CardProps) => {
             </span>
           )}
           {ann.is_pinned && (
-             <span className="flex-shrink-0 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-               Pinned
-             </span>
+            <span className="flex-shrink-0 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+              Pinned
+            </span>
           )}
           <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium ml-auto">
             <Clock size={14} />
@@ -78,7 +78,7 @@ const FeaturedUpdateCard = ({ ann, onClick, getImageUrl }: CardProps) => {
         <h3 className="text-xl md:text-2xl font-bold text-gray-900 line-clamp-2 mb-3 leading-tight group-hover/card:text-red-600 transition-colors">
           {ann.title}
         </h3>
-        
+
         <p className="text-sm md:text-base text-gray-600 line-clamp-2 leading-relaxed max-w-3xl">
           {ann.body}
         </p>
@@ -192,7 +192,7 @@ export const TopAnnouncementsCarousel = () => {
       <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between relative z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-             <Megaphone size={16} className="text-red-600" />
+            <Megaphone size={16} className="text-red-600" />
           </div>
           <h2 className="text-base font-bold text-gray-900">Featured Announcements</h2>
           {total > 1 && (
@@ -268,11 +268,10 @@ export const TopAnnouncementsCarousel = () => {
               <button
                 key={idx}
                 onClick={() => setCurrentIndex(idx)}
-                className={`rounded-full transition-all duration-300 ${
-                  idx === currentIndex
+                className={`rounded-full transition-all duration-300 ${idx === currentIndex
                     ? "bg-red-600 w-6 h-1.5"
                     : "bg-gray-300 hover:bg-gray-400 w-1.5 h-1.5"
-                }`}
+                  }`}
                 aria-label={`Go to update ${idx + 1}`}
               />
             ))}

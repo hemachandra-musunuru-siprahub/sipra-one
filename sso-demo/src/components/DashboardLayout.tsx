@@ -1,12 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  Calendar, 
-  Bell, 
-  Search, 
-  LogOut, 
+  LayoutDashboard,
+  Users,
+  FileText,
+  Calendar,
+  Search,
+  LogOut,
   Shield,
   Briefcase,
   UserCheck,
@@ -18,6 +17,8 @@ import {
 import { useMsal } from "@azure/msal-react";
 import { useGlobalSearch } from "../hooks/useGlobalSearch";
 import { SearchDropdown } from "./SearchDropdown";
+import { NotificationBell } from "./NotificationBell";
+import { useNotifications } from "../hooks/useNotifications";
 import { useState, useRef, useEffect } from "react";
 
 interface DashboardLayoutProps {
@@ -53,9 +54,13 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
 
   // ── Global Search State ──
   const [searchQuery, setSearchQuery] = useState("");
-  const { results, isLoading } = useGlobalSearch(searchQuery);
+  const { results, isLoading: searchLoading } = useGlobalSearch(searchQuery);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // ── Notifications ──
+  const userOid = internalUser?.entra_oid ?? internalUser?.oid ?? null;
+  const { notifications, unreadCount, isLoading: notifLoading, markRead, markAllRead } = useNotifications({ userOid });
 
   // Close search when clicking outside
   useEffect(() => {
@@ -93,14 +98,14 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "OVERVIEW",
         items: [
-          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: dashboardPath },
-          { label: "System Health",icon: <Shield size={20} />,          path: `${basePath}/health` },
+          { label: "Dashboard", icon: <LayoutDashboard size={20} />, path: dashboardPath },
+          { label: "System Health", icon: <Shield size={20} />, path: `${basePath}/health` },
         ],
       },
       {
         label: "MANAGEMENT",
         items: [
-          { label: "Users",          icon: <Users size={20} />,     path: "/admin/users" },
+          { label: "Users", icon: <Users size={20} />, path: "/admin/users" },
         ],
       },
     ],
@@ -108,30 +113,30 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",    icon: <LayoutDashboard size={20} />, path: dashboardPath },
+          { label: "Dashboard", icon: <LayoutDashboard size={20} />, path: dashboardPath },
         ],
       },
       {
         label: "People",
         items: [
-          { label: "Employees",      icon: <Users size={20} />,         path: `${basePath}/employees` },
-          { label: "Leave Requests", icon: <Calendar size={20} />,      path: `${basePath}/leave-requests` },
+          { label: "Employees", icon: <Users size={20} />, path: `${basePath}/employees` },
+          { label: "Leave Requests", icon: <Calendar size={20} />, path: `${basePath}/leave-requests` },
           { label: "Leave Policies", icon: <ClipboardList size={20} />, path: `${basePath}/leave-policies` },
-          { label: "Timesheets",     icon: <Briefcase size={20} />,     path: `${basePath}/timesheets` },
-          { label: "Performance",    icon: <Target size={20} />,        path: `${basePath}/performance` },
+          { label: "Timesheets", icon: <Briefcase size={20} />, path: `${basePath}/timesheets` },
+          { label: "Performance", icon: <Target size={20} />, path: `${basePath}/performance` },
         ],
       },
       {
         label: "Content",
         items: [
-          { label: "Documents",    icon: <FileText size={20} />,    path: `${basePath}/documents` },
-          { label: "Announcements",icon: <Megaphone size={20} />,   path: `${basePath}/announcements` },
+          { label: "Documents", icon: <FileText size={20} />, path: `${basePath}/documents` },
+          { label: "Announcements", icon: <Megaphone size={20} />, path: `${basePath}/announcements` },
         ],
       },
       {
         label: "Self Service",
         items: [
-          { label: "My Leave",    icon: <Calendar size={20} />,       path: `${basePath}/my-leave` },
+          { label: "My Leave", icon: <Calendar size={20} />, path: `${basePath}/my-leave` },
         ],
       },
     ],
@@ -139,28 +144,28 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: dashboardPath },
+          { label: "Dashboard", icon: <LayoutDashboard size={20} />, path: dashboardPath },
         ],
       },
       {
         label: "My Team",
         items: [
-          { label: "Leave Approvals",   icon: <UserCheck size={20} />,      path: "/manager/leave-approvals" },
-          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: "/manager/timesheets" },
-          { label: "Performance", icon: <Target size={20} />,         path: "/manager/performance" },
+          { label: "Leave Approvals", icon: <UserCheck size={20} />, path: "/manager/leave-approvals" },
+          { label: "Timesheets", icon: <ClipboardList size={20} />, path: "/manager/timesheets" },
+          { label: "Performance", icon: <Target size={20} />, path: "/manager/performance" },
         ],
       },
       {
         label: "Resources",
         items: [
-          { label: "Notices",     icon: <Megaphone size={20} />,      path: `${basePath}/announcements` },
-          { label: "Documents",   icon: <FileText size={20} />,       path: `${basePath}/documents` },
+          { label: "Announcements", icon: <Megaphone size={20} />, path: `${basePath}/announcements` },
+          { label: "Documents", icon: <FileText size={20} />, path: `${basePath}/documents` },
         ],
       },
       {
         label: "Self Service",
         items: [
-          { label: "My Leave",    icon: <Calendar size={20} />,       path: "/manager/my-leave" },
+          { label: "My Leave", icon: <Calendar size={20} />, path: "/manager/my-leave" },
         ],
       },
     ],
@@ -168,22 +173,22 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       {
         label: "Overview",
         items: [
-          { label: "Dashboard",   icon: <LayoutDashboard size={20} />, path: dashboardPath },
+          { label: "Dashboard", icon: <LayoutDashboard size={20} />, path: dashboardPath },
         ],
       },
       {
         label: "Self Service",
         items: [
-          { label: "My Leave",    icon: <Calendar size={20} />,       path: `${basePath}/leave` },
-          { label: "Timesheets",  icon: <ClipboardList size={20} />,  path: `${basePath}/timesheets` },
-          { label: "Performance", icon: <Target size={20} />,         path: `${basePath}/performance` },
+          { label: "My Leave", icon: <Calendar size={20} />, path: `${basePath}/leave` },
+          { label: "Timesheets", icon: <ClipboardList size={20} />, path: `${basePath}/timesheets` },
+          { label: "Performance", icon: <Target size={20} />, path: `${basePath}/performance` },
         ],
       },
       {
         label: "Company",
         items: [
-          { label: "Notices",     icon: <Megaphone size={20} />,      path: `${basePath}/announcements` },
-          { label: "Documents",   icon: <FileText size={20} />,       path: `${basePath}/documents` },
+          { label: "Announcements", icon: <Megaphone size={20} />, path: `${basePath}/announcements` },
+          { label: "Documents", icon: <FileText size={20} />, path: `${basePath}/documents` },
         ],
       },
     ],
@@ -262,18 +267,22 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
             }}
             onFocus={() => setIsSearchVisible(true)}
           />
-          <SearchDropdown 
-            results={results} 
-            isLoading={isLoading} 
-            isVisible={isSearchVisible && searchQuery.length >= 2} 
+          <SearchDropdown
+            results={results}
+            isLoading={searchLoading}
+            isVisible={isSearchVisible && searchQuery.length >= 2}
             onClose={() => setIsSearchVisible(false)}
           />
         </div>
         <div className="topbar__actions">
-          <button className="topbar__icon-btn" aria-label="Notifications">
-            <Bell size={18} />
-            <span className="topbar__notif-dot" />
-          </button>
+          <NotificationBell
+            notifications={notifications}
+            unreadCount={unreadCount}
+            isLoading={notifLoading}
+            role={role}
+            onMarkRead={markRead}
+            onMarkAllRead={markAllRead}
+          />
 
           <div className="topbar__user">
             <div className="topbar__user-text">

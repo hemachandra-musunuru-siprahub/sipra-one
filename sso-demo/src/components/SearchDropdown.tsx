@@ -52,7 +52,7 @@ export const SearchDropdown: React.FC<SearchDropdownProps> = ({
               <SearchIcon className="text-gray-400 w-6 h-6" />
             </div>
             <p className="text-sm text-gray-600 font-medium">No results found</p>
-            <p className="text-xs text-gray-400 mt-1">Try searching for employees, notices, or documents</p>
+            <p className="text-xs text-gray-400 mt-1">Try searching for employees, announcements, or documents</p>
           </div>
         )}
 

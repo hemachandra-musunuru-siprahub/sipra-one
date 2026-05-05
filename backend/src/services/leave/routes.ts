@@ -6,10 +6,11 @@ import { notFound, forbidden, badRequest, conflict, unprocessable } from "../../
 import { isAdmin, isManager, isHR, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAccess } from "../../lib/roles";
 import * as repo from "./repo";
 import { getDirectReportOids } from "../users/repo";
+import * as notifRepo from "../notifications/repo";
+import { emitNotification, getSocketServer } from "../../lib/socketServer";
+import { query } from "../../db";
 
 const router = Router();
-
-import { query } from "../../db";
 
 // ─── Auto-initialize leave_policies table & upgrade constraints ───────────────
 (async () => {
@@ -204,6 +205,48 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
     }
 
     res.status(201).json({ request });
+
+    // ── Notify HR users & Managers (fire-and-forget) ──────────────────────
+    try {
+      // Find all HR/Admin and Managers using effective_role
+      const { rows } = await query(
+        `SELECT entra_oid FROM users WHERE is_active = true AND effective_role IN ('hr', 'admin', 'manager')`
+      );
+      
+      const recipientOids = new Set<string>();
+      rows.forEach((r: any) => recipientOids.add(r.entra_oid));
+
+      // Make sure the explicit manager is included even if effective_role sync is delayed
+      if (managerOid && managerOid !== user.entra_oid) {
+        recipientOids.add(managerOid);
+      }
+
+      // Ensure we don't notify the employee who is applying
+      recipientOids.delete(user.entra_oid);
+
+      const finalOids = Array.from(recipientOids);
+
+      if (finalOids.length > 0) {
+        const notifTitle = "New Leave Request";
+        const notifMsg = `${user.name || "An employee"} has submitted a ${leaveType} leave request (${startDate} to ${endDate}).`;
+        
+        const notifications = await notifRepo.createNotifications(
+          finalOids, "leave_request", notifTitle, notifMsg, "leave_request", request.id
+        );
+        notifications.forEach(n => emitNotification(n.recipient_oid, n));
+        
+        // Update unread counts
+        const io = getSocketServer();
+        if (io) {
+          for (const oid of finalOids) {
+            const count = await notifRepo.unreadCount(oid);
+            io.to(`user:${oid}`).emit("unread_count", { count });
+          }
+        }
+      }
+    } catch (nErr) {
+      console.error("[NOTIF] Failed to send leave request notification:", nErr);
+    }
   }
 );
 
@@ -234,6 +277,28 @@ router.patch("/:id", requireAuth, validate(ActionSchema),
       updated = await repo.rejectRequest(req.params.id, req.user!.entra_oid, req.body.rejectionReason!);
     }
     res.json({ request: updated });
+
+    // ── Notify the employee about the decision ────────────────────────────
+    try {
+      const actionLabel = req.body.action === "approved" ? "approved" : "rejected";
+      const notifTitle = `Leave Request ${actionLabel.charAt(0).toUpperCase() + actionLabel.slice(1)}`;
+      const startStr = (leaveReq.start_date as unknown as string)?.toString().slice(0, 10);
+      const endStr = (leaveReq.end_date as unknown as string)?.toString().slice(0, 10);
+      const notifMsg = req.body.action === "approved"
+        ? `Your ${leaveReq.leave_type} leave request (${startStr} to ${endStr}) has been approved.`
+        : `Your ${leaveReq.leave_type} leave request has been rejected. Reason: ${req.body.rejectionReason}`;
+      const n = await notifRepo.createNotification(
+        leaveReq.employee_oid, `leave_${actionLabel}`, notifTitle, notifMsg, "leave_request", req.params.id
+      );
+      emitNotification(leaveReq.employee_oid, n);
+      const io = getSocketServer();
+      if (io) {
+        const count = await notifRepo.unreadCount(leaveReq.employee_oid);
+        io.to(`user:${leaveReq.employee_oid}`).emit("unread_count", { count });
+      }
+    } catch (nErr) {
+      console.error("[NOTIF] Failed to send leave decision notification:", nErr);
+    }
   }
 );
 
