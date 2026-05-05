@@ -205,7 +205,30 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   }
 );
 
-// ─── GET /api/timesheets/:id — specific timesheet detail ──────────────────────
+// ─── GET /api/timesheets/hr — HR admin view of all timesheets ─────────────────
+// NOTE: Must remain before GET /:id (wildcard) to avoid route shadowing.
+router.get("/hr", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const employeeOid = (req.query.employeeOid as string) || undefined;
+      const status      = (req.query.status as string) || undefined;
+      const month       = (req.query.month  as string) || undefined;
+
+      const timesheets = await repo.getHRTimesheets({
+        employeeOid: employeeOid && employeeOid !== "all" ? employeeOid : undefined,
+        status:      status      && status      !== "all" ? status      : undefined,
+        month,
+      });
+
+      res.json({ timesheets });
+    } catch (err: any) {
+      if (err.status) throw err;
+      console.error("GET /api/timesheets/hr failed:", err);
+      res.status(500).json({ error: "Failed to load HR timesheets", details: err.message });
+    }
+  }
+);
+
 // IMPORTANT: Wildcard route — must be LAST among GET routes.
 router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   const ts = await repo.getWeekWithEntries(req.params.id);

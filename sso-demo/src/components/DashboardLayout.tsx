@@ -117,6 +117,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           { label: "Employees",      icon: <Users size={20} />,         path: `${basePath}/employees` },
           { label: "Leave Requests", icon: <Calendar size={20} />,      path: `${basePath}/leave-requests` },
           { label: "Leave Policies", icon: <ClipboardList size={20} />, path: `${basePath}/leave-policies` },
+          { label: "Timesheets",     icon: <Briefcase size={20} />,     path: `${basePath}/timesheets` },
           { label: "Performance",    icon: <Target size={20} />,        path: `${basePath}/performance` },
         ],
       },

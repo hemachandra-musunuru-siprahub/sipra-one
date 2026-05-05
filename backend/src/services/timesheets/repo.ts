@@ -261,3 +261,51 @@ export const getManagerExportData = async (
   return rows;
 };
 
+// ─── HR view: all timesheets across all employees ─────────────────────────────
+export const getHRTimesheets = async (options?: {
+  employeeOid?: string;
+  status?: string;
+  month?: string;   // YYYY-MM  → filters by week_start_date
+}) => {
+  const params: any[] = [];
+  let paramIdx = 1;
+  // ── SECURITY: HR must never see draft records — always enforced server-side.
+  const conditions: string[] = [`tw.status IN ('submitted', 'reviewed')`];
+
+  if (options?.employeeOid) {
+    conditions.push(`tw.employee_oid = $${paramIdx++}`);
+    params.push(options.employeeOid);
+  }
+
+  // Only allow narrowing to 'submitted' or 'reviewed' — 'draft' is silently rejected.
+  if (options?.status && options.status !== "all" && options.status !== "draft") {
+    conditions.push(`tw.status = $${paramIdx++}`);
+    params.push(options.status.toLowerCase());
+  }
+
+  if (options?.month) {
+    conditions.push(`to_char(tw.week_start_date, 'YYYY-MM') = $${paramIdx++}`);
+    params.push(options.month);
+  }
+
+  const where = `WHERE ${conditions.join(" AND ")}`; // always at least one condition
+
+  const { rows } = await query(
+    `SELECT
+       tw.id,
+       tw.employee_oid,
+       u.name        AS employee_name,
+       u.email       AS employee_email,
+       tw.week_start_date,
+       tw.total_hours,
+       tw.status,
+       tw.submitted_at,
+       tw.reviewed_at
+     FROM timesheet_weeks tw
+     LEFT JOIN users u ON u.entra_oid = tw.employee_oid
+     ${where}
+     ORDER BY tw.week_start_date DESC, u.name ASC`,
+    params
+  );
+  return rows;
+};

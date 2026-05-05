@@ -25,6 +25,7 @@ import { ManagerApprovalsPage } from "./pages/manager/ManagerApprovalsPage";
 import { ManagerTimesheetsPage } from "./pages/manager/ManagerTimesheetsPage";
 import { HREmployeesPage } from "./pages/hr/HREmployeesPage";
 import { HRLeavePage } from "./pages/hr/HRLeavePage";
+import { HRTimeSheetsPage } from "./pages/hr/HRTimeSheetsPage";
 import { AnnouncementDetailPage } from "./pages/shared/AnnouncementDetailPage";
 import { PerformancePage } from "./pages/shared/PerformancePage";
 
@@ -351,6 +352,7 @@ const AppContent = () => {
               <Route path="/hr/performance"    element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><PerformancePage internalUser={internalUser} role="HR" /></RoleGuard>} />
               <Route path="/hr/leave-requests" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} defaultTab="requests" /></RoleGuard>} />
               <Route path="/hr/leave-policies" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} defaultTab="policies" /></RoleGuard>} />
+              <Route path="/hr/timesheets"     element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRTimeSheetsPage internalUser={internalUser} /></RoleGuard>} />
               <Route path="/hr/my-leave"       element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeLeavePage internalUser={internalUser} role="HR" /></RoleGuard>} />
 
               {/* Manager */}
