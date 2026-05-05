@@ -8,7 +8,6 @@ import * as repo from "./repo";
 import { processBase64Image } from "../../lib/imageUtils";
 import { logger } from "../../lib/logger";
 import * as notifRepo from "../notifications/repo";
-import { emitNotification, getSocketServer } from "../../lib/socketServer";
 import { query } from "../../db";
 
 const router = Router();
@@ -108,14 +107,6 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
           const notifications = await notifRepo.createNotifications(
             recipientOids, "announcement", notifTitle, notifMsg, "announcement", item.id
           );
-          notifications.forEach(n => emitNotification(n.recipient_oid, n));
-          const io = getSocketServer();
-          if (io) {
-            for (const oid of recipientOids) {
-              const count = await notifRepo.unreadCount(oid);
-              io.to(`user:${oid}`).emit("unread_count", { count });
-            }
-          }
         }
       } catch (nErr) {
         console.error("[NOTIF] Failed to send announcement notification:", nErr);

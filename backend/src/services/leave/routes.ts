@@ -7,7 +7,6 @@ import { isAdmin, isManager, isHR, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAcce
 import * as repo from "./repo";
 import { getDirectReportOids } from "../users/repo";
 import * as notifRepo from "../notifications/repo";
-import { emitNotification, getSocketServer } from "../../lib/socketServer";
 import { query } from "../../db";
 
 const router = Router();
@@ -233,16 +232,6 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
         const notifications = await notifRepo.createNotifications(
           finalOids, "leave_request", notifTitle, notifMsg, "leave_request", request.id
         );
-        notifications.forEach(n => emitNotification(n.recipient_oid, n));
-        
-        // Update unread counts
-        const io = getSocketServer();
-        if (io) {
-          for (const oid of finalOids) {
-            const count = await notifRepo.unreadCount(oid);
-            io.to(`user:${oid}`).emit("unread_count", { count });
-          }
-        }
       }
     } catch (nErr) {
       console.error("[NOTIF] Failed to send leave request notification:", nErr);
@@ -290,12 +279,6 @@ router.patch("/:id", requireAuth, validate(ActionSchema),
       const n = await notifRepo.createNotification(
         leaveReq.employee_oid, `leave_${actionLabel}`, notifTitle, notifMsg, "leave_request", req.params.id
       );
-      emitNotification(leaveReq.employee_oid, n);
-      const io = getSocketServer();
-      if (io) {
-        const count = await notifRepo.unreadCount(leaveReq.employee_oid);
-        io.to(`user:${leaveReq.employee_oid}`).emit("unread_count", { count });
-      }
     } catch (nErr) {
       console.error("[NOTIF] Failed to send leave decision notification:", nErr);
     }

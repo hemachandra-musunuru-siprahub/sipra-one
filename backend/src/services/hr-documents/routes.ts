@@ -6,7 +6,6 @@ import { notFound, forbidden } from "../../lib/errors";
 import { HR_ROLES, ADMIN_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
 import * as notifRepo from "../notifications/repo";
-import { emitNotification, getSocketServer } from "../../lib/socketServer";
 import { query } from "../../db";
 
 const router = Router();
@@ -70,17 +69,9 @@ router.post("/", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
       recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
 
       if (recipientOids.length > 0) {
-        const notifications = await notifRepo.createNotifications(
+        await notifRepo.createNotifications(
           recipientOids, "hr_document", notifTitle, notifMsg, "hr_document", doc.id
         );
-        notifications.forEach(n => emitNotification(n.recipient_oid, n));
-        const io = getSocketServer();
-        if (io) {
-          for (const oid of recipientOids) {
-            const count = await notifRepo.unreadCount(oid);
-            io.to(`user:${oid}`).emit("unread_count", { count });
-          }
-        }
       }
     } catch (nErr) {
       console.error("[NOTIF] Failed to send document creation notification:", nErr);
@@ -117,14 +108,6 @@ router.post("/share", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
       const notifications = await notifRepo.createNotifications(
         recipientOids, "hr_document", notifTitle, notifMsg, "hr_document", docs[0]?.id
       );
-      notifications.forEach(n => emitNotification(n.recipient_oid, n));
-      const io = getSocketServer();
-      if (io) {
-        for (const oid of recipientOids) {
-          const count = await notifRepo.unreadCount(oid);
-          io.to(`user:${oid}`).emit("unread_count", { count });
-        }
-      }
     } catch (nErr) {
       console.error("[NOTIF] Failed to send document share notification:", nErr);
     }
