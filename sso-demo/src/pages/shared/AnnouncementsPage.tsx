@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Plus, Search, Filter, Megaphone, Archive } from "lucide-react";
+import { Plus, Search, Filter, Megaphone, Archive, ArrowLeft } from "lucide-react";
 import { useAnnouncements } from "../../components/hooks/useAnnouncements";
 import { AnnouncementCard } from "../../components/AnnouncementCard";
 import { AnnouncementForm } from "../../components/AnnouncementForm";
@@ -194,14 +194,14 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
       )}
       {/* Header Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto flex flex-col items-center text-center gap-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Company Announcements</h1>
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+          <div className="flex-shrink-0">
+            <h1 className="text-2xl font-bold text-gray-900">Company Announcements</h1>
             <p className="text-sm text-gray-500 mt-0.5">Latest updates from HR & teams</p>
           </div>
           
-          <div className="flex items-center justify-center gap-6 w-full">
-            <div className="relative w-64 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-start md:justify-end gap-4 flex-1 w-full">
+            <div className="relative flex-1 max-w-xs min-w-[200px]">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input 
                 type="text" 
@@ -212,38 +212,38 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
               />
             </div>
 
-            {/* Overview Stats */}
-            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100 flex-shrink-0">
-              <div className="flex flex-col items-center justify-center min-w-[80px] px-3 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
-                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">Published</span>
-                <span className="text-sm font-bold text-gray-900">{stats.total}</span>
-              </div>
-              <div className="flex flex-col items-center justify-center min-w-[80px] px-3 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
-                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-tight">This Week</span>
-                <span className="text-sm font-bold text-gray-900">{stats.thisWeek}</span>
-              </div>
-              {isHR && (
-                <div className={`flex flex-col items-center justify-center min-w-[80px] px-3 py-1 rounded-lg border shadow-sm transition-colors ${
+            {/* Overview Stats — visible only to HR */}
+            {isHR && (
+              <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
+                <div className="flex flex-col items-center justify-center min-w-[70px] px-2 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">Published</span>
+                  <span className="text-xs font-bold text-gray-900">{stats.total}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center min-w-[70px] px-2 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">This Week</span>
+                  <span className="text-xs font-bold text-gray-900">{stats.thisWeek}</span>
+                </div>
+                <div className={`flex flex-col items-center justify-center min-w-[70px] px-2 py-1 rounded-lg border shadow-sm transition-colors ${
                   stats.draftsCount > 0 ? "bg-amber-50 border-amber-100 text-amber-700" : "bg-white border-gray-100 text-gray-400"
                 }`}>
-                  <span className={`text-[10px] font-bold uppercase tracking-tight ${stats.draftsCount > 0 ? "text-amber-600" : "text-gray-400"}`}>Drafts</span>
-                  <span className="text-sm font-bold">{stats.draftsCount}</span>
+                  <span className={`text-[9px] font-bold uppercase tracking-tight ${stats.draftsCount > 0 ? "text-amber-600" : "text-gray-400"}`}>Drafts</span>
+                  <span className="text-xs font-bold">{stats.draftsCount}</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             
             {isHR && (
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={() => setShowDrafts(!showDrafts)}
-                  className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg text-sm font-medium transition-colors border ${
+                  className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
                     showDrafts 
                       ? "bg-gray-900 text-white border-gray-900" 
                       : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                   }`}
                 >
                   <Archive size={16} strokeWidth={2.5} /> 
-                  <span>{showDrafts ? "View Published" : "View Drafts"}</span>
+                  <span>{showDrafts ? "Published" : "Drafts"}</span>
                 </button>
 
                 <button 
@@ -251,7 +251,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
                   onClick={() => { setEditingAnnouncement(null); setShowForm(true); }}
                 >
                   <Plus size={16} strokeWidth={2.5} /> 
-                  <span>Create Post</span>
+                  <span>Create</span>
                 </button>
               </div>
             )}
@@ -271,9 +271,18 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
             <section className="flex flex-col gap-4">
               {/* View indicator */}
               {showDrafts && (
-                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                  <Archive size={14} className="text-amber-600" />
-                  <span className="text-sm font-medium text-amber-700">Viewing Drafts — only visible to HR</span>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg w-fit">
+                    <Archive size={14} className="text-amber-600" />
+                    <span className="text-sm font-medium text-amber-700">Viewing Drafts — only visible to HR</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowDrafts(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm w-fit"
+                  >
+                    <ArrowLeft size={16} />
+                    Back to Published
+                  </button>
                 </div>
               )}
               <div className="flex items-center justify-between">

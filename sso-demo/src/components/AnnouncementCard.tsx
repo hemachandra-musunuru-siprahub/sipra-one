@@ -39,11 +39,11 @@ export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, on
   if (featured && announcement.image_url) {
     return (
       <div className="card group/card bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
-        <div className="image-wrapper relative overflow-hidden h-[240px] w-full">
+        <div className="image-wrapper relative overflow-hidden w-full bg-gray-50 flex items-center justify-center min-h-[200px] max-h-[500px]">
           <img 
             src={getImageUrl(announcement.image_url)} 
             alt="Featured Announcement" 
-            className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105"
+            className="w-full h-full max-h-full object-contain transition-transform duration-700 group-hover/card:scale-105"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
               (e.target as HTMLImageElement).parentElement!.style.display = 'none';
@@ -220,11 +220,11 @@ export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, on
 
       {/* Optional Image */}
       {announcement.image_url && (
-        <div className="w-full h-48 rounded-lg overflow-hidden border border-gray-200 mt-1">
+        <div className="w-full rounded-lg overflow-hidden border border-gray-200 mt-1 bg-gray-50 flex items-center justify-center max-h-[600px]">
           <img 
             src={getImageUrl(announcement.image_url)} 
             alt="Announcement" 
-            className="w-full h-full object-cover"
+            className="w-full h-auto max-h-full object-contain block"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
               (e.target as HTMLImageElement).parentElement!.style.display = 'none';

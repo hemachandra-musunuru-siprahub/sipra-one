@@ -3,7 +3,7 @@ import { query } from "../../db";
 // ─── Feed (pinned first, then by newest) ─────────────────────────────────────
 export const getFeed = async (page = 1, limit = 20, userOid?: string, latest = false, status = "published") => {
   const offset = (page - 1) * limit;
-  const orderBy = latest ? "a.created_at DESC" : "a.is_pinned DESC, a.created_at DESC";
+  const orderBy = latest ? "a.created_at DESC" : "a.is_pinned DESC, a.pinned_at DESC NULLS LAST, a.created_at DESC";
   const { rows } = await query(
     `SELECT a.*,
        COALESCE(
@@ -26,27 +26,59 @@ export const getFeed = async (page = 1, limit = 20, userOid?: string, latest = f
   return rows;
 };
 
+// ─── FIFO Pinning Helper ─────────────────────────────────────────────────────
+async function ensureMaxPins() {
+  const { rows } = await query(`SELECT COUNT(*)::int FROM announcements WHERE is_pinned = true AND status = 'published'`);
+  const count = rows[0].count;
+  if (count >= 5) {
+    // Unpin the oldest one by pinned_at (FIFO)
+    await query(`
+      UPDATE announcements 
+      SET is_pinned = false, pinned_at = NULL
+      WHERE id IN (
+        SELECT id FROM announcements 
+        WHERE is_pinned = true AND status = 'published'
+        ORDER BY pinned_at ASC NULLS FIRST, created_at ASC 
+        LIMIT 1
+      )
+    `);
+  }
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 export const createAnnouncement = async (
   title: string, body: string, category: string | undefined,
   isPinned: boolean, priority: string, imageUrl: string | null,
   createdByOid: string, status = "published"
 ) => {
+  if (isPinned && status === "published") {
+    await ensureMaxPins();
+  }
+  
+  const pinnedAt = isPinned && status === "published" ? new Date() : null;
+
   const { rows } = await query(
-    `INSERT INTO announcements (title, body, category, is_pinned, priority, image_url, created_by_oid, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [title, body, category || null, isPinned, priority, imageUrl, createdByOid, status]
+    `INSERT INTO announcements (title, body, category, is_pinned, priority, image_url, created_by_oid, status, pinned_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [title, body, category || null, isPinned, priority, imageUrl, createdByOid, status, pinnedAt]
   );
   return rows[0];
 };
 
-// ─── Update ───────────────────────────────────────────────────────────────────
 export const updateAnnouncement = async (
   id: string, fields: { title?: string; body?: string; category?: string | null; is_pinned?: boolean; priority?: string; image_url?: string | null; status?: string }
 ) => {
   const sets: string[] = [];
   const vals: any[] = [];
   let i = 1;
+
+  if (fields.is_pinned === true) {
+    await ensureMaxPins();
+    sets.push(`pinned_at = NOW()`);
+  } else if (fields.is_pinned === false) {
+    sets.push(`pinned_at = NULL`);
+  }
+
   if (fields.title     !== undefined) { sets.push(`title = $${i++}`);     vals.push(fields.title); }
   if (fields.body      !== undefined) { sets.push(`body = $${i++}`);      vals.push(fields.body); }
   if (fields.category  !== undefined) { sets.push(`category = $${i++}`);  vals.push(fields.category); }

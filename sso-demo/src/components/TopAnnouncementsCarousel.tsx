@@ -41,14 +41,14 @@ const FeaturedUpdateCard = ({ ann, onClick, getImageUrl, onReact }: CardProps) =
       onMouseLeave={() => setShowReactions(false)}
       className="w-full h-full flex-shrink-0 cursor-pointer group/card relative overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:shadow-md flex flex-col"
     >
-      <div className="image-wrapper relative overflow-hidden h-[200px] w-full flex-shrink-0">
+      <div className="image-wrapper relative overflow-hidden h-[200px] w-full flex-shrink-0 bg-gray-50 flex items-center justify-center">
         {/* Background Image */}
         {ann.image_url ? (
           <img
             src={getImageUrl(ann.image_url)}
             alt=""
             loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105"
+            className="w-full h-full object-contain transition-transform duration-700 group-hover/card:scale-105"
             onError={(e) => {
               const el = e.target as HTMLImageElement;
               el.style.display = "none";
@@ -152,9 +152,9 @@ export const TopAnnouncementsCarousel = () => {
         // We fetch a larger batch to ensure we find enough pinned posts, or keep it simple
         const data = await getLatestAnnouncements(20);
         // Filter: ONLY pinned AND published
-        const featured = (data.announcements || []).filter(a => 
-          (a.status === "published" || !a.status) && a.is_pinned === true
-        );
+        const featured = (data.announcements || [])
+          .filter(a => (a.status === "published" || !a.status) && a.is_pinned === true)
+          .slice(0, 5);
         console.log("Featured (Pinned) posts:", featured);
         setAnnouncements(featured);
       } catch (err) {
