@@ -59,7 +59,7 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
         </div>
         <div className="table-container">
           <table>
-            <thead><tr><th>Employee</th><th>Email</th><th>Manager (OID)</th><th>Status</th><th>Last Login</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Email</th><th>Manager</th><th>Status</th><th>Last Login</th></tr></thead>
             <tbody>
               {loading ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading employee data…</td></tr>
                 : errorMsg ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--error-500)" }}>Error: {errorMsg}</td></tr>
@@ -73,8 +73,15 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
                           </div>
                         </td>
                         <td style={{ fontSize: "0.875rem" }}>{u.email}</td>
-                        <td style={{ fontSize: "0.75rem", fontFamily: "monospace", color: u.manager_entra_oid ? "var(--neutral-800)" : "var(--neutral-400)" }}>
-                          {u.manager_entra_oid ? u.manager_entra_oid.slice(0, 12) + "…" : "No Manager"}
+                        <td>
+                          {u.manager_name ? (
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--neutral-800)" }}>{u.manager_name}</span>
+                              <span style={{ fontSize: "0.7rem", color: "var(--neutral-500)" }}>{u.manager_email}</span>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: "0.8125rem", color: "var(--neutral-400)" }}>No manager</span>
+                          )}
                         </td>
                         <td><span className={`badge ${u.is_active ? "badge--published" : "badge--draft"}`}>{u.is_active ? "Active" : "Inactive"}</span></td>
                         <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{u.last_login ? new Date(u.last_login).toLocaleDateString() : "Never"}</td>

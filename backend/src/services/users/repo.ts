@@ -3,9 +3,15 @@ import { query } from "../../db";
 // ─── List all users — identity profile only (no role columns) ─────────────────
 export const listUsers = async () => {
   const { rows } = await query(`
-    SELECT id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login
-    FROM users
-    ORDER BY name ASC
+    SELECT 
+      u.id, u.entra_oid, u.email, u.name, 
+      u.manager_entra_oid, 
+      m.name AS manager_name, 
+      m.email AS manager_email, 
+      u.is_active, u.created_at, u.last_login
+    FROM users u
+    LEFT JOIN users m ON m.entra_oid = u.manager_entra_oid
+    ORDER BY u.name ASC
   `);
   return rows;
 };

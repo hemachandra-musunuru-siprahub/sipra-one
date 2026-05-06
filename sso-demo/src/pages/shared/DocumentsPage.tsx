@@ -7,7 +7,8 @@ import {
   Check
 } from "lucide-react";
 import { 
-  getDocuments, createDocument, deleteDocument
+  getDocuments, createDocument, deleteDocument,
+  browseOneDrive, searchOneDrive, shareDocument, createShareLink
 } from "../../api/documents";
 import { getUsers } from "../../api/users";
 import type { HrDocument, User } from "../../api/types";
@@ -19,7 +20,7 @@ import type { UserRole } from "../../lib/roleHelper";
 interface Props { internalUser: any; isHR?: boolean; role?: string; }
 
 export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
-  const {} = useMsal();
+  const { instance, accounts } = useMsal();
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -35,6 +36,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [odLoading, setOdLoading] = useState(false);
   const [odFolderId, setOdFolderId] = useState<string | undefined>(undefined);
   const [odSearch, setOdSearch] = useState("");
+  const [odError, setOdError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<any | null>(null);
   const [allEmployees, setAllEmployees] = useState<User[]>([]);
   const [selectedEmpOids, setSelectedEmpOids] = useState<string[]>([]);
@@ -64,27 +66,45 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     loadOneDrive();
   };
 
-  const loadOneDrive = (folderId?: string) => {
+  const loadOneDrive = async (folderId?: string) => {
     setOdLoading(true);
-    setOdFolderId(folderId);
-    // Mock load
-    setTimeout(() => {
-      setOdItems([
-        { id: "mock-1", name: "HR Policies", isFolder: true },
-        { id: "mock-2", name: "Employee Handbook.pdf", isFolder: false, size: 2048576 }
-      ]);
+    setOdError(null);
+    try {
+      if (!accounts[0]) throw new Error("No active Microsoft account found.");
+      const response = await instance.acquireTokenSilent({
+        scopes: ["Files.Read", "Files.ReadWrite"],
+        account: accounts[0]
+      });
+      const items = await browseOneDrive(response.accessToken, folderId);
+      setOdItems(items);
+      setOdFolderId(folderId);
+    } catch (e: any) {
+      console.error(e);
+      setOdError("Failed to load OneDrive items: " + e.message);
+    } finally {
       setOdLoading(false);
-    }, 500);
+    }
   };
 
-  const handleOdSearch = () => {
+  const handleOdSearch = async () => {
+    if (!odSearch.trim()) return loadOneDrive();
     setOdLoading(true);
-    setTimeout(() => {
-      setOdItems([
-        { id: "mock-3", name: `Search result for ${odSearch}.docx`, isFolder: false, size: 102400 }
-      ]);
+    setOdError(null);
+    try {
+      if (!accounts[0]) throw new Error("No active Microsoft account found.");
+      const response = await instance.acquireTokenSilent({
+        scopes: ["Files.Read", "Files.ReadWrite"],
+        account: accounts[0]
+      });
+      const items = await searchOneDrive(response.accessToken, odSearch);
+      setOdItems(items);
+      setOdFolderId(undefined);
+    } catch (e: any) {
+      console.error(e);
+      setOdError("Failed to search OneDrive: " + e.message);
+    } finally {
       setOdLoading(false);
-    }, 500);
+    }
   };
 
   const handleFileSelect = (item: any) => {
@@ -93,6 +113,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     setShareDesc("");
     setSelectedEmpOids([]);
     setOneDriveStep("share");
+    setOdError(null);
     getUsers().then(res => setAllEmployees(res.users || [])).catch(console.error);
   };
 
@@ -102,12 +123,29 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
 
   const handleShare = async () => {
     setSubmitting(true);
+    setOdError(null);
     try {
-      // Mock share success
+      if (!accounts[0]) throw new Error("No active Microsoft account found.");
+      const response = await instance.acquireTokenSilent({
+        scopes: ["Files.Read", "Files.ReadWrite"],
+        account: accounts[0]
+      });
+      const link = await createShareLink(response.accessToken, selectedFile.id, selectedFile.webUrl);
+      
+      await shareDocument({
+        fileName: selectedFile.name,
+        onedriveUrl: link,
+        driveItemId: selectedFile.id,
+        documentType: shareDocType,
+        description: shareDesc,
+        recipientOids: selectedEmpOids
+      });
+      
       setShowOneDriveModal(false);
       fetchDocs();
     } catch (e: any) {
-      setError(e.message);
+      console.error(e);
+      setOdError("Failed to share document: " + e.message);
     } finally {
       setSubmitting(false);
     }
@@ -304,6 +342,11 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
             </div>
             
             <div className="modal-body" style={{ maxHeight: "70vh", overflowY: "auto", padding: 0 }}>
+              {odError && (
+                <div style={{ padding: "var(--space-3)", background: "#FEF2F2", color: "#B91C1C", fontSize: "0.875rem", borderBottom: "1px solid #FECACA" }}>
+                  ⚠️ {odError}
+                </div>
+              )}
               {oneDriveStep === "browse" ? (
                 <>
                   <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--neutral-100)", display: "flex", gap: "var(--space-2)" }}>
