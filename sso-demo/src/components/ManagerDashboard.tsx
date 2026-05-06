@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
-import { Users, CheckSquare, Clock, CheckCircle, Download } from "lucide-react";
+import { Users, CheckSquare, Clock, CheckCircle } from "lucide-react";
 
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import { getTeamLeave, actionLeave } from "../api/leave";
-import { getTeamTimesheets, reviewTimesheet, exportTimesheets } from "../api/timesheets";
+import { getTeamTimesheets, reviewTimesheet } from "../api/timesheets";
 import type { LeaveRequest, Timesheet } from "../api/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,12 +67,7 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
         <div className="breadcrumb">
           <span>Home</span><span className="breadcrumb__separator">/</span><span>Manager Dashboard</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 className="page-title">Team Overview</h1>
-          <button className="btn btn--secondary" onClick={() => { const d = new Date().toISOString().slice(0,10); exportTimesheets("2026-01-01", d); }}>
-            <Download size={16} /> Export Timesheets
-          </button>
-        </div>
+        <h1 className="page-title">Team Overview</h1>
       </header>
 
       <section className="welcome-card" style={{ height: "140px", padding: "var(--space-6) var(--space-10)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "var(--space-6)" }}>
