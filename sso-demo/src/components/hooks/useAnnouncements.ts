@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getAnnouncements } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-export function useAnnouncements(initialPage = 1, limit = 20) {
+export function useAnnouncements(initialPage = 1, limit = 20, status = "published") {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -13,7 +13,8 @@ export function useAnnouncements(initialPage = 1, limit = 20) {
     setLoading(true);
     setError(null);
     try {
-      const data = await getAnnouncements(p, limit);
+      const data = await getAnnouncements(p, limit, status);
+      console.log(`[useAnnouncements] Fetched announcements:`, data.announcements);
       setAnnouncements(prev => overwrite ? data.announcements : [...prev, ...data.announcements]);
       setHasMore(data.announcements.length === limit);
       setPage(p);
@@ -23,7 +24,7 @@ export function useAnnouncements(initialPage = 1, limit = 20) {
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, status]);
 
   useEffect(() => {
     fetchAnnouncements(initialPage, true);

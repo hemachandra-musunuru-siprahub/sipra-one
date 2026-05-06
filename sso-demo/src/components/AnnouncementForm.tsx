@@ -15,14 +15,6 @@ interface Props {
 export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) => {
   const [title, setTitle] = useState(initialData?.title || "");
   const [body, setBody] = useState(initialData?.body || "");
-  const [category, setCategory] = useState(initialData?.category || "");
-  const [type, setType] = useState<"GENERAL" | "IMPORTANT">(() => {
-    if (initialData?.type) return initialData.type;
-    // Backward compatibility for priority field
-    const oldPriority = (initialData as any)?.priority;
-    if (oldPriority === 'high') return 'IMPORTANT';
-    return 'GENERAL';
-  });
   const [isPinned, setIsPinned] = useState(initialData?.is_pinned || false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -32,7 +24,6 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const bodyId = useId();
-  const categoryId = useId();
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -85,7 +76,7 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, submitStatus: "draft" | "published" = "published") => {
     e.preventDefault();
     if (!title || !body) return;
     
@@ -93,14 +84,13 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
     const payload = {
       title,
       body,
-      category: category || null,
-      type,
       is_pinned: isPinned,
+      status: submitStatus,
       image_url: initialData?.image_url || null,
       created_by_oid: initialData?.created_by_oid || null
     };
 
-    console.log(`[API] Submitting ${initialData?.id ? "Update" : "Publication"}:`, payload);
+    console.log(`[API] Submitting ${initialData?.id ? "Update" : "Publication"} with status=${submitStatus}:`, payload);
     
     try {
       let finalImageUrl = payload.image_url;
@@ -179,45 +169,6 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="flex flex-col gap-2">
-            <label htmlFor={categoryId} className="text-sm font-semibold text-gray-700">Category</label>
-            <select 
-              id={categoryId}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none bg-white transition-all text-gray-900 cursor-pointer"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option value="">Select a category...</option>
-              <option value="HR">Human Resources</option>
-              <option value="IT">IT Support</option>
-              <option value="Events">Company Events</option>
-              <option value="General">General Updates</option>
-            </select>
-          </div>
-          
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-gray-700">Announcement Type</label>
-            <div className="flex items-center gap-2">
-              {(['GENERAL', 'IMPORTANT'] as const).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium border transition-all ${
-                    type === t 
-                      ? t === 'IMPORTANT' ? 'bg-orange-50 border-orange-200 text-orange-700 ring-1 ring-orange-500' :
-                        'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-blue-500'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  } flex items-center justify-center gap-1.5`}
-                >
-                  {type === t && <Check size={14} />}
-                  {t === 'GENERAL' ? 'General' : 'Important'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
 
         <div className="flex items-center justify-between py-2 border-b border-gray-100 mb-2">
           <div className="flex flex-col">
@@ -298,16 +249,16 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
           </button>
           <button 
             type="button" 
-            className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200"
-            onClick={(e) => handleSubmit(e)}
-            disabled={submitting}
+            className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+            onClick={(e) => handleSubmit(e, "draft")}
+            disabled={submitting || !title || !body}
           >
-            Save Draft
+            {submitting ? "Saving..." : "Save Draft"}
           </button>
           <button 
             type="submit" 
             className="px-6 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 flex items-center gap-2"
-            onClick={(e) => handleSubmit(e)}
+            onClick={(e) => handleSubmit(e, "published")}
             disabled={submitting || !title || !body}
           >
             {submitting ? (initialData ? "Saving..." : "Publishing...") : (initialData ? "Save Changes" : "Publish Announcement")}

@@ -1,9 +1,9 @@
 import { api } from "./client";
 import type { Announcement } from "./types";
 
-export const getAnnouncements = (page = 1, limit = 20) =>
+export const getAnnouncements = (page = 1, limit = 20, status = "published") =>
   api.get<{ announcements: Announcement[]; page: number; limit: number }>(
-    `/api/announcements?page=${page}&limit=${limit}`
+    `/api/announcements?page=${page}&limit=${limit}&status=${status}`
   );
 
 export const getLatestAnnouncements = (limit = 3) =>
@@ -12,11 +12,11 @@ export const getLatestAnnouncements = (limit = 3) =>
   );
 
 export const createAnnouncement = (data: {
-  title: string; body: string; category?: string; isPinned?: boolean;
+  title: string; body: string; isPinned?: boolean; status?: "draft" | "published";
 }) => api.post<{ announcement: Announcement }>("/api/announcements", data);
 
 export const updateAnnouncement = (id: string, data: {
-  title?: string; body?: string; category?: string; is_pinned?: boolean;
+  title?: string; body?: string; is_pinned?: boolean;
 }) => api.patch<{ announcement: Announcement }>(`/api/announcements/${id}`, data);
 
 export const deleteAnnouncement = (id: string) => api.delete(`/api/announcements/${id}`);

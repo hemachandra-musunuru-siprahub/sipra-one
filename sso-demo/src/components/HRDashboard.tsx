@@ -21,13 +21,6 @@ export const HRDashboard = ({ internalUser }: Props) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Create Announcement state
-  const [showForm, setShowForm] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newBody, setNewBody] = useState("");
-  const [newCategory, setNewCategory] = useState("");
-  const [newPinned, setNewPinned] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([getAllLeave(), getDocuments(), getAnnouncements(1, 5)])
@@ -49,15 +42,6 @@ export const HRDashboard = ({ internalUser }: Props) => {
     { label: "Announcements", value: loading ? "…" : `${announcements.length}`, trend: "This month", icon: <Megaphone size={20} />, color: "#10B981" },
   ];
 
-  const handleCreateAnnouncement = async () => {
-    if (!newTitle.trim() || !newBody.trim()) return;
-    setSubmitting(true);
-    try {
-      const { announcement } = await createAnnouncement({ title: newTitle, body: newBody, category: newCategory || undefined, isPinned: newPinned });
-      setAnnouncements(prev => [announcement, ...prev]);
-      setNewTitle(""); setNewBody(""); setNewCategory(""); setNewPinned(false); setShowForm(false);
-    } catch (e) { console.error(e); } finally { setSubmitting(false); }
-  };
 
 
 
@@ -73,35 +57,10 @@ export const HRDashboard = ({ internalUser }: Props) => {
           <h1 className="page-title">People &amp; Culture</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
             <button className="btn btn--secondary"><FileText size={16} /> Export Reports</button>
-            <button className="btn btn--primary" onClick={() => setShowForm(v => !v)}>
-              <Plus size={16} /> New Announcement
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Create Announcement Form */}
-      {showForm && (
-        <div className="card" style={{ marginBottom: "var(--space-6)" }}>
-          <div className="card__header"><h3 className="card__title">New Announcement</h3></div>
-          <div className="card__body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            <input className="input" placeholder="Title *" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-            <textarea className="input" rows={4} placeholder="Body *" value={newBody} onChange={e => setNewBody(e.target.value)} style={{ resize: "vertical" }} />
-            <div style={{ display: "flex", gap: "var(--space-3)" }}>
-              <input className="input" style={{ flex: 1 }} placeholder="Category (optional)" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
-              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "0.875rem" }}>
-                <input type="checkbox" checked={newPinned} onChange={e => setNewPinned(e.target.checked)} /> Pin to top
-              </label>
-            </div>
-          </div>
-          <div className="card__footer" style={{ display: "flex", gap: "var(--space-3)" }}>
-            <button className="btn btn--primary" onClick={handleCreateAnnouncement} disabled={submitting}>
-              {submitting ? "Publishing…" : "Publish"}
-            </button>
-            <button className="btn btn--secondary" onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
 
       <section className="welcome-card" style={{ height: "140px", padding: "var(--space-6) var(--space-10)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "var(--space-6)" }}>
         <div className="welcome-card__content" style={{ textAlign: "center", width: "100%" }}>

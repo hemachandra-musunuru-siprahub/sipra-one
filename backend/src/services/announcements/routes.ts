@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { AppError } from "../../lib/errors";
 import { z } from "zod";
 import { requireAuth, requireRole, AuthRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
@@ -13,6 +14,7 @@ import { query } from "../../db";
 const router = Router();
 
 const ALLOWED_REACTIONS = ["thumbs_up", "heart", "laugh", "surprised", "sad"] as const;
+const ALLOWED_CATEGORIES = ["HR", "Company Events", "General Updates"] as const;
 
 // ─── GET /api/announcements — paginated feed ───────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -20,7 +22,10 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     const page   = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit  = Math.min(50, parseInt(req.query.limit as string) || 20);
     const latest = req.query.latest === "true";
-    const items  = await repo.getFeed(page, limit, req.user!.entra_oid, latest);
+    const status = (req.query.status as string) || "published";
+    console.log(`[GET /api/announcements] page=${page} limit=${limit} latest=${latest} status=${status}`);
+    const items  = await repo.getFeed(page, limit, req.user!.entra_oid, latest, status);
+    console.log(`[GET /api/announcements] Fetched ${items.length} announcements with status=${status}`);
     res.json({ announcements: items, page, limit });
   } catch (err: any) {
     logger.error({ err, path: "/api/announcements" }, "Failed to fetch announcements feed");
@@ -44,11 +49,12 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
 const CreateSchema = z.object({
   title:     z.string().min(1, "Title is required").max(255),
   body:      z.string().min(1, "Body is required"),
-  category:  z.string().max(100).nullable().optional(),
+  category:  z.enum(ALLOWED_CATEGORIES).nullable().optional(),
   type:      z.enum(["GENERAL", "IMPORTANT"]).default("GENERAL"),
   priority:  z.enum(["low", "medium", "high"]).optional(), // backward compat
   is_pinned: z.preprocess((val) => val === "true" || val === true, z.boolean()).default(false),
   image_url: z.string().nullable().optional(),
+  status:    z.enum(["draft", "published"]).default("published"),
 });
 
 router.post("/", requireAuth, requireRole([...HR_ROLES]),
@@ -56,7 +62,7 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
   async (req: AuthRequest, res: Response) => {
     try {
       logger.info({ user: req.user?.entra_oid }, "Creating announcement");
-      let { title, body, category, is_pinned, type, priority, image_url } = req.body;
+      let { title, body, category, is_pinned, type, priority, image_url, status } = req.body;
       
       // Backward compatibility mapping
       if (!type && priority) {
@@ -81,6 +87,8 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
       // Map back to DB priority format to satisfy existing constraints
       const dbPriority = type === "IMPORTANT" ? "high" : "low";
 
+      console.log(`[POST /api/announcements] Submitting: title=${title} status=${status}`);
+      
       const item = await repo.createAnnouncement(
         title, 
         body, 
@@ -88,7 +96,8 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
         is_pinned, 
         dbPriority, 
         image_url, 
-        req.user!.entra_oid
+        req.user!.entra_oid,
+        status || "published"
       );
       
       res.status(201).json({ announcement: item });
@@ -127,18 +136,19 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
 const UpdateSchema = z.object({
   title:     z.string().min(1).max(255).optional(),
   body:      z.string().min(1).optional(),
-  category:  z.string().max(100).nullable().optional(),
+  category:  z.enum(ALLOWED_CATEGORIES).nullable().optional(),
   type:      z.enum(["GENERAL", "IMPORTANT"]).optional(),
   priority:  z.enum(["low", "medium", "high"]).optional(), // backward compat
   is_pinned: z.preprocess((val) => val === "true" || val === true, z.boolean()).optional(),
   image_url: z.string().nullable().optional(),
+  status:    z.enum(["draft", "published"]).optional(),
 });
 
 router.patch("/:id", requireAuth, requireRole([...HR_ROLES]),
   validate(UpdateSchema),
   async (req: AuthRequest, res: Response) => {
     try {
-      let { title, body, category, is_pinned, type, priority, image_url } = req.body;
+      let { title, body, category, is_pinned, type, priority, image_url, status } = req.body;
       
       // Backward compatibility mapping
       if (!type && priority) {
@@ -148,7 +158,7 @@ router.patch("/:id", requireAuth, requireRole([...HR_ROLES]),
       // Map back to DB priority format
       const dbPriority = type === "IMPORTANT" ? "high" : "low";
 
-      const fields: any = { title, body, category, is_pinned, priority: dbPriority, image_url };
+      const fields: any = { title, body, category, is_pinned, priority: dbPriority, image_url, status };
       // Remove undefined fields
       Object.keys(fields).forEach(key => fields[key] === undefined && delete fields[key]);
       
@@ -215,7 +225,7 @@ router.post("/:id/reactions", requireAuth,
 
       const summary = await repo.getReactionSummary(req.params.id);
       const reactions_count: Record<string, number> = {};
-      summary.forEach(r => { reactions_count[r.reaction_type] = parseInt(r.count); });
+      summary.forEach(r => { reactions_count[r.reaction_type] = r.count; });
       
       const newUserReaction = await repo.getUserReaction(req.params.id, req.user!.entra_oid);
       
@@ -224,14 +234,13 @@ router.post("/:id/reactions", requireAuth,
         user_reaction: newUserReaction 
       });
     } catch (err: any) {
-      if (err.status === 404) {
+      if (err instanceof AppError && err.statusCode === 404) {
         res.status(404).json({ error: "NOT_FOUND", message: err.message });
         return;
       }
       logger.error({ err, announcementId: req.params.id, userOid: req.user?.entra_oid }, "Database error updating reaction");
-      console.error("[Reaction DB Error]:", err);
-      // Return 200 with unchanged state instead of 500 on constraint violations or other DB issues
-      res.json({ error: "Reaction update failed", details: err.message });
+      console.error("[Reaction DB Error]:", err.message, err.detail || "");
+      res.status(500).json({ error: "REACTION_FAILED", message: "Failed to save reaction. Please try again." });
     }
   }
 );

@@ -13,7 +13,6 @@ export interface Announcement {
   id: string;
   title: string;
   body: string;
-  category: string | null;
   is_pinned: boolean;
   created_by_oid: string;
   created_at: string;
@@ -22,8 +21,8 @@ export interface Announcement {
   user_reaction?: string | null;
   comments_count?: number;
   image_url?: string;
-  type?: "GENERAL" | "IMPORTANT";
   author_name?: string;
+  status?: "draft" | "published";
 }
 
 export interface TimesheetEntry {

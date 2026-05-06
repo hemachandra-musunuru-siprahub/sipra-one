@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Clock, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
-import { getLatestAnnouncements } from "../api/announcements";
+import { getLatestAnnouncements, reactToAnnouncement, removeReaction } from "../api/announcements";
 import type { Announcement } from "../api/types";
+
+const REACTIONS = [
+  { type: "thumbs_up", icon: "👍" },
+  { type: "heart", icon: "❤️" },
+  { type: "laugh", icon: "😄" },
+  { type: "surprised", icon: "😮" },
+  { type: "sad", icon: "😢" },
+];
 
 // Pure utility — called from event handlers, not during render
 function formatRelativeTime(dateStr: string): string {
@@ -20,20 +28,21 @@ interface CardProps {
   ann: Announcement;
   onClick: () => void;
   getImageUrl: (url: string) => string;
+  onReact: (id: string, type: string) => void;
 }
 
-const FeaturedUpdateCard = ({ ann, onClick, getImageUrl }: CardProps) => {
+const FeaturedUpdateCard = ({ ann, onClick, getImageUrl, onReact }: CardProps) => {
+  const [showReactions, setShowReactions] = useState(false);
 
   return (
     <div
       onClick={onClick}
-      className="w-full flex-shrink-0 flex items-stretch cursor-pointer group/card
-                 bg-white hover:bg-gray-50/50 hover:scale-[1.01] hover:shadow-md transition-all duration-300
-                 rounded-2xl border border-gray-100"
-      style={{ height: "220px" }}
+      onMouseEnter={() => setShowReactions(true)}
+      onMouseLeave={() => setShowReactions(false)}
+      className="w-full h-full flex-shrink-0 cursor-pointer group/card relative overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:shadow-md flex flex-col"
     >
-      {/* Thumbnail (Left Side) */}
-      <div className="w-1/3 min-w-[240px] max-w-[320px] h-full overflow-hidden flex-shrink-0 relative">
+      <div className="image-wrapper relative overflow-hidden h-[200px] w-full flex-shrink-0">
+        {/* Background Image */}
         {ann.image_url ? (
           <img
             src={getImageUrl(ann.image_url)}
@@ -49,43 +58,68 @@ const FeaturedUpdateCard = ({ ann, onClick, getImageUrl }: CardProps) => {
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
-            <Megaphone size={40} className="text-red-300" />
+            <Megaphone size={64} className="text-red-300 opacity-50" />
           </div>
         )}
-        {/* Subtle overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/10" />
-      </div>
+        
+        {/* Overlay layer - Restricted to image-wrapper */}
+        <div 
+          className="image-overlay absolute inset-0 z-10 p-4 flex flex-col justify-between"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%)" }}
+        >
+          <div className="flex justify-end items-start w-full">
+            {ann.is_pinned && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-600 text-white shadow-sm">
+                Pinned
+              </span>
+            )}
+          </div>
 
-      {/* Content (Right Side) */}
-      <div className="flex-1 min-w-0 p-6 md:p-8 flex flex-col justify-center relative bg-gradient-to-r from-white to-gray-50/50">
-        <div className="flex items-center gap-3 mb-3">
-          {ann.category && (
-            <span className="flex-shrink-0 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
-              {ann.category}
-            </span>
-          )}
-          {ann.is_pinned && (
-            <span className="flex-shrink-0 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-              Pinned
-            </span>
-          )}
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium ml-auto">
-            <Clock size={14} />
-            <span>{formatRelativeTime(ann.created_at)}</span>
+          <div className={`flex justify-start transition-all duration-300 transform ${showReactions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            <div 
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md border border-white/20 pointer-events-auto"
+              style={{ background: "rgba(255,255,255,0.95)" }}
+              onClick={(e) => e.stopPropagation()} 
+            >
+              {REACTIONS.map((r) => {
+                const count = ann.reactions?.[r.type] || 0;
+                const isActive = ann.user_reaction === r.type;
+                
+                return (
+                  <button 
+                    key={r.type} 
+                    onClick={(e) => { e.stopPropagation(); onReact(ann.id, r.type); }}
+                    className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-md transition-all ${
+                      isActive 
+                        ? "bg-red-50 text-red-600 font-bold scale-105" 
+                        : "hover:bg-gray-100 text-gray-700"
+                    }`}
+                    title={r.type}
+                  >
+                    <span className="text-sm">{r.icon}</span>
+                    {count > 0 && <span className="font-semibold text-red-700">{count}</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
+      </div>
 
-        <h3 className="text-xl md:text-2xl font-bold text-gray-900 line-clamp-2 mb-3 leading-tight group-hover/card:text-red-600 transition-colors">
+      <div className="post-content p-4 flex flex-col gap-2">
+        <h3 className="text-lg font-bold text-gray-900 line-clamp-1 group-hover/card:text-red-600 transition-colors">
           {ann.title}
         </h3>
+        {ann.body && (
+          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+            {ann.body}
+          </p>
+        )}
+      </div>
 
-        <p className="text-sm md:text-base text-gray-600 line-clamp-2 leading-relaxed max-w-3xl">
-          {ann.body}
-        </p>
-
-        <div className="mt-4 flex items-center text-sm font-semibold text-red-600 opacity-0 -translate-x-2 group-hover/card:opacity-100 group-hover/card:translate-x-0 transition-all duration-300">
-          Read more <ArrowRight size={16} className="ml-1" />
-        </div>
+      {/* Content div - remains clean as requested */}
+      <div className="content">
+        {/* Optional non-overlay content could go here if needed in future */}
       </div>
     </div>
   );
@@ -100,23 +134,29 @@ export const TopAnnouncementsCarousel = () => {
   const navigate = useNavigate();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Determine the correct base path for navigation
+  const currentPath = window.location.pathname;
+  let basePath = "/employee";
+  if (currentPath.startsWith("/hr")) basePath = "/hr";
+  else if (currentPath.startsWith("/manager")) basePath = "/manager";
+
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
   const getImageUrl = (url: string) =>
     url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 
-  // Fetch latest 5 announcements (sorted newest first, pinned first)
+  // Fetch latest 5 published announcements (sorted newest first, pinned first)
   useEffect(() => {
     const fetch = async () => {
       try {
         setLoading(true);
-        const data = await getLatestAnnouncements(5);
-        // Sort: pinned first, then newest
-        const sorted = [...(data.announcements || [])].sort((a, b) => {
-          if (a.is_pinned === b.is_pinned)
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-          return a.is_pinned ? -1 : 1;
-        });
-        setAnnouncements(sorted);
+        // We fetch a larger batch to ensure we find enough pinned posts, or keep it simple
+        const data = await getLatestAnnouncements(20);
+        // Filter: ONLY pinned AND published
+        const featured = (data.announcements || []).filter(a => 
+          (a.status === "published" || !a.status) && a.is_pinned === true
+        );
+        console.log("Featured (Pinned) posts:", featured);
+        setAnnouncements(featured);
       } catch (err) {
         console.error("TopAnnouncementsCarousel: fetch failed", err);
       } finally {
@@ -125,6 +165,41 @@ export const TopAnnouncementsCarousel = () => {
     };
     fetch();
   }, []);
+
+  const handleReact = async (id: string, reactionType: string) => {
+    try {
+      // Optimistic update
+      setAnnouncements(prev => prev.map(ann => {
+        if (ann.id !== id) return ann;
+        const currentReaction = ann.user_reaction;
+        const reactions = { ...ann.reactions };
+        
+        if (currentReaction === reactionType) {
+          // Toggle off
+          reactions[reactionType] = Math.max(0, (reactions[reactionType] || 1) - 1);
+          return { ...ann, user_reaction: null, reactions };
+        } else {
+          // Switch or add
+          if (currentReaction) {
+            reactions[currentReaction] = Math.max(0, (reactions[currentReaction] || 1) - 1);
+          }
+          reactions[reactionType] = (reactions[reactionType] || 0) + 1;
+          return { ...ann, user_reaction: reactionType, reactions };
+        }
+      }));
+
+      // API call
+      const target = announcements.find(a => a.id === id);
+      if (target?.user_reaction === reactionType) {
+        await removeReaction(id);
+      } else {
+        await reactToAnnouncement(id, reactionType);
+      }
+    } catch (err) {
+      console.error("Reaction failed:", err);
+      // Revert optimism by refetching on error could be added here
+    }
+  };
 
   const total = announcements.length;
 
@@ -176,8 +251,8 @@ export const TopAnnouncementsCarousel = () => {
         <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
           <Megaphone size={28} className="text-red-400" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">No Updates</h3>
-        <p className="text-sm font-medium text-gray-500">There are currently no company announcements.</p>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">No Featured Updates</h3>
+        <p className="text-sm font-medium text-gray-500">No featured announcements available at this time.</p>
       </div>
     );
   }
@@ -223,7 +298,7 @@ export const TopAnnouncementsCarousel = () => {
             </div>
           )}
           <button
-            onClick={() => navigate("/announcements")}
+            onClick={() => navigate(`${basePath}/announcements`)}
             className="text-sm font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors group/link"
           >
             View All
@@ -243,8 +318,9 @@ export const TopAnnouncementsCarousel = () => {
             <div key={ann.id} className="w-full flex-shrink-0">
               <FeaturedUpdateCard
                 ann={ann}
-                onClick={() => navigate(`/announcements/${ann.id}`)}
+                onClick={() => navigate(`${basePath}/announcements?highlight=${ann.id}`)}
                 getImageUrl={getImageUrl}
+                onReact={handleReact}
               />
             </div>
           ))}
