@@ -2,15 +2,19 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { Target, Star, Plus, CheckCircle, Clock, User, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { getUsers } from "../../api/users";
 import { 
   getMyGoals, getAllGoals, createGoal, updateGoal,
   getMyReviews, getAllReviews, createReview, getEmployeeSummary,
-  type Goal, type Review
+  getDirectReports,
+  type Goal,
+  type Review
 } from "../../api/performance";
 
 interface EmployeeSummary {
   employee_oid: string;
   employee_name: string;
+  employee_email?: string;
   total_goals: number;
   completed_goals: number;
   in_progress_goals: number;
@@ -37,7 +41,10 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [summary, setSummary] = useState<EmployeeSummary[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [directReports, setDirectReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const setActiveTab = (tab: "goals" | "reviews") => {
     setSearchParams({ tab });
@@ -67,12 +74,17 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
         setGoals(g.goals);
         setReviews(r.reviews);
       } else if (currentRole === "manager") {
-        const { summary: s } = await getEmployeeSummary();
+        const [{ summary: s }, { employees: d }] = await Promise.all([
+          getEmployeeSummary(),
+          getDirectReports()
+        ]);
         setSummary(s);
+        setDirectReports(d);
       } else {
-        const [g, r] = await Promise.all([getAllGoals(), getAllReviews()]);
+        const [g, r, u] = await Promise.all([getAllGoals(), getAllReviews(), getUsers()]);
         setGoals(g.goals);
         setReviews(r.reviews);
+        setAllUsers(u.users || []);
       }
     } catch (e) {
       console.error(e);
@@ -86,7 +98,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   };
 
   const handleCreateGoal = async () => {
-    if (!goalForm.title || !goalForm.target_date) return;
+    if (!goalForm.title || !goalForm.target_date || !goalForm.employee_oid) return;
     setSubmitting(true);
     try {
       await createGoal(goalForm);
@@ -138,7 +150,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             {g.title}
           </h3>
           <div style={{ fontSize: "0.875rem", color: "var(--neutral-500)", marginTop: "var(--space-1)" }}>
-            {currentRole !== "employee" && currentRole !== "manager" && g.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {g.employee_name}</span>}
+            {currentRole !== "employee" && currentRole !== "manager" && g.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {g.employee_name} {g.employee_email ? `(${g.employee_email})` : ""}</span>}
             <Clock size={14} style={{ display: "inline", verticalAlign: "middle", marginRight: 4 }} />
             Target: {new Date(g.target_date).toLocaleDateString()}
           </div>
@@ -179,7 +191,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             {r.review_period} Review
           </h3>
           <div style={{ fontSize: "0.875rem", color: "var(--neutral-500)", marginTop: "var(--space-1)" }}>
-            {currentRole !== "employee" && currentRole !== "manager" && r.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {r.employee_name}</span>}
+            {currentRole !== "employee" && currentRole !== "manager" && r.employee_name && <span style={{ marginRight: "var(--space-3)" }}><strong>Employee:</strong> {r.employee_name} {r.employee_email ? `(${r.employee_email})` : ""}</span>}
             <span><strong>Reviewer:</strong> {r.reviewer_name || "Manager"}</span>
             <span style={{ marginLeft: "var(--space-3)" }}><strong>Date:</strong> {new Date(r.created_at).toLocaleDateString()}</span>
           </div>
@@ -234,16 +246,26 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
     </div>
   );
 
-  const filteredSummary = currentRole === "manager" && activeTab === "reviews" 
-    ? summary.filter(s => {
-        const hasCurrentReview = s.reviews.some(r => r.review_period === CURRENT_REVIEW_PERIOD);
-        if (managerReviewSubTab === "pending") {
-          return s.completed_goals > 0 && !hasCurrentReview;
-        } else {
-          return hasCurrentReview;
-        }
-      })
-    : summary;
+  const filteredSummary = summary.filter(s => {
+    // 1. Filter by tab (Manager only)
+    if (currentRole === "manager" && activeTab === "reviews") {
+      const hasCurrentReview = s.reviews.some(r => r.review_period === CURRENT_REVIEW_PERIOD);
+      if (managerReviewSubTab === "pending" && (s.completed_goals === 0 || hasCurrentReview)) return false;
+      if (managerReviewSubTab === "reviewed" && !hasCurrentReview) return false;
+    }
+
+    // 2. Filter by search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        s.employee_name.toLowerCase().includes(term) ||
+        s.employee_email?.toLowerCase().includes(term) ||
+        s.employee_oid.toLowerCase().includes(term)
+      );
+    }
+
+    return true;
+  });
 
   return (
     <DashboardLayout internalUser={internalUser} role={layoutRole}>
@@ -254,12 +276,12 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Performance Management</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            {currentRole !== "employee" && (
+            {(currentRole === "manager" || currentRole === "admin") && (
               <button className="btn btn--primary" onClick={() => { setShowGoalForm(true); setShowReviewForm(false); }}>
                 <Plus size={16} /> Add Goal
               </button>
             )}
-            {currentRole !== "employee" && (
+            {(currentRole === "manager" || currentRole === "admin") && (
               <button className="btn btn--secondary" onClick={() => { setShowReviewForm(true); setShowGoalForm(false); }}>
                 <Star size={16} /> New Review
               </button>
@@ -310,8 +332,25 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
         </div>
       )}
 
+      {/* Search Bar for Manager/HR/Admin */}
+      {(currentRole === "manager" || currentRole === "hr" || currentRole === "admin") && (
+        <div style={{ marginBottom: "var(--space-6)", maxWidth: "400px" }}>
+          <div style={{ position: "relative" }}>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="Search employee or title..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ paddingLeft: "var(--space-10)" }}
+            />
+            <User size={18} style={{ position: "absolute", left: "var(--space-3)", top: "50%", transform: "translateY(-50%)", color: "var(--neutral-400)" }} />
+          </div>
+        </div>
+      )}
+
       {/* Goal Form */}
-      {showGoalForm && currentRole !== "employee" && (
+      {showGoalForm && (currentRole === "manager" || currentRole === "admin") && (
         <div className="card" style={{ marginBottom: "var(--space-6)" }}>
           <div className="card__header"><h3 className="card__title">Create New Goal</h3></div>
           <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
@@ -320,8 +359,27 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
               <input className="input" value={goalForm.title} onChange={e => setGoalForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <div>
-              <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee OID (Leave empty for self)</label>
-              <input className="input" placeholder="Entra OID" value={goalForm.employee_oid} onChange={e => setGoalForm(f => ({ ...f, employee_oid: e.target.value }))} />
+              <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee *</label>
+              <select 
+                className="input" 
+                value={goalForm.employee_oid} 
+                onChange={e => setGoalForm(f => ({ ...f, employee_oid: e.target.value }))}
+              >
+                <option value="">Select an employee...</option>
+                {currentRole === "manager" ? (
+                  directReports.map(e => (
+                    <option key={e.entra_oid} value={e.entra_oid}>
+                      {e.name} {e.email ? `— ${e.email}` : ""}
+                    </option>
+                  ))
+                ) : (
+                  allUsers.map(u => (
+                    <option key={u.entra_oid} value={u.entra_oid}>
+                      {u.name} {u.email ? `— ${u.email}` : ""}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Target Date *</label>
@@ -340,13 +398,32 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
       )}
 
       {/* Review Form */}
-      {showReviewForm && currentRole !== "employee" && (
+      {showReviewForm && (currentRole === "manager" || currentRole === "admin") && (
         <div className="card" style={{ marginBottom: "var(--space-6)" }}>
           <div className="card__header"><h3 className="card__title">Add Performance Review</h3></div>
           <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
             <div>
-              <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee OID *</label>
-              <input className="input" placeholder="Entra OID" value={reviewForm.employee_oid} onChange={e => setReviewForm(f => ({ ...f, employee_oid: e.target.value }))} />
+              <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Employee *</label>
+              <select 
+                className="input" 
+                value={reviewForm.employee_oid} 
+                onChange={e => setReviewForm(f => ({ ...f, employee_oid: e.target.value }))}
+              >
+                <option value="">Select an employee...</option>
+                {currentRole === "manager" ? (
+                  directReports.map(e => (
+                    <option key={e.entra_oid} value={e.entra_oid}>
+                      {e.name} {e.email ? `— ${e.email}` : ""}
+                    </option>
+                  ))
+                ) : (
+                  allUsers.map(u => (
+                    <option key={u.entra_oid} value={u.entra_oid}>
+                      {u.name} {u.email ? `— ${u.email}` : ""}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
             <div>
               <label style={{ fontSize: "0.875rem", fontWeight: 500, display: "block", marginBottom: "var(--space-2)" }}>Review Period *</label>
@@ -385,11 +462,15 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             <div className="card">
               <div className="card__body" style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-8)" }}>
                 <AlertCircle size={48} style={{ margin: "0 auto var(--space-4)", display: "block", opacity: 0.2 }} />
-                {activeTab === "goals" 
-                  ? "No team members found with goals." 
-                  : managerReviewSubTab === "pending" 
-                    ? "No employees currently pending review. Great job!" 
-                    : "No reviews completed for this period yet."}
+                {searchTerm ? (
+                  "No employee performance records found."
+                ) : activeTab === "goals" ? (
+                  "No team members found with goals."
+                ) : managerReviewSubTab === "pending" ? (
+                  "No employees currently pending review. Great job!"
+                ) : (
+                  "No reviews completed for this period yet."
+                )}
               </div>
             </div>
           ) : filteredSummary.map(s => (
@@ -405,7 +486,9 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
                   </div>
                   <div>
                     <h3 className="card__title" style={{ margin: 0 }}>{s.employee_name}</h3>
-                    <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{s.employee_oid}</div>
+                    {s.employee_email && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{s.employee_email}</div>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
@@ -448,15 +531,58 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
         </div>
       ) : activeTab === "goals" ? (
         <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>
-          {goals.length === 0 ? (
-             <div className="card"><div className="card__body" style={{ textAlign: "center", color: "var(--neutral-500)" }}>No goals found.</div></div>
-          ) : goals.map(g => renderGoalCard(g, currentRole === "employee"))}
+          {(() => {
+            const filteredGoals = goals.filter(g => {
+              if (!searchTerm) return true;
+              const term = searchTerm.toLowerCase();
+              return (
+                g.employee_name?.toLowerCase().includes(term) ||
+                g.employee_email?.toLowerCase().includes(term) ||
+                g.title.toLowerCase().includes(term) ||
+                g.description?.toLowerCase().includes(term)
+              );
+            });
+
+            if (filteredGoals.length === 0) {
+              return (
+                <div className="card">
+                  <div className="card__body" style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-8)" }}>
+                    <AlertCircle size={48} style={{ margin: "0 auto var(--space-4)", display: "block", opacity: 0.2 }} />
+                    {searchTerm ? "No performance records found for this employee." : "No goals found."}
+                  </div>
+                </div>
+              );
+            }
+            return filteredGoals.map(g => renderGoalCard(g, currentRole === "employee"));
+          })()}
         </div>
       ) : (
         <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>
-          {reviews.length === 0 ? (
-             <div className="card"><div className="card__body" style={{ textAlign: "center", color: "var(--neutral-500)" }}>No reviews found.</div></div>
-          ) : reviews.map(r => renderReviewCard(r))}
+          {(() => {
+            const filteredReviews = reviews.filter(r => {
+              if (!searchTerm) return true;
+              const term = searchTerm.toLowerCase();
+              return (
+                r.employee_name?.toLowerCase().includes(term) ||
+                r.employee_email?.toLowerCase().includes(term) ||
+                r.review_period.toLowerCase().includes(term) ||
+                r.comments?.toLowerCase().includes(term) ||
+                r.strengths?.toLowerCase().includes(term)
+              );
+            });
+
+            if (filteredReviews.length === 0) {
+              return (
+                <div className="card">
+                  <div className="card__body" style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-8)" }}>
+                    <AlertCircle size={48} style={{ margin: "0 auto var(--space-4)", display: "block", opacity: 0.2 }} />
+                    {searchTerm ? "No performance records found for this employee." : "No reviews found."}
+                  </div>
+                </div>
+              );
+            }
+            return filteredReviews.map(r => renderReviewCard(r));
+          })()}
         </div>
       )}
 

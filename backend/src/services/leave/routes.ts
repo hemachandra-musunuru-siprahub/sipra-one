@@ -207,15 +207,8 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
 
     // ── Notify HR users & Managers (fire-and-forget) ──────────────────────
     try {
-      // Find all HR/Admin and Managers using effective_role
-      const { rows } = await query(
-        `SELECT entra_oid FROM users WHERE is_active = true AND effective_role IN ('hr', 'admin', 'manager')`
-      );
-      
+      // Notify only the manager (we no longer store effective_role in the DB)
       const recipientOids = new Set<string>();
-      rows.forEach((r: any) => recipientOids.add(r.entra_oid));
-
-      // Make sure the explicit manager is included even if effective_role sync is delayed
       if (managerOid && managerOid !== user.entra_oid) {
         recipientOids.add(managerOid);
       }

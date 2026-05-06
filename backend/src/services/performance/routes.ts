@@ -10,13 +10,29 @@ const getUserName = async (entraOid: string) => {
   return rows[0]?.name || "Unknown";
 };
 
+// Get direct reports for manager
+router.get("/direct-reports", requireAuth, requireRole(["Manager", "SipraHub-Manager"]), async (req: AuthRequest, res: Response) => {
+  try {
+    const { rows } = await query(`
+      SELECT entra_oid, name, email
+      FROM users
+      WHERE manager_entra_oid = $1
+        AND is_active = true
+      ORDER BY name ASC
+    `, [req.user!.entra_oid]);
+    res.json({ employees: rows });
+  } catch (error: any) {
+    res.status(500).json({ error: "DB_ERROR", details: error.message });
+  }
+});
+
 // ─── GOALS ──────────────────────────────────────────────────────────────────
 
 // Get all goals (HR/Admin)
 router.get("/goals", requireAuth, requireRole(["HR", "Admin", "SipraHub-HR", "SipraHub-SystemAdmin"]), async (req: AuthRequest, res: Response) => {
   try {
     const { rows } = await query(`
-      SELECT g.*, e.name as employee_name, m.name as manager_name
+      SELECT g.*, e.name as employee_name, e.email as employee_email, m.name as manager_name
       FROM performance_goals g
       LEFT JOIN users e ON g.employee_oid = e.entra_oid
       LEFT JOIN users m ON g.manager_oid = m.entra_oid
@@ -152,7 +168,7 @@ router.get("/employee-summary", requireAuth, requireRole(["Manager", "SipraHub-M
     // 1. Get all employees under this manager by looking at their goals
     // We join with users to get the employee name
     const { rows: goalRows } = await query(`
-      SELECT g.*, u.name as employee_name
+      SELECT g.*, u.name as employee_name, u.email as employee_email
       FROM performance_goals g
       JOIN users u ON g.employee_oid = u.entra_oid
       WHERE g.manager_oid = $1
@@ -179,6 +195,7 @@ router.get("/employee-summary", requireAuth, requireRole(["Manager", "SipraHub-M
         summaryMap.set(g.employee_oid, {
           employee_oid: g.employee_oid,
           employee_name: g.employee_name,
+          employee_email: g.employee_email,
           total_goals: 0,
           completed_goals: 0,
           in_progress_goals: 0,
@@ -224,7 +241,7 @@ router.get("/employee-summary", requireAuth, requireRole(["Manager", "SipraHub-M
 router.get("/reviews", requireAuth, requireRole(["HR", "Admin", "SipraHub-HR", "SipraHub-SystemAdmin"]), async (req: AuthRequest, res: Response) => {
   try {
     const { rows } = await query(`
-      SELECT r.*, e.name as employee_name, m.name as reviewer_name
+      SELECT r.*, e.name as employee_name, e.email as employee_email, m.name as reviewer_name
       FROM performance_reviews r
       LEFT JOIN users e ON r.employee_oid = e.entra_oid
       LEFT JOIN users m ON r.reviewer_oid = m.entra_oid

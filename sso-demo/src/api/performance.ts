@@ -10,6 +10,7 @@ export interface Goal {
   created_at: string;
   updated_at: string;
   employee_name?: string;
+  employee_email?: string;
   manager_name?: string;
 }
 
@@ -24,6 +25,7 @@ export interface Review {
   comments: string;
   created_at: string;
   employee_name?: string;
+  employee_email?: string;
   reviewer_name?: string;
 }
 
@@ -103,5 +105,11 @@ export const createReview = async (data: Partial<Review>): Promise<{ review: Rev
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to create review");
+  return res.json();
+};
+
+export const getDirectReports = async (): Promise<{ employees: any[] }> => {
+  const res = await fetch(`${API}/api/performance/direct-reports`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch direct reports");
   return res.json();
 };
