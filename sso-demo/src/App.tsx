@@ -149,7 +149,7 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
             <tr>
               <th>Name</th>
               <th>Email</th>
-              <th>Manager OID</th>
+              <th>Manager</th>
               <th>Status</th>
               <th>Last Login</th>
               <th>Actions</th>
@@ -167,7 +167,16 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
                   </div>
                 </td>
                 <td style={{ fontSize: "0.8125rem" }}>{user.email}</td>
-                <td style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>{user.manager_entra_oid ? user.manager_entra_oid.slice(0, 8) + "…" : "—"}</td>
+                <td>
+                  {user.manager_name ? (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--neutral-800)" }}>{user.manager_name}</span>
+                      <span style={{ fontSize: "0.7rem", color: "var(--neutral-500)" }}>{user.manager_email}</span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: "0.75rem", color: "var(--neutral-400)" }}>—</span>
+                  )}
+                </td>
                 <td><span className={`badge ${user.is_active ? "badge--published" : "badge--draft"}`} style={{ fontSize: "0.6875rem" }}>{user.is_active ? "Active" : "Inactive"}</span></td>
                 <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}</td>
                 <td>

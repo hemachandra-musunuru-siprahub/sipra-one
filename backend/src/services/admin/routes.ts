@@ -17,9 +17,15 @@ router.get("/users", requireAuth, requireRole([...ADMIN_ROLES]), async (req: Aut
   try {
     console.log("[ADMIN /users] Fetching all users from database...");
     const { rows } = await query(`
-      SELECT id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login
-      FROM users
-      ORDER BY name ASC
+      SELECT
+        u.id, u.entra_oid, u.email, u.name,
+        u.manager_entra_oid,
+        m.name  AS manager_name,
+        m.email AS manager_email,
+        u.is_active, u.created_at, u.last_login
+      FROM users u
+      LEFT JOIN users m ON m.entra_oid = u.manager_entra_oid
+      ORDER BY u.name ASC
     `);
 
     console.log(`[ADMIN /users] ${rows.length} user(s) found. Resolving Entra roles via Microsoft Graph...`);
@@ -36,8 +42,8 @@ router.get("/users", requireAuth, requireRole([...ADMIN_ROLES]), async (req: Aut
     const users = rows.map((u: any) => {
       let role = roleMap[u.entra_oid];
 
-      // If Graph says 'employee' but they are a manager of someone in our DB, upgrade to 'manager'
-      if (role === "employee" && managerSet.has(u.entra_oid)) {
+      // If they are a manager of someone in our DB, ensure they have at least 'manager' role
+      if ((role === "employee" || role === null) && managerSet.has(u.entra_oid)) {
         role = "manager";
       }
 
@@ -47,6 +53,8 @@ router.get("/users", requireAuth, requireRole([...ADMIN_ROLES]), async (req: Aut
         email:             u.email,
         name:              u.name,
         manager_entra_oid: u.manager_entra_oid,
+        manager_name:      u.manager_name  ?? null,
+        manager_email:     u.manager_email ?? null,
         is_active:         u.is_active,
         created_at:        u.created_at,
         last_login:        u.last_login,

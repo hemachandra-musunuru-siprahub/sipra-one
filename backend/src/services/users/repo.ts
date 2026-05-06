@@ -23,8 +23,13 @@ export const getUserByOid = async (entraOid: string) => {
 // ─── Update manager mapping ───────────────────────────────────────────────────
 export const updateManager = async (entraOid: string, managerEntraOid: string | null) => {
   const { rows } = await query(
-    `UPDATE users SET manager_entra_oid = $2 WHERE entra_oid = $1
-     RETURNING id, entra_oid, email, name, manager_entra_oid, is_active`,
+    `WITH updated AS (
+       UPDATE users SET manager_entra_oid = $2 WHERE entra_oid = $1
+       RETURNING id, entra_oid, email, name, manager_entra_oid, is_active
+     )
+     SELECT u.*, m.name AS manager_name, m.email AS manager_email
+     FROM updated u
+     LEFT JOIN users m ON m.entra_oid = u.manager_entra_oid`,
     [entraOid, managerEntraOid]
   );
   return rows[0];

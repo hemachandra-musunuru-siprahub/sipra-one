@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Users, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import { Users, CheckCircle, XCircle, RefreshCw, Search, X } from "lucide-react";
 import { setActive, setManager } from "../../api/users";
 import { getAllUsers, deleteUser } from "../../api/admin";
 
@@ -8,39 +8,28 @@ interface Props { internalUser: any; }
 
 // ─── Role badge styling ───────────────────────────────────────────────────────
 const ROLE_STYLES: Record<string, { label: string; bg: string; color: string }> = {
-  admin:    { label: "Admin",      bg: "#FEF3F2", color: "#B42318" },
-  hr:       { label: "HR",         bg: "#F0FDF4", color: "#15803D" },
-  manager:  { label: "Manager",    bg: "#EFF6FF", color: "#1D4ED8" },
-  employee: { label: "Employee",   bg: "#F9FAFB", color: "#374151" },
+  admin:    { label: "Admin",    bg: "#FEF3F2", color: "#B42318" },
+  hr:       { label: "HR",       bg: "#F0FDF4", color: "#15803D" },
+  manager:  { label: "Manager",  bg: "#EFF6FF", color: "#1D4ED8" },
+  employee: { label: "Employee", bg: "#F9FAFB", color: "#374151" },
 };
 
 function RoleBadge({ role }: { role: string | null }) {
   if (!role) {
     return (
       <span style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 9999,
-        fontSize: "0.75rem",
-        fontWeight: 500,
-        background: "#FEF9C3",
-        color: "#854D0E",
+        display: "inline-block", padding: "2px 8px", borderRadius: 9999,
+        fontSize: "0.75rem", fontWeight: 500, background: "#FEF9C3", color: "#854D0E",
       }}>
         Not Synced
       </span>
     );
   }
-
   const style = ROLE_STYLES[role] ?? { label: role, bg: "#F9FAFB", color: "#374151" };
   return (
     <span style={{
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: 9999,
-      fontSize: "0.75rem",
-      fontWeight: 600,
-      background: style.bg,
-      color: style.color,
+      display: "inline-block", padding: "2px 8px", borderRadius: 9999,
+      fontSize: "0.75rem", fontWeight: 600, background: style.bg, color: style.color,
       textTransform: "capitalize",
     }}>
       {style.label}
@@ -48,14 +37,226 @@ function RoleBadge({ role }: { role: string | null }) {
   );
 }
 
+// ─── Manager Picker ───────────────────────────────────────────────────────────
+interface ManagerPickerProps {
+  allUsers: any[];
+  targetUserOid: string;      // row being edited — excluded from list
+  currentManagerOid: string | null;
+  onSelect: (oid: string | null) => Promise<void>;
+  onCancel: () => void;
+}
+
+const ELIGIBLE_ROLES = ["admin", "hr", "manager"];
+
+const ManagerPicker: React.FC<ManagerPickerProps> = ({
+  allUsers,
+  targetUserOid,
+  currentManagerOid,
+  onSelect,
+  onCancel,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef     = useRef<HTMLInputElement>(null);
+
+  // Seed search with current manager's name for convenience
+  const currentManagerName = allUsers.find(u => u.entra_oid === currentManagerOid)?.name ?? "";
+  const [query, setQuery]   = useState(currentManagerName);
+  const [open, setOpen]     = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Eligible pool: All active users, exclude the row's own user
+  const eligible = allUsers.filter(
+    u => u.is_active !== false && u.entra_oid !== targetUserOid
+  );
+
+  // Filter by search query
+  const lq = query.toLowerCase();
+  const filtered = query.trim()
+    ? eligible.filter(
+        u => u.name?.toLowerCase().includes(lq) || u.email?.toLowerCase().includes(lq)
+      )
+    : eligible;
+
+  // Focus input on mount
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onCancel();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onCancel]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onCancel]);
+
+  const handleSelect = async (oid: string | null) => {
+    setSaving(true);
+    setOpen(false);
+    try { await onSelect(oid); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width: 280 }}>
+      {/* Search input */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        border: "1.5px solid var(--primary-400)", borderRadius: "var(--rounded-lg)",
+        background: "white", padding: "4px 8px",
+      }}>
+        <Search size={13} style={{ color: "var(--neutral-400)", flexShrink: 0 }} />
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search manager by name or email…"
+          style={{
+            border: "none", outline: "none", fontSize: "0.8125rem",
+            flex: 1, background: "transparent", color: "var(--neutral-800)",
+          }}
+          disabled={saving}
+        />
+        {saving ? (
+          <div style={{
+            width: 14, height: 14, border: "2px solid var(--primary-400)",
+            borderTopColor: "transparent", borderRadius: "50%",
+            animation: "spin 0.7s linear infinite", flexShrink: 0,
+          }} />
+        ) : (
+          <button
+            onClick={onCancel}
+            style={{ border: "none", background: "none", cursor: "pointer", padding: 0, display: "flex", color: "var(--neutral-400)" }}
+            title="Cancel"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Dropdown panel */}
+      {open && !saving && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "white", border: "1px solid var(--neutral-200)",
+          borderRadius: "var(--rounded-xl)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+          zIndex: 200, maxHeight: 280, overflowY: "auto",
+        }}>
+          {/* Clear option */}
+          <button
+            onClick={() => handleSelect(null)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 12px", background: "none", border: "none",
+              borderBottom: "1px solid var(--neutral-100)", cursor: "pointer",
+              textAlign: "left",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#FEF2F2")}
+            onMouseLeave={e => (e.currentTarget.style.background = "none")}
+          >
+            <div style={{
+              width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+              background: "#FEF3F2", border: "1.5px dashed #FECACA",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <X size={12} style={{ color: "#B42318" }} />
+            </div>
+            <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontStyle: "italic" }}>
+              — No manager (clear assignment) —
+            </span>
+          </button>
+
+          {/* Eligible manager options */}
+          {filtered.length === 0 ? (
+            <div style={{ padding: "14px 16px", fontSize: "0.8125rem", color: "var(--neutral-400)", textAlign: "center" }}>
+              No eligible managers found
+            </div>
+          ) : filtered.map(u => {
+            const isCurrentManager = u.entra_oid === currentManagerOid;
+            const roleStyle = ROLE_STYLES[u.roleFromEntra] ?? { bg: "#F9FAFB", color: "#374151", label: u.roleFromEntra };
+
+            return (
+              <button
+                key={u.entra_oid}
+                onClick={() => handleSelect(u.entra_oid)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "9px 12px", background: isCurrentManager ? "#F0F7FF" : "none",
+                  border: "none", cursor: "pointer", textAlign: "left",
+                  borderBottom: "1px solid var(--neutral-50)",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={e => { if (!isCurrentManager) e.currentTarget.style.background = "var(--neutral-50)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = isCurrentManager ? "#F0F7FF" : "none"; }}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+                  background: "var(--dept-it)", color: "white",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "0.7rem", fontWeight: 700,
+                }}>
+                  {u.name?.[0]?.toUpperCase() ?? "?"}
+                </div>
+
+                {/* Name + email */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: "0.8125rem", fontWeight: 600,
+                    color: "var(--neutral-800)", whiteSpace: "nowrap",
+                    overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {u.name}
+                    {isCurrentManager && (
+                      <span style={{ fontSize: "0.65rem", color: "#1D4ED8", marginLeft: 6, fontWeight: 500 }}>
+                        current
+                      </span>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: "0.7rem", color: "var(--neutral-500)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {u.email}
+                  </div>
+                </div>
+
+                {/* Role badge */}
+                <span style={{
+                  flexShrink: 0, padding: "2px 7px", borderRadius: 9999,
+                  fontSize: "0.65rem", fontWeight: 700,
+                  background: u.roleFromEntra ? roleStyle.bg : "#FEF9C3",
+                  color: u.roleFromEntra ? roleStyle.color : "#854D0E",
+                  textTransform: "capitalize",
+                }}>
+                  {u.roleFromEntra ? roleStyle.label : "Not Synced"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export const AdminUsersPage = ({ internalUser }: Props) => {
-  const [users, setUsers]         = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [users, setUsers]           = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [managerOid, setManagerOid] = useState("");
-  const [search, setSearch]       = useState("");
-  const [error, setError]         = useState<string | null>(null);
+  const [editingId, setEditingId]   = useState<string | null>(null);
+  const [search, setSearch]         = useState("");
+  const [error, setError]           = useState<string | null>(null);
 
   const loadUsers = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -86,14 +287,10 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
     } catch (e) { console.error(e); }
   };
 
-  const handleSetManager = async (oid: string) => {
-    try {
-      const mgr = managerOid.trim() || null;
-      const { user } = await setManager(oid, mgr);
-      setUsers(prev => prev.map(u => u.entra_oid === oid ? { ...u, ...user } : u));
-      setEditingId(null);
-      setManagerOid("");
-    } catch (e) { console.error(e); }
+  const handlePickManager = async (userOid: string, selectedOid: string | null) => {
+    const { user: updated } = await setManager(userOid, selectedOid);
+    setUsers(prev => prev.map(u => u.entra_oid === userOid ? { ...u, ...updated } : u));
+    setEditingId(null);
   };
 
   const handleDeleteUser = async (oid: string) => {
@@ -172,7 +369,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                 <th>Name</th>
                 <th>Email</th>
                 <th>Microsoft Entra Role</th>
-                <th>Manager OID</th>
+                <th>Manager</th>
                 <th>Status</th>
                 <th>Last Login</th>
                 <th>Actions</th>
@@ -187,6 +384,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                 <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No users found</td></tr>
               ) : filtered.map(user => (
                 <tr key={user.entra_oid}>
+                  {/* Name */}
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
                       <div className="avatar avatar--sm" style={{ width: 28, height: 28 }}>
@@ -195,45 +393,74 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                       <span style={{ fontWeight: 500 }}>{user.name}</span>
                     </div>
                   </td>
+
+                  {/* Email */}
                   <td style={{ fontSize: "0.875rem" }}>{user.email}</td>
-                  <td>
-                    <RoleBadge role={user.roleFromEntra} />
-                  </td>
-                  <td>
+
+                  {/* Role */}
+                  <td><RoleBadge role={user.roleFromEntra} /></td>
+
+                  {/* Manager — picker or display */}
+                  <td style={{ minWidth: 200 }}>
                     {editingId === user.entra_oid ? (
-                      <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                        <input
-                          className="input"
-                          style={{ fontSize: "0.75rem", padding: "4px 8px", width: 180 }}
-                          placeholder="Manager OID or blank to clear"
-                          value={managerOid}
-                          onChange={e => setManagerOid(e.target.value)}
-                        />
-                        <button className="btn btn--primary btn--sm" style={{ height: 28 }} onClick={() => handleSetManager(user.entra_oid)}>Save</button>
-                        <button className="btn btn--ghost btn--sm" style={{ height: 28 }} onClick={() => setEditingId(null)}>✕</button>
+                      <ManagerPicker
+                        allUsers={users}
+                        targetUserOid={user.entra_oid}
+                        currentManagerOid={user.manager_entra_oid}
+                        onSelect={(oid) => handlePickManager(user.entra_oid, oid)}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    ) : user.manager_name ? (
+                      <div
+                        style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", cursor: "pointer" }}
+                        onClick={() => setEditingId(user.entra_oid)}
+                        title="Click to change manager"
+                      >
+                        <div
+                          className="avatar avatar--sm"
+                          style={{ width: 24, height: 24, fontSize: "0.65rem", flexShrink: 0, background: "var(--dept-it)" }}
+                        >
+                          {user.manager_name[0]?.toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{
+                            fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)",
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160,
+                          }}>
+                            {user.manager_name}
+                          </div>
+                          <div style={{
+                            fontSize: "0.7rem", color: "var(--neutral-500)",
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160,
+                          }}>
+                            {user.manager_email}
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <span
-                        style={{
-                          fontFamily: "monospace", fontSize: "0.75rem",
-                          color: user.manager_entra_oid ? "var(--neutral-700)" : "var(--neutral-400)",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => { setEditingId(user.entra_oid); setManagerOid(user.manager_entra_oid || ""); }}
-                        title="Click to edit"
+                        style={{ fontSize: "0.8125rem", color: "var(--neutral-400)", cursor: "pointer" }}
+                        onClick={() => setEditingId(user.entra_oid)}
+                        title="Click to assign a manager"
                       >
-                        {user.manager_entra_oid ? user.manager_entra_oid.slice(0, 14) + "…" : "No manager"}
+                        No manager
                       </span>
                     )}
                   </td>
+
+                  {/* Status */}
                   <td>
                     <span className={`badge ${user.is_active ? "badge--published" : "badge--draft"}`}>
                       {user.is_active ? "Active" : "Inactive"}
                     </span>
                   </td>
+
+                  {/* Last Login */}
                   <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>
                     {user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}
                   </td>
+
+                  {/* Actions */}
                   <td>
                     <div style={{ display: "flex", gap: "var(--space-2)" }}>
                       <button
@@ -262,6 +489,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
           <p style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>
             Roles are resolved in real-time from <strong>Microsoft Entra ID</strong> app role assignments.
             No role data is stored in the local database. Click <em>Refresh Roles</em> to re-fetch.
+            Only Admin, HR and Manager roles are eligible as managers.
           </p>
         </div>
       </div>
