@@ -1,24 +1,16 @@
-const API = "http://localhost:3000";
+import axios from "axios";
 
-async function testApi() {
-  const endpoints = [
-    "/api/leave-requests/all",
-    "/api/hr-documents",
-    "/api/announcements?page=1&limit=5&status=published"
-  ];
-
-  for (const path of endpoints) {
-    try {
-      const res = await fetch(`${API}${path}`, {
-        headers: { "Content-Type": "application/json" }
-      });
-      console.log(`[${path}] Status: ${res.status}`);
-      const body = await res.json();
-      console.log(`[${path}] Body:`, JSON.stringify(body, null, 2));
-    } catch (err: any) {
-      console.error(`[${path}] FAILED:`, err.message);
-    }
+async function check() {
+  try {
+    const res = await axios.get("http://localhost:3000/api/announcements?limit=5", {
+      headers: { "Content-Type": "application/json" }
+    });
+    console.log("ANNOUNCEMENTS API STATUS:", res.status);
+    console.log("DATA LENGTH:", res.data.announcements?.length);
+    console.log("FIRST ITEM:", JSON.stringify(res.data.announcements?.[0], null, 2));
+  } catch (e: any) {
+    console.error("API Error:", e.response?.status, e.message);
+    if (e.response?.data) console.error("Details:", e.response.data);
   }
 }
-
-testApi();
+check();

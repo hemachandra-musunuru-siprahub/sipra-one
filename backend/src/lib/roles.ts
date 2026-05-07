@@ -9,13 +9,25 @@ export const HR_ROLES = ["HR", "SipraHub-HR", "SipraHub_HR"] as const;
 export const MANAGER_ROLES = ["Manager", "SipraHub-Manager", "SipraHub_Manager"] as const;
 export const EMPLOYEE_ROLES = ["Employee", "SipraHub-Employee", "SipraHub_Employee", "Default Access"] as const;
 
-export const isAdmin = (roles: string[]): boolean => ADMIN_ROLES.some(r => roles.includes(r));
-export const isHR = (roles: string[]): boolean => HR_ROLES.some(r => roles.includes(r));
-export const isManager = (roles: string[]): boolean => MANAGER_ROLES.some(r => roles.includes(r));
-export const isEmployee = (roles: string[]): boolean => EMPLOYEE_ROLES.some(r => roles.includes(r));
+export const isAdmin = (roles: string | string[]): boolean => {
+  const r = Array.isArray(roles) ? roles : [roles];
+  return ADMIN_ROLES.some(val => r.includes(val));
+};
+export const isHR = (roles: string | string[]): boolean => {
+  const r = Array.isArray(roles) ? roles : [roles];
+  return HR_ROLES.some(val => r.includes(val));
+};
+export const isManager = (roles: string | string[]): boolean => {
+  const r = Array.isArray(roles) ? roles : [roles];
+  return MANAGER_ROLES.some(val => r.includes(val));
+};
+export const isEmployee = (roles: string | string[]): boolean => {
+  const r = Array.isArray(roles) ? roles : [roles];
+  return EMPLOYEE_ROLES.some(val => r.includes(val));
+};
 
 // Admin bypasses all role checks
-export const canAccess = (roles: string[], check: (r: string[]) => boolean): boolean =>
+export const canAccess = (roles: string | string[], check: (r: string | string[]) => boolean): boolean =>
   isAdmin(roles) || check(roles);
 
 /**

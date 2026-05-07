@@ -12,7 +12,7 @@ import { AccessDenied } from "./components/AccessDenied";
 import { DashboardLayout } from "./components/DashboardLayout";
 import {
   Shield, Activity, Server, Users, Settings, Lock,
-  ArrowRight, Database, Globe, PieChart, HardDrive
+  Database, Globe, PieChart, HardDrive
 } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -31,7 +31,7 @@ import { AnnouncementDetailPage } from "./pages/shared/AnnouncementDetailPage";
 import { PerformancePage } from "./pages/shared/PerformancePage";
 
 // API
-import { getGroupedUsers, getAllUsers, deleteUser } from "./api/admin";
+import { getAllUsers, deleteUser } from "./api/admin";
 import { setActive } from "./api/users";
 
 // ─── API base ─────────────────────────────────────────────────────────────────
@@ -338,8 +338,10 @@ const SessionProvider = ({
 
   // Propagate re-sync
   useEffect(() => {
-    if (initialUser) setInternalUser(initialUser);
-  }, [initialUser]);
+    if (initialUser && initialUser !== internalUser) {
+      setInternalUser(initialUser);
+    }
+  }, [initialUser, internalUser]);
 
   if (error) {
     return (

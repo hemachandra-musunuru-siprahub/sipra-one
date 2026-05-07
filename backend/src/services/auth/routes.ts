@@ -142,12 +142,12 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  if (graphData.error) {
-    res.status(401).json({ error: "GRAPH_API_FAILED", details: graphData.error.message });
+  if ((graphData as any).error) {
+    res.status(401).json({ error: "GRAPH_API_FAILED", details: (graphData as any).error.message });
     return;
   }
 
-  const { profile, managerEntraOid } = graphData;
+  const { profile, managerEntraOid } = graphData as any;
 
   // 3. Resolve role from Entra claims — Graph API is the ONLY source of truth.
   // Role is written to DB on EVERY login (INSERT or UPDATE).
