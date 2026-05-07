@@ -29,7 +29,7 @@ router.get("/direct-reports", requireAuth, requireRole(["Manager", "SipraHub-Man
 // ─── GOALS ──────────────────────────────────────────────────────────────────
 
 // Get all goals (HR/Admin)
-router.get("/goals", requireAuth, requireRole(["HR", "Admin", "SipraHub-HR", "SipraHub-SystemAdmin"]), async (req: AuthRequest, res: Response) => {
+router.get("/goals", requireAuth, requireRole(["HR", "Admin"]), async (req: AuthRequest, res: Response) => {
   try {
     const { rows } = await query(`
       SELECT g.*, e.name as employee_name, e.email as employee_email, m.name as manager_name
@@ -62,7 +62,7 @@ router.get("/goals/my", requireAuth, async (req: AuthRequest, res: Response) => 
 });
 
 // Get team goals (Manager)
-router.get("/goals/team", requireAuth, requireRole(["Manager", "SipraHub-Manager"]), async (req: AuthRequest, res: Response) => {
+router.get("/goals/team", requireAuth, requireRole(["Manager"]), async (req: AuthRequest, res: Response) => {
   try {
     const { rows } = await query(`
       SELECT g.*, e.name as employee_name, m.name as manager_name
@@ -137,9 +137,9 @@ router.put("/goals/:id", requireAuth, async (req: AuthRequest, res: Response): P
     const goal = existingRows[0];
     const isOwner = goal.employee_oid === req.user!.entra_oid;
     const isManager = goal.manager_oid === req.user!.entra_oid;
-    const isHR = req.user?.roles?.includes("HR") || req.user?.roles?.includes("Admin") || req.user?.roles?.includes("SipraHub-HR") || req.user?.roles?.includes("SipraHub-SystemAdmin");
+    const isHrOrAdmin = req.user?.role === "HR" || req.user?.role === "Admin";
 
-    if (!isOwner && !isManager && !isHR) {
+    if (!isOwner && !isManager && !isHrOrAdmin) {
       res.status(403).json({ error: "FORBIDDEN" });
       return;
     }
@@ -161,7 +161,7 @@ router.put("/goals/:id", requireAuth, async (req: AuthRequest, res: Response): P
 });
 
 // Get employee summary for managers
-router.get("/employee-summary", requireAuth, requireRole(["Manager", "SipraHub-Manager"]), async (req: AuthRequest, res: Response) => {
+router.get("/employee-summary", requireAuth, requireRole(["Manager"]), async (req: AuthRequest, res: Response) => {
   try {
     const managerOid = req.user!.entra_oid;
 
@@ -238,7 +238,7 @@ router.get("/employee-summary", requireAuth, requireRole(["Manager", "SipraHub-M
 // ─── REVIEWS ────────────────────────────────────────────────────────────────
 
 // Get all reviews (HR/Admin)
-router.get("/reviews", requireAuth, requireRole(["HR", "Admin", "SipraHub-HR", "SipraHub-SystemAdmin"]), async (req: AuthRequest, res: Response) => {
+router.get("/reviews", requireAuth, requireRole(["HR", "Admin"]), async (req: AuthRequest, res: Response) => {
   try {
     const { rows } = await query(`
       SELECT r.*, e.name as employee_name, e.email as employee_email, m.name as reviewer_name
@@ -271,7 +271,7 @@ router.get("/reviews/my", requireAuth, async (req: AuthRequest, res: Response) =
 });
 
 // Get team reviews (Manager)
-router.get("/reviews/team", requireAuth, requireRole(["Manager", "SipraHub-Manager"]), async (req: AuthRequest, res: Response) => {
+router.get("/reviews/team", requireAuth, requireRole(["Manager"]), async (req: AuthRequest, res: Response) => {
   try {
     const { rows } = await query(`
       SELECT r.*, e.name as employee_name, m.name as reviewer_name
@@ -288,7 +288,7 @@ router.get("/reviews/team", requireAuth, requireRole(["Manager", "SipraHub-Manag
 });
 
 // Create a review
-router.post("/reviews", requireAuth, requireRole(["Manager", "HR", "Admin", "SipraHub-Manager", "SipraHub-HR", "SipraHub-SystemAdmin"]), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/reviews", requireAuth, requireRole(["Manager", "HR", "Admin"]), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { employee_oid, review_period, rating, strengths, improvements, comments } = req.body;
     

@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { query } from "../db";
-import { getEffectiveRole } from "../lib/roles";
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_key_change_me";
 
@@ -11,8 +10,7 @@ export interface AuthRequest extends Request {
     entra_oid: string;
     email: string;
     name: string;
-    roles: string[];
-    effective_role: "admin" | "hr" | "manager" | "employee";
+    role: string;            // Canonical role from the database ("Admin" | "HR" | "Manager" | "Employee")
     manager_entra_oid?: string;
     is_active: boolean;
   };
@@ -20,11 +18,11 @@ export interface AuthRequest extends Request {
 
 // ─── In-memory user cache ─────────────────────────────────────────────────────
 // Caches the DB user row for 60 seconds per entra_oid so that every protected
-// API call does NOT hit the database. TTL keeps it fresh for status changes.
+// API call does NOT hit the database.  TTL keeps it fresh for role changes.
 const USER_CACHE_TTL_MS = 60_000; // 60 seconds
 
 interface CachedUser {
-  user: Omit<AuthRequest["user"], "roles" | "effective_role">; // DB fields only — no role data
+  user: AuthRequest["user"];
   expiresAt: number;
 }
 
@@ -34,7 +32,7 @@ export const invalidateUserCache = (entra_oid: string) => {
   userCache.delete(entra_oid);
 };
 
-const getCachedUser = (entra_oid: string): CachedUser["user"] | null => {
+const getCachedUser = (entra_oid: string): AuthRequest["user"] | null => {
   const entry = userCache.get(entra_oid);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) {
@@ -44,7 +42,7 @@ const getCachedUser = (entra_oid: string): CachedUser["user"] | null => {
   return entry.user!;
 };
 
-const setCachedUser = (entra_oid: string, user: CachedUser["user"]) => {
+const setCachedUser = (entra_oid: string, user: AuthRequest["user"]) => {
   userCache.set(entra_oid, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
 };
 
@@ -56,46 +54,45 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
     return;
   }
   try {
-    // Roles come ONLY from the JWT — Entra is the source of truth
-    const decoded = jwt.verify(token, JWT_SECRET) as { entra_oid: string; roles: string[] };
-    const roles = decoded.roles || [];
-    const effective_role = getEffectiveRole(roles);
+    const decoded = jwt.verify(token, JWT_SECRET) as { entra_oid: string };
 
     // ── Check cache first ──
     const cached = getCachedUser(decoded.entra_oid);
     if (cached) {
-      req.user = { ...cached, roles, effective_role } as AuthRequest["user"];
+      req.user = cached;
       return next();
     }
 
-    // ── Cache miss: hit the DB once (identity/profile only), then cache ──
+    // ── Cache miss: fetch identity + role from DB ──
     const { rows } = await query(
-      "SELECT id, entra_oid, email, name, manager_entra_oid, is_active FROM users WHERE entra_oid = $1 AND is_active = true",
+      "SELECT id, entra_oid, email, name, role, manager_entra_oid, is_active FROM users WHERE entra_oid = $1 AND is_active = true",
       [decoded.entra_oid]
     );
     if (rows.length === 0) {
       res.status(401).json({ error: "Unauthorized: User not found or inactive" });
       return;
     }
-    const userRow = rows[0];
+    const userRow = rows[0] as AuthRequest["user"];
     setCachedUser(decoded.entra_oid, userRow);
-    // Merge DB profile with JWT roles (roles are NEVER stored in DB)
-    req.user = { ...userRow, roles, effective_role };
+    req.user = userRow;
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized: Invalid or expired session token" });
   }
 };
 
+// ─── requireRole ──────────────────────────────────────────────────────────────
+// allowedRoles should be one of the role constants from lib/roles.ts.
+// Admin always passes regardless of the allowed list.
 export const requireRole = (allowedRoles: readonly string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: "Unauthorized: No user session" });
       return;
     }
-    const userRoles = req.user.roles || [];
-    const hasRole = userRoles.some((r) => (allowedRoles as string[]).includes(r));
-    if (!hasRole) {
+    const userRole = req.user.role;
+    const hasAccess = userRole === "Admin" || (allowedRoles as string[]).includes(userRole);
+    if (!hasAccess) {
       res.status(403).json({ error: "Forbidden: Insufficient permissions" });
       return;
     }

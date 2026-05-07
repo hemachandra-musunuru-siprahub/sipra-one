@@ -4,7 +4,7 @@ import {
   BrowserRouter, Routes, Route, Navigate, useNavigate,
 } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { LoginHandler } from "./components/LoginHandler";
+import { LoginHandler, clearSessionCache } from "./components/LoginHandler";
 import { ManagerDashboard } from "./components/ManagerDashboard";
 import { HRDashboard } from "./components/HRDashboard";
 import { EmployeeDashboard } from "./components/EmployeeDashboard";
@@ -14,6 +14,7 @@ import {
   Shield, Activity, Server, Users, Settings, Lock,
   ArrowRight, Database, Globe, PieChart, HardDrive
 } from "lucide-react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Pages
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
@@ -42,30 +43,28 @@ interface InternalUser {
   entra_oid?: string;
   name?: string;
   email?: string;
-  roles?: string[];
-  roleFromEntra?: "admin" | "hr" | "manager" | "employee";
+  role?: string;              // Canonical role from the DB: "Admin" | "HR" | "Manager" | "Employee"
   is_active?: boolean;
   manager_entra_oid?: string;
 }
 
-// ─── Role helpers ─────────────────────────────────────────────────────────────
-const isAdminRole   = (r: string[]) => r.includes("Admin") || r.includes("SipraHub-SystemAdmin") || r.includes("SipraHub_Admin");
-const isHRRole      = (r: string[]) => r.includes("HR") || r.includes("SipraHub-HR") || r.includes("SipraHub_HR");
-const isManagerRole = (r: string[]) => r.includes("Manager") || r.includes("SipraHub-Manager") || r.includes("SipraHub_Manager");
-const isEmployeeRole= (r: string[]) => r.includes("Employee") || r.includes("SipraHub-Employee") || r.includes("SipraHub_Employee") || r.includes("Default Access") || isAdminRole(r) || isHRRole(r) || isManagerRole(r);
+// ─── Role helpers (single string from DB) ────────────────────────────────────
+const isAdminRole   = (r: string) => r === "Admin";
+const isHRRole      = (r: string) => r === "HR";
+const isManagerRole = (r: string) => r === "Manager";
+const isEmployeeRole= (r: string) => r === "Employee" || r === "Admin" || r === "HR" || r === "Manager";
 
-function getRedirectPath(roles: string[]): string {
-  if (isAdminRole(roles))    return "/admin-dashboard";
-  if (isHRRole(roles))       return "/hr/dashboard";
-  if (isManagerRole(roles))  return "/manager/dashboard";
-  if (isEmployeeRole(roles)) return "/employee-dashboard";
-  return "/access-denied";
+function getRedirectPath(role: string): string {
+  if (isAdminRole(role))   return "/admin-dashboard";
+  if (isHRRole(role))      return "/hr/dashboard";
+  if (isManagerRole(role)) return "/manager/dashboard";
+  return "/employee-dashboard";
 }
 
 // ─── Role Guard ───────────────────────────────────────────────────────────────
 function RoleGuard({ children, allowed, internalUser }: {
   children: React.ReactNode;
-  allowed: (roles: string[]) => boolean;
+  allowed: (role: string) => boolean;
   internalUser: InternalUser | null;
 }) {
   if (!internalUser) {
@@ -76,8 +75,8 @@ function RoleGuard({ children, allowed, internalUser }: {
       </div>
     );
   }
-  const roles = internalUser.roles || [];
-  if (isAdminRole(roles) || allowed(roles)) return <>{children}</>;
+  const role = internalUser.role || "Employee";
+  if (isAdminRole(role) || allowed(role)) return <>{children}</>;
   return <Navigate to="/access-denied" replace />;
 }
 
@@ -86,7 +85,7 @@ function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
   const navigate = useNavigate();
   useEffect(() => {
     if (!internalUser) return;
-    navigate(getRedirectPath(internalUser.roles || []), { replace: true });
+    navigate(getRedirectPath(internalUser.role || "Employee"), { replace: true });
   }, [internalUser, navigate]);
   return (
     <div className="spinner-wrap">
@@ -312,6 +311,7 @@ const SessionProvider = ({
   children: (user: InternalUser | null, error?: string | null) => React.ReactNode;
   initialUser?: InternalUser | null;
 }) => {
+  const { instance } = useMsal();
   const [internalUser, setInternalUser] = useState<InternalUser | null>(initialUser);
   const [error, setError] = useState<string | null>(null);
 
@@ -319,10 +319,20 @@ const SessionProvider = ({
     if (initialUser) return; // already have user from sync — skip fetch
     fetch(`${API}/api/auth/me`, { credentials: "include" })
       .then(async res => {
+        if (res.status === 401) {
+          // Stale or expired session cookie — clear cache and force re-login
+          clearSessionCache();
+          await instance.loginRedirect({ scopes: ["openid", "profile", "email"] });
+          return null;
+        }
         if (!res.ok) throw new Error(`Session load failed: ${res.status}`);
         return res.json();
       })
-      .then(data => { if (data.user) setInternalUser(data.user); else setError("User data missing."); })
+      .then(data => {
+        if (!data) return; // loginRedirect in flight
+        if (data.user) setInternalUser(data.user);
+        else setError("User data missing.");
+      })
       .catch(err => { console.error("Session load error:", err); setError(err.message || "Failed to communicate with backend"); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -348,9 +358,8 @@ const AppContent = () => {
   const [syncedUser, setSyncedUser] = useState<InternalUser | null>(null);
 
   return (
-    <ProtectedRoute>
-      <LoginHandler onSyncComplete={setSyncedUser}>
-        <SessionProvider initialUser={syncedUser}>
+    <ProtectedRoute onSyncComplete={setSyncedUser}>
+      <SessionProvider initialUser={syncedUser}>
           {(internalUser) => (
             <Routes>
               <Route path="/" element={<RootRedirect internalUser={internalUser} />} />
@@ -386,8 +395,8 @@ const AppContent = () => {
               <Route path="/employee-dashboard"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeDashboard internalUser={internalUser} /></RoleGuard>} />
               <Route path="/employee/leave"         element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeLeavePage internalUser={internalUser} /></RoleGuard>} />
               <Route path="/employee/timesheets"    element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeTimesheetPage internalUser={internalUser} /></RoleGuard>} />
-              <Route path="/employee/announcements" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><AnnouncementsPage internalUser={internalUser} role={internalUser?.roleFromEntra} /></RoleGuard>} />
-              <Route path="/employee/documents"     element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><DocumentsPage internalUser={internalUser} role={internalUser?.roleFromEntra} /></RoleGuard>} />
+              <Route path="/employee/announcements" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><AnnouncementsPage internalUser={internalUser} role={internalUser?.role} /></RoleGuard>} />
+              <Route path="/employee/documents"     element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><DocumentsPage internalUser={internalUser} role={internalUser?.role} /></RoleGuard>} />
               <Route path="/employee/performance"   element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><PerformancePage internalUser={internalUser} role="Employee" /></RoleGuard>} />
 
               {/* Shared */}
@@ -397,15 +406,16 @@ const AppContent = () => {
             </Routes>
           )}
         </SessionProvider>
-      </LoginHandler>
     </ProtectedRoute>
   );
 };
 
 const App = () => (
-  <BrowserRouter>
-    <AppContent />
-  </BrowserRouter>
+  <ErrorBoundary>
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  </ErrorBoundary>
 );
 
 export default App;

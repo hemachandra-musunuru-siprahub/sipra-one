@@ -50,3 +50,14 @@ export const ADMIN_AND_HR_ROLES = [...ADMIN_ROLES, ...HR_ROLES];
 export const ADMIN_AND_MANAGER_ROLES = [...ADMIN_ROLES, ...MANAGER_ROLES];
 export const ALL_BUSINESS_ROLES = [...ADMIN_ROLES, ...HR_ROLES, ...MANAGER_ROLES, ...EMPLOYEE_ROLES];
 
+/**
+ * Derives the canonical database role string from Entra claims.
+ * Used during user upsert (sync) to persist the highest privilege role.
+ */
+export const seedRoleFromEntraClaims = (roles: string[]): string => {
+  if (isAdmin(roles)) return "Admin";
+  if (isHR(roles)) return "HR";
+  if (isManager(roles)) return "Manager";
+  return "Employee";
+};
+

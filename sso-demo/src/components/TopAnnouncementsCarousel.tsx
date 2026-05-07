@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Clock, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { getLatestAnnouncements, reactToAnnouncement, removeReaction } from "../api/announcements";
 import type { Announcement } from "../api/types";
 
@@ -11,17 +11,6 @@ const REACTIONS = [
   { type: "surprised", icon: "😮" },
   { type: "sad", icon: "😢" },
 ];
-
-// Pure utility — called from event handlers, not during render
-function formatRelativeTime(dateStr: string): string {
-  const now = new Date();
-  const diff = now.getTime() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
 
 // ─── Large Featured Card ──────────────────────────────────────────────────────
 interface CardProps {
@@ -39,16 +28,16 @@ const FeaturedUpdateCard = ({ ann, onClick, getImageUrl, onReact }: CardProps) =
       onClick={onClick}
       onMouseEnter={() => setShowReactions(true)}
       onMouseLeave={() => setShowReactions(false)}
-      className="w-full h-full flex-shrink-0 cursor-pointer group/card relative overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-300 hover:shadow-md flex flex-col"
+      className="w-full flex-shrink-0 cursor-pointer group/card overflow-hidden transition-all duration-300 flex flex-col"
     >
-      <div className="image-wrapper relative overflow-hidden h-[200px] w-full flex-shrink-0 bg-gray-50 flex items-center justify-center">
-        {/* Background Image */}
+      {/* ── Image Area ── */}
+      <div className="relative h-[280px] sm:h-[320px] w-full flex-shrink-0 bg-gray-100 overflow-hidden">
         {ann.image_url ? (
           <img
             src={getImageUrl(ann.image_url)}
             alt=""
             loading="lazy"
-            className="w-full h-full object-contain transition-transform duration-700 group-hover/card:scale-105"
+            className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105"
             onError={(e) => {
               const el = e.target as HTMLImageElement;
               el.style.display = "none";
@@ -61,65 +50,60 @@ const FeaturedUpdateCard = ({ ann, onClick, getImageUrl, onReact }: CardProps) =
             <Megaphone size={64} className="text-red-300 opacity-50" />
           </div>
         )}
-        
-        {/* Overlay layer - Restricted to image-wrapper */}
-        <div 
-          className="image-overlay absolute inset-0 z-10 p-4 flex flex-col justify-between"
-          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%)" }}
-        >
-          <div className="flex justify-end items-start w-full">
-            {ann.is_pinned && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-600 text-white shadow-sm">
-                Pinned
-              </span>
-            )}
-          </div>
 
-          <div className={`flex justify-start transition-all duration-300 transform ${showReactions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-            <div 
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md border border-white/20 pointer-events-auto"
-              style={{ background: "rgba(255,255,255,0.95)" }}
-              onClick={(e) => e.stopPropagation()} 
-            >
-              {REACTIONS.map((r) => {
-                const count = ann.reactions?.[r.type] || 0;
-                const isActive = ann.user_reaction === r.type;
-                
-                return (
-                  <button 
-                    key={r.type} 
-                    onClick={(e) => { e.stopPropagation(); onReact(ann.id, r.type); }}
-                    className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-md transition-all ${
-                      isActive 
-                        ? "bg-red-50 text-red-600 font-bold scale-105" 
-                        : "hover:bg-gray-100 text-gray-700"
+        {/* Featured Badge Overlay */}
+        {ann.is_pinned && (
+          <div className="absolute top-4 right-4 z-20">
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md text-red-600 shadow-sm border border-red-100">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+              Featured
+            </span>
+          </div>
+        )}
+
+        {/* Reaction Picker Overlay */}
+        <div className={`absolute bottom-4 left-4 z-20 transition-all duration-300 transform ${showReactions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'}`}>
+          <div
+            className="flex items-center gap-1 p-1.5 rounded-full shadow-xl backdrop-blur-xl border border-white/30"
+            style={{ background: "rgba(255,255,255,0.85)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {REACTIONS.map((r) => {
+              const count = ann.reactions?.[r.type] || 0;
+              const isActive = ann.user_reaction === r.type;
+              return (
+                <button
+                  key={r.type}
+                  onClick={(e) => { e.stopPropagation(); onReact(ann.id, r.type); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full transition-all ${isActive
+                    ? "bg-red-500 text-white font-bold scale-110"
+                    : "hover:bg-gray-100 text-gray-700"
                     }`}
-                    title={r.type}
-                  >
-                    <span className="text-sm">{r.icon}</span>
-                    {count > 0 && <span className="font-semibold text-red-700">{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
+                  title={r.type}
+                >
+                  <span className="text-sm">{r.icon}</span>
+                  {count > 0 && <span className={isActive ? "text-white" : "text-gray-500"}>{count}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="post-content p-4 flex flex-col gap-2">
-        <h3 className="text-lg font-bold text-gray-900 line-clamp-1 group-hover/card:text-red-600 transition-colors">
+      {/* ── Content Area ── */}
+      <div className="p-5 sm:p-6 flex flex-col gap-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-red-600 uppercase tracking-wider">
+          <Clock size={12} />
+          {new Date(ann.created_at || "").toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })}
+        </div>
+        <h3 className="text-xl sm:text-2xl font-bold text-gray-900 line-clamp-1 group-hover/card:text-red-600 transition-colors leading-tight">
           {ann.title}
         </h3>
         {ann.body && (
-          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+          <p className="text-base text-gray-500 line-clamp-2 leading-relaxed">
             {ann.body}
           </p>
         )}
-      </div>
-
-      {/* Content div - remains clean as requested */}
-      <div className="content">
-        {/* Optional non-overlay content could go here if needed in future */}
       </div>
     </div>
   );
@@ -134,7 +118,6 @@ export const TopAnnouncementsCarousel = () => {
   const navigate = useNavigate();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Determine the correct base path for navigation
   const currentPath = window.location.pathname;
   let basePath = "/employee";
   if (currentPath.startsWith("/hr")) basePath = "/hr";
@@ -144,18 +127,14 @@ export const TopAnnouncementsCarousel = () => {
   const getImageUrl = (url: string) =>
     url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 
-  // Fetch latest 5 published announcements (sorted newest first, pinned first)
   useEffect(() => {
     const fetch = async () => {
       try {
         setLoading(true);
-        // We fetch a larger batch to ensure we find enough pinned posts, or keep it simple
         const data = await getLatestAnnouncements(20);
-        // Filter: ONLY pinned AND published
         const featured = (data.announcements || [])
           .filter(a => (a.status === "published" || !a.status) && a.is_pinned === true)
           .slice(0, 5);
-        console.log("Featured (Pinned) posts:", featured);
         setAnnouncements(featured);
       } catch (err) {
         console.error("TopAnnouncementsCarousel: fetch failed", err);
@@ -168,18 +147,14 @@ export const TopAnnouncementsCarousel = () => {
 
   const handleReact = async (id: string, reactionType: string) => {
     try {
-      // Optimistic update
       setAnnouncements(prev => prev.map(ann => {
         if (ann.id !== id) return ann;
         const currentReaction = ann.user_reaction;
         const reactions = { ...ann.reactions };
-        
         if (currentReaction === reactionType) {
-          // Toggle off
           reactions[reactionType] = Math.max(0, (reactions[reactionType] || 1) - 1);
           return { ...ann, user_reaction: null, reactions };
         } else {
-          // Switch or add
           if (currentReaction) {
             reactions[currentReaction] = Math.max(0, (reactions[currentReaction] || 1) - 1);
           }
@@ -188,7 +163,6 @@ export const TopAnnouncementsCarousel = () => {
         }
       }));
 
-      // API call
       const target = announcements.find(a => a.id === id);
       if (target?.user_reaction === reactionType) {
         await removeReaction(id);
@@ -197,12 +171,10 @@ export const TopAnnouncementsCarousel = () => {
       }
     } catch (err) {
       console.error("Reaction failed:", err);
-      // Revert optimism by refetching on error could be added here
     }
   };
 
   const total = announcements.length;
-
   const goNext = useCallback(() => {
     if (total <= 1) return;
     setCurrentIndex((i) => (i + 1) % total);
@@ -213,105 +185,91 @@ export const TopAnnouncementsCarousel = () => {
     setCurrentIndex((i) => (i - 1 + total) % total);
   }, [total]);
 
-  // Auto-scroll: 4s, infinite loop, pause on hover
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (isHovered || total <= 1) return;
-    timerRef.current = setInterval(goNext, 4000);
+    timerRef.current = setInterval(goNext, 5000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isHovered, goNext, total]);
 
-  // ── Skeleton ──
   if (loading) {
     return (
-      <div className="w-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden mb-8" style={{ height: "280px" }}>
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
-          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-        </div>
-        <div className="flex h-full animate-pulse">
-          <div className="w-1/3 min-w-[240px] bg-gray-100" />
-          <div className="flex-1 p-8 space-y-4">
-            <div className="flex gap-2"><div className="h-6 w-20 bg-gray-200 rounded-full" /></div>
-            <div className="h-8 bg-gray-200 rounded w-3/4" />
-            <div className="h-4 bg-gray-100 rounded w-full" />
-            <div className="h-4 bg-gray-100 rounded w-5/6" />
-          </div>
+      <div className="w-full bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+        <div className="p-32 flex flex-col items-center justify-center gap-4 animate-pulse">
+          <div className="w-12 h-12 rounded-full bg-gray-100" />
+          <div className="h-6 w-48 bg-gray-100 rounded-full" />
         </div>
       </div>
     );
   }
 
-  // ── Empty state ──
   if (total === 0) {
     return (
-      <div className="w-full bg-white rounded-3xl border border-gray-200 shadow-sm mb-8 flex flex-col items-center justify-center" style={{ height: "220px" }}>
-        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+      <div className="w-full bg-white rounded-3xl border border-gray-100 shadow-sm mb-8 p-12 flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
           <Megaphone size={28} className="text-red-400" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">No Featured Updates</h3>
-        <p className="text-sm font-medium text-gray-500">No featured announcements available at this time.</p>
+        <h3 className="text-lg font-bold text-gray-900 mb-1">No Featured Updates</h3>
+        <p className="text-sm text-gray-500 max-w-xs">Check back later for important announcements and company news.</p>
       </div>
     );
   }
 
   return (
     <div
-      className="w-full bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-gray-200 overflow-hidden mb-8 group/carousel relative"
+      className="w-full bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden mb-8 group/carousel relative"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* ── Header ── */}
-      <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between relative z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-            <Megaphone size={16} className="text-red-600" />
+      <div className="px-6 py-5 flex items-center justify-between border-b border-gray-50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shadow-inner">
+            <Megaphone size={18} className="text-red-600" />
           </div>
-          <h2 className="text-base font-bold text-gray-900">Featured Announcements</h2>
-          {total > 1 && (
-            <span className="text-xs text-gray-500 font-semibold ml-2 px-2 py-0.5 bg-gray-100 rounded-md">
-              {currentIndex + 1} / {total}
-            </span>
-          )}
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Featured Updates</h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                {total} Handpicked News
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Arrow nav — only when multiple items */}
+        <div className="flex items-center gap-3">
           {total > 1 && (
-            <div className="flex items-center gap-1.5 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+            <div className="hidden sm:flex items-center gap-2 mr-4">
               <button
                 onClick={goPrev}
-                className="p-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 text-gray-600 transition-all shadow-sm"
-                aria-label="Previous"
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 hover:bg-red-50 hover:text-red-600 text-gray-400 transition-all"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={18} />
               </button>
               <button
                 onClick={goNext}
-                className="p-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 text-gray-600 transition-all shadow-sm"
-                aria-label="Next"
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 hover:bg-red-50 hover:text-red-600 text-gray-400 transition-all"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={18} />
               </button>
             </div>
           )}
           <button
             onClick={() => navigate(`${basePath}/announcements`)}
-            className="text-sm font-semibold text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors group/link"
+            className="px-4 py-2 rounded-full bg-red-50 text-red-600 text-sm font-bold hover:bg-red-600 hover:text-white transition-all duration-300"
           >
             View All
-            <ArrowRight size={14} className="group-hover/link:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>
 
       {/* ── Sliding area ── */}
-      <div className="relative overflow-hidden bg-white">
-        {/* Slide track */}
+      <div className="relative">
         <div
-          className="flex transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)]"
+          className="flex transition-transform duration-700 ease-[cubic-bezier(0.2,1,0.3,1)]"
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
         >
           {announcements.map((ann) => (
@@ -326,36 +284,37 @@ export const TopAnnouncementsCarousel = () => {
           ))}
         </div>
 
-        {/* Progress bar (auto-scroll indicator) */}
+        {/* Progress bar overlay (auto-scroll) */}
         {total > 1 && !isHovered && (
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-transparent z-10">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gray-50 z-10 overflow-hidden">
             <div
-              key={currentIndex} // re-triggers animation on slide change
-              className="h-full bg-red-500 rounded-r-full"
-              style={{ animation: "progress-fill 4s linear forwards" }}
+              key={currentIndex}
+              className="h-full bg-red-600"
+              style={{ animation: "progress-fill 5s linear forwards" }}
             />
-          </div>
-        )}
-
-        {/* Floating Indicator Dots overlayed on bottom center */}
-        {total > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
-            {announcements.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentIndex(idx)}
-                className={`rounded-full transition-all duration-300 ${idx === currentIndex
-                    ? "bg-red-600 w-6 h-1.5"
-                    : "bg-gray-300 hover:bg-gray-400 w-1.5 h-1.5"
-                  }`}
-                aria-label={`Go to update ${idx + 1}`}
-              />
-            ))}
           </div>
         )}
       </div>
 
-      {/* Keyframe for progress bar */}
+      {/* ── Footer / Pagination ── */}
+      {total > 1 && (
+        <div className="px-6 py-6 border-t border-gray-50 flex items-center justify-center">
+          <div className="flex items-center gap-2.5">
+            {announcements.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentIndex(idx)}
+                className={`transition-all duration-500 rounded-full ${idx === currentIndex
+                  ? "w-8 h-2 bg-red-600"
+                  : "w-2 h-2 bg-gray-200 hover:bg-gray-300"
+                  }`}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes progress-fill {
           from { width: 0%; }

@@ -9,8 +9,8 @@ const router = Router();
 
 // ─── GET /api/manager/team-members ───────────────────────────────────────────
 router.get("/team-members", requireAuth, async (req: AuthRequest, res: Response) => {
-  const roles = req.user!.roles || [];
-  if (!canAccess(roles, isManager)) throw forbidden("Managers only");
+  const role = req.user!.role;
+  if (!canAccess(role, isManager)) throw forbidden("Managers only");
 
   const members = await getDirectReportsFull(req.user!.entra_oid);
   res.json(members);

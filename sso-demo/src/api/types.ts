@@ -13,6 +13,7 @@ export interface Announcement {
   id: string;
   title: string;
   body: string;
+  category?: string | null;
   is_pinned: boolean;
   created_by_oid: string;
   created_at: string;
@@ -39,7 +40,7 @@ export interface Timesheet {
   employee_oid: string;
   employee_name?: string;
   week_start_date: string;
-  status: "draft" | "submitted" | "reviewed";
+  status: "draft" | "submitted" | "reviewed" | "rejected";
   total_hours: number;
   submitted_at: string | null;
   reviewed_by_oid: string | null;

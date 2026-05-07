@@ -5,11 +5,41 @@ import { InteractionStatus, InteractionRequiredAuthError } from "@azure/msal-bro
 
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
+// ─── Session cache key ────────────────────────────────────────────────────────
+export const SESSION_CACHE_KEY = "sipra_session";
+
+export const clearSessionCache = () => localStorage.removeItem(SESSION_CACHE_KEY);
+
+const readCache = (): any | null => {
+  try {
+    const raw = localStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (user: any) => {
+  try {
+    localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(user));
+  } catch {
+    // localStorage quota exceeded — non-fatal
+  }
+};
+
+// ─── Timeout helper ───────────────────────────────────────────────────────────
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
 interface SyncResult {
   user: any;
 }
 
-// Module-level promise so concurrent renders don't fire duplicate syncs
+// Module-level promise — prevent concurrent duplicate syncs across re-renders
 let _syncPromise: Promise<SyncResult | null> | null = null;
 
 export const LoginHandler = ({
@@ -21,49 +51,72 @@ export const LoginHandler = ({
 }) => {
   const { instance, inProgress, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncComplete, setSyncComplete] = useState(false);
-  const hasSynced = useRef(false);
 
-  const syncWithBackend = async (): Promise<SyncResult | null> => {
+  // Check the localStorage cache synchronously on first render
+  const cachedUser = readCache();
+
+  const [isInitializing, setIsInitializing] = useState(!cachedUser);
+  const [isSyncing,      setIsSyncing]      = useState(false);
+  const [syncComplete,   setSyncComplete]   = useState(!!cachedUser);
+  const hasSynced = useRef(!!cachedUser);
+
+  // ── Optimistically surface the cached user immediately ──────────────────────
+  useEffect(() => {
+    if (cachedUser) {
+      onSyncComplete?.(cachedUser);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const syncWithBackend = async (isBackground = false): Promise<SyncResult | null> => {
     if (accounts.length === 0) return null;
-
-    // Reuse in-flight sync if already running
     if (_syncPromise) return _syncPromise;
 
     _syncPromise = (async () => {
       try {
-        // Acquire token silently — MSAL caches this, near-zero latency on repeat
-        const response = await instance.acquireTokenSilent({
+        const tokenResponse = await instance.acquireTokenSilent({
           ...loginRequest,
           account: accounts[0],
         });
 
-        const res = await fetch(`${API}/api/auth/sync`, {
+        const syncFetch = fetch(`${API}/api/auth/sync`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            accessToken: response.accessToken,
-            idToken: response.idToken,
+            accessToken: tokenResponse.accessToken,
+            idToken:     tokenResponse.idToken,
           }),
         });
 
+        // Apply 3-second timeout on full sync when in background verification
+        const res = isBackground
+          ? await withTimeout(syncFetch, 3000)
+          : await syncFetch;
+
         if (!res.ok) {
           console.error("[LoginHandler] Backend sync failed:", res.status);
+          if (isBackground) {
+            clearSessionCache();
+            await instance.loginRedirect(loginRequest);
+          }
           return null;
         }
 
         const data = await res.json();
-        // Pass user data directly to parent — no need for a second /me call
+        writeCache(data.user);
         onSyncComplete?.(data.user);
         return data as SyncResult;
-      } catch (e) {
-        console.error("[LoginHandler] Error during backend sync:", e);
+
+      } catch (e: any) {
+        console.error("[LoginHandler] Sync error:", e.message);
+        if (isBackground) {
+          // Timeout or network failure during background verify → force re-login
+          clearSessionCache();
+          try { await instance.loginRedirect(loginRequest); } catch { /* ignore */ }
+        }
         return null;
       } finally {
-        // Clear so next login attempt re-syncs
         _syncPromise = null;
       }
     })();
@@ -73,21 +126,38 @@ export const LoginHandler = ({
 
   useEffect(() => {
     const checkLogin = async () => {
-      // Wait for MSAL interaction to finish
       if (inProgress !== InteractionStatus.None) return;
 
       if (accounts.length > 0) {
+        // ── Strip OAuth code from URL immediately to prevent re-triggers ───────
+        if (window.location.hash.includes("code=") || window.location.search.includes("code=")) {
+          history.replaceState({}, "", "/");
+        }
+
         if (!hasSynced.current) {
           hasSynced.current = true;
-          setIsSyncing(true);
-          await syncWithBackend();
-          setIsSyncing(false);
-          setSyncComplete(true);
+
+          if (cachedUser) {
+            // Returning user — already surfaced from cache; re-verify silently in bg
+            syncWithBackend(true).finally(() => {
+              setIsInitializing(false);
+              setSyncComplete(true);
+            });
+          } else {
+            // Fresh login — show spinner, do full sync
+            setIsSyncing(true);
+            await syncWithBackend(false);
+            setIsSyncing(false);
+            setSyncComplete(true);
+            setIsInitializing(false);
+          }
+        } else {
+          setIsInitializing(false);
         }
-        setIsInitializing(false);
         return;
       }
 
+      // No MSAL account — try SSO silent, then redirect to login
       try {
         await instance.ssoSilent(loginRequest);
       } catch (error) {
@@ -105,7 +175,8 @@ export const LoginHandler = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, inProgress, accounts, isAuthenticated, syncComplete]);
 
-  const showSpinner = isInitializing || isSyncing || (accounts.length > 0 && !syncComplete);
+  // ── Spinner: only shown for new (uncached) users ──────────────────────────
+  const showSpinner = !cachedUser && (isInitializing || isSyncing || (accounts.length > 0 && !syncComplete));
 
   if (showSpinner) {
     return (
@@ -121,7 +192,6 @@ export const LoginHandler = ({
           gap: 16,
         }}
       >
-        {/* SipraHub branded spinner */}
         <div
           style={{
             width: 44,

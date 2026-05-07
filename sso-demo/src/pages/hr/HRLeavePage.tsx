@@ -6,6 +6,7 @@ import { getAllLeave, getPolicies, createPolicy } from "../../api/leave";
 import type { LeavePolicy } from "../../api/leave";
 import { getUsers } from "../../api/users";
 import type { LeaveRequest, User } from "../../api/types";
+import { formatLeaveDates } from "../../utils/dateFormatter";
 
 interface Props { internalUser: any; defaultTab?: "requests" | "policies"; }
 
@@ -188,7 +189,7 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
                         </div>
                       </td>
                       <td><span className="badge badge--hr" style={{ textTransform: "capitalize" }}>{r.leave_type} Leave</span></td>
-                      <td style={{ fontSize: "0.875rem" }}>{r.start_date} → {r.end_date}</td>
+                      <td style={{ fontSize: "0.875rem" }}>{formatLeaveDates(r.start_date, r.end_date)}</td>
                       <td>{r.total_days}</td>
                       <td>
                         <span className={`badge ${

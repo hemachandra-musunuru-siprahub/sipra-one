@@ -1,10 +1,10 @@
 import { query } from "../../db";
 
-// ─── List all users — identity profile only (no role columns) ─────────────────
+// ─── List all users — for admin overview ─────────────────────────────────────
 export const listUsers = async () => {
   const { rows } = await query(`
     SELECT 
-      u.id, u.entra_oid, u.email, u.name, 
+      u.id, u.entra_oid, u.email, u.name, u.role,
       u.manager_entra_oid, 
       m.name AS manager_name, 
       m.email AS manager_email, 
@@ -16,10 +16,35 @@ export const listUsers = async () => {
   return rows;
 };
 
+// ─── List active Managers only — for the manager picker dropdown ──────────────
+// Only users whose Entra-synced role is exactly 'Manager' are eligible.
+export const listManagers = async (search?: string) => {
+  if (search && search.trim()) {
+    const { rows } = await query(
+      `SELECT entra_oid, name, email, role
+       FROM users
+       WHERE is_active = true
+         AND role = 'Manager'
+         AND (name ILIKE $1 OR email ILIKE $1)
+       ORDER BY name ASC`,
+      [`%${search.trim()}%`]
+    );
+    return rows;
+  }
+  const { rows } = await query(
+    `SELECT entra_oid, name, email, role
+     FROM users
+     WHERE is_active = true
+       AND role = 'Manager'
+     ORDER BY name ASC`
+  );
+  return rows;
+};
+
 // ─── Get single user by entra_oid ────────────────────────────────────────────
 export const getUserByOid = async (entraOid: string) => {
   const { rows } = await query(
-    `SELECT id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login
+    `SELECT id, entra_oid, email, name, role, manager_entra_oid, is_active, created_at, last_login
      FROM users WHERE entra_oid = $1`,
     [entraOid]
   );

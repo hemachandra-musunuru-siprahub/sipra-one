@@ -32,8 +32,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
 router.get("/team", requireAuth,
   async (req: AuthRequest, res: Response) => {
     try {
-      const roles = req.user!.roles || [];
-      if (!canAccess(roles, isManager)) throw forbidden("Managers only");
+      const role = req.user!.role;
+      if (!canAccess(role, isManager)) throw forbidden("Managers only");
 
       const employeeId = req.query.employeeId as string;
       const status     = (req.query.status as string)?.toLowerCase();
@@ -68,8 +68,8 @@ router.get("/team", requireAuth,
 router.get("/manager-export", requireAuth,
   async (req: AuthRequest, res: Response) => {
     try {
-      const roles = req.user!.roles || [];
-      if (!canAccess(roles, isManager) && !canAccess(roles, isHR) && !canAccess(roles, isAdmin)) {
+      const role = req.user!.role;
+      if (!canAccess(role, isManager) && !canAccess(role, isHR) && !canAccess(role, isAdmin)) {
         throw forbidden("Managers, HR, or Admins only");
       }
 
@@ -89,7 +89,7 @@ router.get("/manager-export", requireAuth,
       // If a specific employee is requested, verify they report to this manager
       let employeeOidFilter: string | undefined;
       if (employeeId && employeeId !== "all") {
-        if (!canAccess(roles, isAdmin) && !directReports.includes(employeeId)) {
+        if (!canAccess(role, isAdmin) && !directReports.includes(employeeId)) {
           throw forbidden("Employee is not in your team");
         }
         employeeOidFilter = employeeId;
@@ -177,35 +177,120 @@ router.get("/manager-export", requireAuth,
   }
 );
 
-// ─── GET /api/timesheets/export — CSV export (HR/Admin only) ─────────────────
+// ─── GET /api/timesheets/export — HR Excel export ────────────────────────────
 router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
-    const startDate = (req.query.startDate as string) || "2020-01-01";
-    const endDate   = (req.query.endDate   as string) || new Date().toISOString().slice(0, 10);
-    const rows = await repo.getExportData(startDate, endDate);
+    try {
+      const employeeOid = (req.query.employeeOid as string) || undefined;
+      const status      = (req.query.status as string) || undefined;
+      const month       = (req.query.month as string)  || undefined;
 
-    if (rows.length === 0) {
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=timesheets.csv");
-      return res.send("name,email,week_start_date,work_date,project_name,task_description,hours,status\n");
+      console.log("HR Export requested with filters:", { employeeOid, status, month });
+
+      const rows = await repo.getHRExportData({ employeeOid, status, month });
+
+      // ── Build Excel workbook ──────────────────────────────────────────────
+      const ExcelJS = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator  = "SipraHub";
+      workbook.created  = new Date();
+
+      const sheet = workbook.addWorksheet("Organization Timesheets");
+
+      // Header row
+      sheet.columns = [
+        { header: "Employee Name",    key: "employee_name",    width: 24 },
+        { header: "Employee Email",   key: "employee_email",   width: 28 },
+        { header: "Week Starting",    key: "week_start_date",  width: 14 },
+        { header: "Date",             key: "work_date",        width: 12 },
+        { header: "Project",          key: "project_name",     width: 24 },
+        { header: "Task / Desc",      key: "task_description", width: 36 },
+        { header: "Hours",            key: "entry_hours",      width: 8  },
+        { header: "Total Week Hrs",   key: "total_hours",      width: 14 },
+        { header: "Status",           key: "status",           width: 10 },
+        { header: "Submitted At",     key: "submitted_at",     width: 22 },
+        { header: "Reviewed By",      key: "reviewed_by_name", width: 22 },
+        { header: "Reviewed At",      key: "reviewed_at",      width: 22 },
+        { header: "Manager Comments", key: "manager_comment",  width: 36 },
+      ];
+
+      // Style header row
+      const headerRow = sheet.getRow(1);
+      headerRow.font      = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCE2124" } };
+      headerRow.alignment = { vertical: "middle", horizontal: "center" };
+      headerRow.height    = 20;
+
+      const formatDate = (val: any): string => {
+        if (!val) return "—";
+        const d = new Date(val);
+        return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      };
+
+      // Data rows
+      rows.forEach((r: any) => {
+        const row = sheet.addRow({
+          employee_name:    r.employee_name,
+          employee_email:   r.employee_email,
+          week_start_date:  formatDate(r.week_start_date),
+          work_date:        formatDate(r.work_date),
+          project_name:     r.project_name    || "",
+          task_description: r.task_description || "",
+          entry_hours:      r.entry_hours      != null ? Number(r.entry_hours)   : "",
+          total_hours:      r.total_hours      != null ? Number(r.total_hours)   : "",
+          status:           (r.status || "").toUpperCase(),
+          submitted_at:     formatDate(r.submitted_at),
+          reviewed_by_name: r.reviewed_by_name || "",
+          reviewed_at:      formatDate(r.reviewed_at),
+          manager_comment:  r.manager_comment  || "",
+        });
+        if (row.number % 2 === 0) {
+          row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+        }
+      });
+
+      sheet.autoFilter = { from: "A1", to: "M1" };
+
+      // ── Send response ─────────────────────────────────────────────────────
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename  = `hr-timesheets-export-${month || "all"}-${timestamp}.xlsx`;
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Cache-Control", "no-cache");
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (err: any) {
+      if (err.status) throw err;
+      console.error("GET /api/timesheets/export failed:", err);
+      res.status(500).json({ error: "Export failed", details: err.message });
     }
-
-    const csv = [
-      "name,email,week_start_date,work_date,project_name,task_description,hours,status",
-      ...rows.map((r: any) =>
-        [r.name, r.email, r.week_start_date, r.work_date, r.project_name, r.task_description, r.hours, r.status]
-          .map(v => `"${v ?? ""}"`)
-          .join(",")
-      ),
-    ].join("\n");
-
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", "attachment; filename=timesheets.csv");
-    res.send(csv);
   }
 );
 
+// ─── GET /api/timesheets/history — Employee's own timesheet history ────────────
+// Must be registered before GET /:id to avoid route shadowing.
+router.get("/history", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const status = (req.query.status as string) || undefined;
+    const month  = (req.query.month  as string) || undefined;
+    const timesheets = await repo.getMyHistory(
+      req.user!.entra_oid,
+      {
+        status: status && status !== "all" ? status : undefined,
+        month,
+      }
+    );
+    res.json({ timesheets });
+  } catch (err: any) {
+    console.error("GET /api/timesheets/history failed:", err);
+    res.status(500).json({ error: "Failed to load timesheet history", details: err.message });
+  }
+});
+
 // ─── GET /api/timesheets/hr — HR admin view of all timesheets ─────────────────
+
 // NOTE: Must remain before GET /:id (wildcard) to avoid route shadowing.
 router.get("/hr", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
@@ -234,12 +319,12 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   const ts = await repo.getWeekWithEntries(req.params.id);
   if (!ts) throw notFound("Timesheet not found");
 
-  const roles = req.user!.roles || [];
+  const role = req.user!.role;
   const isOwner    = ts.employee_oid === req.user!.entra_oid;
-  const isHrOrAdmin = canAccess(roles, isHR) || canAccess(roles, isAdmin);
+  const isHrOrAdmin = canAccess(role, isHR) || canAccess(role, isAdmin);
 
   if (!isOwner && !isHrOrAdmin) {
-    if (canAccess(roles, isManager)) {
+    if (canAccess(role, isManager)) {
       const reports = await getDirectReportOids(req.user!.entra_oid);
       if (!reports.includes(ts.employee_oid)) {
         throw forbidden("Access denied");
@@ -265,7 +350,7 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
     if (ts.status === "reviewed") throw forbidden("Cannot add entries to a reviewed timesheet");
-    if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.roles || []))
+    if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.role))
       throw forbidden("You can only edit your own timesheet");
 
     const { workDate, projectName, taskDescription, hours } = req.body;
@@ -286,7 +371,7 @@ router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
   async (req: AuthRequest, res: Response) => {
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
-    if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.roles || []))
+    if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.role))
       throw forbidden("You can only edit your own timesheet");
     if (ts.status !== "draft") throw forbidden("Only draft timesheets can be edited");
 
@@ -311,7 +396,7 @@ router.put("/entries/:entryId", requireAuth, validate(PutEntrySchema),
     const entry = await repo.getEntryWithTimesheet(req.params.entryId);
     if (!entry) throw notFound("Entry not found");
 
-    if (entry.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.roles || []))
+    if (entry.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.role))
       throw forbidden("You can only edit your own entries");
 
     if (entry.status !== "draft")
@@ -333,7 +418,7 @@ router.delete("/:id/entries/:entryId", requireAuth,
   async (req: AuthRequest, res: Response) => {
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
-    if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.roles || []))
+    if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.role))
       throw forbidden("You can only edit your own timesheet");
     if (ts.status !== "draft") throw forbidden("Only draft timesheets can be edited");
 
@@ -364,15 +449,15 @@ const UpdateStatusSchema = z.object({
 
 router.patch("/:id/status", requireAuth, validate(UpdateStatusSchema),
   async (req: AuthRequest, res: Response) => {
-    const roles = req.user!.roles || [];
-    if (!canAccess(roles, isManager)) throw forbidden("Managers only");
+    const role = req.user!.role;
+    if (!canAccess(role, isManager)) throw forbidden("Managers only");
 
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
     if (ts.status !== "submitted") throw unprocessable("INVALID_STATUS", "Can only review submitted timesheets");
 
     // Check manager owns this direct report
-    if (!isAdmin(roles)) {
+    if (!isAdmin(role)) {
       const reports = await getDirectReportOids(req.user!.entra_oid);
       if (!reports.includes(ts.employee_oid)) throw forbidden("You can only review your direct reports");
     }

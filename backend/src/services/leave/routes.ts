@@ -7,6 +7,7 @@ import { isAdmin, isManager, isHR, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAcce
 import * as repo from "./repo";
 import { getDirectReportOids } from "../users/repo";
 import * as notifRepo from "../notifications/repo";
+import { emitNotification, getSocketServer } from "../../lib/socketServer";
 import { query } from "../../db";
 
 const router = Router();
@@ -110,7 +111,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
  */
 router.get("/all", requireAuth,
   async (req: AuthRequest, res: Response) => {
-    const roles = req.user!.roles || [];
+    const roles = [req.user!.role];
 
     if (isHR(roles) || isAdmin(roles)) {
       // HR and Admin see every request in the system
@@ -135,7 +136,7 @@ router.get("/all", requireAuth,
  */
 router.get("/manager", requireAuth,
   async (req: AuthRequest, res: Response) => {
-    const roles = req.user!.roles || [];
+    const roles = [req.user!.role];
     if (!canAccess(roles, isManager)) throw forbidden("Managers only");
     const requests = await repo.getManagerRequests(req.user!.entra_oid);
     res.json({ requests });
@@ -144,7 +145,7 @@ router.get("/manager", requireAuth,
 
 router.get("/team", requireAuth,
   async (req: AuthRequest, res: Response) => {
-    const roles = req.user!.roles || [];
+    const roles = [req.user!.role];
     if (!canAccess(roles, isManager)) throw forbidden("Managers only");
     const directReports = await getDirectReportOids(req.user!.entra_oid);
     const requests = await repo.getTeamRequests(directReports);
@@ -173,7 +174,7 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
   async (req: AuthRequest, res: Response) => {
     const { leaveType, startDate, endDate, reason } = req.body;
     const user = req.user!;
-    const roles = user.roles || [];
+    const roles = [user.role];
 
     if (isAdmin(roles)) {
       throw forbidden("Admin users cannot apply for leave");
@@ -225,6 +226,16 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
         const notifications = await notifRepo.createNotifications(
           finalOids, "leave_request", notifTitle, notifMsg, "leave_request", request.id
         );
+        notifications.forEach(n => emitNotification(n.recipient_oid, n));
+        
+        // Update unread counts
+        const io = getSocketServer();
+        if (io) {
+          for (const oid of finalOids) {
+            const count = await notifRepo.unreadCount(oid);
+            io.to(`user:${oid}`).emit("unread_count", { count });
+          }
+        }
       }
     } catch (nErr) {
       console.error("[NOTIF] Failed to send leave request notification:", nErr);
@@ -241,7 +252,7 @@ const ActionSchema = z.object({
 
 router.patch("/:id", requireAuth, validate(ActionSchema),
   async (req: AuthRequest, res: Response) => {
-    const roles = req.user!.roles || [];
+    const roles = [req.user!.role];
     if (!canAccess(roles, isManager)) throw forbidden("Managers only");
     const leaveReq = await repo.findById(req.params.id);
     if (!leaveReq) throw notFound("Leave request not found");
@@ -272,6 +283,12 @@ router.patch("/:id", requireAuth, validate(ActionSchema),
       const n = await notifRepo.createNotification(
         leaveReq.employee_oid, `leave_${actionLabel}`, notifTitle, notifMsg, "leave_request", req.params.id
       );
+      emitNotification(leaveReq.employee_oid, n);
+      const io = getSocketServer();
+      if (io) {
+        const count = await notifRepo.unreadCount(leaveReq.employee_oid);
+        io.to(`user:${leaveReq.employee_oid}`).emit("unread_count", { count });
+      }
     } catch (nErr) {
       console.error("[NOTIF] Failed to send leave decision notification:", nErr);
     }

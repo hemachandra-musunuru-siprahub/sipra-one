@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getAllLeave, actionLeave } from "../../api/leave";
 import type { LeaveRequest } from "../../api/types";
+import { formatLeaveDates } from "../../utils/dateFormatter";
 
 interface Props { internalUser: any; }
 
@@ -36,9 +37,6 @@ const statusClass = (s: string) => ({
 
 const leaveTypeDotClass = (t: string) =>
   ({ annual: "annual", sick: "sick", unpaid: "unpaid", other: "other" }[t] ?? "other");
-
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 const initials = (name: string) =>
   name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -276,9 +274,7 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
                     <td style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{req.total_days}</td>
                     {/* Dates */}
                     <td style={{ whiteSpace: "nowrap", fontSize: "0.875rem" }}>
-                      {formatDate(req.start_date)}
-                      <span style={{ color: "var(--neutral-400)", margin: "0 4px" }}>→</span>
-                      {formatDate(req.end_date)}
+                      {formatLeaveDates(req.start_date, req.end_date)}
                     </td>
                     {/* Reason */}
                     <td style={{ maxWidth: 160 }}>
@@ -382,9 +378,7 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
 
                 <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Dates</span>
                 <span style={{ fontSize: "0.875rem", color: "var(--neutral-800)" }}>
-                  {formatDate(detailRequest.start_date)}
-                  <span style={{ color: "var(--neutral-400)", margin: "0 6px" }}>→</span>
-                  {formatDate(detailRequest.end_date)}
+                  {formatLeaveDates(detailRequest.start_date, detailRequest.end_date)}
                 </span>
 
                 <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Days</span>

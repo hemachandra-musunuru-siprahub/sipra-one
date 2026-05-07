@@ -4,6 +4,7 @@ import { Calendar, CheckCircle, Download, Eye, X, Search } from "lucide-react";
 import { getTeamTimesheets, reviewTimesheet, exportManagerTimesheets, getTimesheetDetail } from "../../api/timesheets";
 import { getTeamMembers } from "../../api/users";
 import type { Timesheet, User } from "../../api/types";
+import { formatDate } from "../../utils/dateFormatter";
 
 interface Props { internalUser: any; }
 
@@ -32,13 +33,6 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date().toISOString().slice(0, 7)  // YYYY-MM
   );
-
-  // ─── Utilities ──────────────────────────────────────────────────────────────
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "N/A";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  };
 
   // ─── Fetch team members once ─────────────────────────────────────────────────
   useEffect(() => {
@@ -117,7 +111,7 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
     } catch (e) { console.error(e); }
   };
 
-  const handleReviewTs = async (id: string, status: "reviewed" | "draft") => {
+  const handleReviewTs = async (id: string, status: "reviewed" | "draft" | "rejected") => {
     setIsReviewing(true);
     try {
       const { timesheet } = await reviewTimesheet(id, status, reviewComment);
@@ -302,9 +296,9 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                 onChange={e => setStatusFilter(e.target.value)}
               >
                 <option value="all">All Statuses</option>
-                <option value="draft">Draft</option>
                 <option value="submitted">Submitted</option>
                 <option value="reviewed">Reviewed</option>
+                <option value="rejected">Rejected</option>
               </select>
             </div>
           </div>
@@ -354,8 +348,8 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                 : timesheets.length === 0
                   ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-10)" }}>
                       {hasActiveSearch
-                        ? `No timesheets found for "${searchInput || teamMembers.find(m => m.entra_oid === employeeFilter)?.name}"`
-                        : "No timesheets found for current selection"}
+                        ? `No submitted timesheets found for "${searchInput || teamMembers.find(m => m.entra_oid === employeeFilter)?.name}"`
+                        : "No submitted timesheets awaiting review"}
                     </td></tr>
                   : timesheets.map(ts => (
                     <tr key={ts.id}>
@@ -372,7 +366,12 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                       <td style={{ fontSize: "0.875rem" }}>{formatDate(ts.week_start_date)}</td>
                       <td><strong>{ts.total_hours}h</strong></td>
                       <td>
-                        <span className={`badge ${ts.status === "reviewed" ? "badge--published" : ts.status === "submitted" ? "badge--it" : "badge--draft"}`}>
+                        <span className={`badge ${
+                          ts.status === "reviewed" ? "badge--published" : 
+                          ts.status === "submitted" ? "badge--it" : 
+                          ts.status === "rejected" ? "badge--error" : 
+                          "badge--draft"
+                        }`}>
                           {ts.status}
                         </span>
                       </td>
@@ -397,7 +396,12 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                           )}
                           {ts.status === "reviewed" && (
                             <span style={{ fontSize: "0.75rem", color: "var(--success-600)", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px" }}>
-                              <CheckCircle size={14} /> Reviewed
+                              <CheckCircle size={14} /> Approved
+                            </span>
+                          )}
+                          {ts.status === "rejected" && (
+                            <span style={{ fontSize: "0.75rem", color: "var(--error-600)", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px" }}>
+                              <X size={14} /> Rejected
                             </span>
                           )}
                         </div>
@@ -445,7 +449,12 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                 </div>
                 <div>
                   <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "uppercase", fontWeight: 600 }}>Status</div>
-                  <span className={`badge ${selectedTs.status === "reviewed" ? "badge--published" : selectedTs.status === "submitted" ? "badge--it" : "badge--draft"}`} style={{ marginTop: 4 }}>
+                  <span className={`badge ${
+                    selectedTs.status === "reviewed" ? "badge--published" : 
+                    selectedTs.status === "submitted" ? "badge--it" : 
+                    selectedTs.status === "rejected" ? "badge--error" : 
+                    "badge--draft"
+                  }`} style={{ marginTop: 4 }}>
                     {selectedTs.status.toUpperCase()}
                   </span>
                 </div>
@@ -508,6 +517,14 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                     disabled={isReviewing}
                   >
                     <CheckCircle size={16} /> {isReviewing ? "Approving..." : "Approve Timesheet"}
+                  </button>
+                  <button
+                    className="btn btn--secondary"
+                    style={{ borderColor: "var(--error-500)", color: "var(--error-600)" }}
+                    onClick={() => handleReviewTs(selectedTs.id, "rejected")}
+                    disabled={isReviewing}
+                  >
+                    <X size={16} /> {isReviewing ? "Rejecting..." : "Reject"}
                   </button>
                 </>
               )}

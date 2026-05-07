@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
-import { Calendar, Clock, Megaphone, FileText, User, HelpCircle } from "lucide-react";
+import { Calendar, Clock, Megaphone, FileText, User, HelpCircle, ArrowRight } from "lucide-react";
 import { getAnnouncements } from "../api/announcements";
 import { getMyTimesheet } from "../api/timesheets";
 import { getDashboardSummary } from "../api/users";
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
-import type { Announcement, LeaveBalance, Timesheet } from "../api/types";
+import type { LeaveBalance, Timesheet } from "../api/types";
+import { formatDate } from "../utils/dateFormatter";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface Props { internalUser: any; }
 
 export const EmployeeDashboard = ({ internalUser }: Props) => {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null);
   const [counts, setCounts] = useState({ documents: 0, announcements: 0 });
@@ -21,10 +21,9 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
     Promise.all([
       getAnnouncements(1, 5),
       getMyTimesheet(),
-      getDashboardSummary()
+      getDashboardSummary(),
     ])
-      .then(([annData, tsData, dashData]) => {
-        setAnnouncements(annData.announcements);
+      .then(([, tsData, dashData]) => {
         setTimesheet(tsData.timesheet);
         setBalances(dashData.leaveBalances);
         setCounts(dashData.counts);
@@ -34,137 +33,317 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
   }, []);
 
   const annualBalance = balances.find(b => b.leave_type === "annual");
-  const annualDays = annualBalance ? `${annualBalance.remaining_days} Days` : "—";
-  const tsStatus = timesheet ? (timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)) : "No Timesheet";
+  const annualDays = annualBalance ? `${annualBalance.remaining_days}` : "—";
+  const annualSub = annualBalance ? `of ${annualBalance.total_days} days remaining` : "No balance data";
+  const tsStatus = timesheet
+    ? timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)
+    : "—";
 
   const stats = [
-    { label: "Annual Leave", value: loading ? "…" : annualDays, trend: "Remaining", icon: <Calendar size={20} />, color: "#CE2124" },
-    { label: "Timesheet Status", value: loading ? "…" : tsStatus, trend: "Current Week", icon: <Clock size={20} />, color: "#3B82F6" },
-    { label: "Announcements", value: loading ? "…" : `${counts.announcements}`, trend: "Latest", icon: <Megaphone size={20} />, color: "#F59E0B" },
-    { label: "Documents", value: loading ? "…" : `${counts.documents}`, trend: "Shared with me", icon: <FileText size={20} />, color: "#10B981" },
+    {
+      label: "Annual Leave",
+      value: loading ? "—" : annualDays,
+      sub: annualSub,
+      icon: <Calendar size={16} />,
+      color: "#CE2124",
+      bg: "#FFF0F0",
+    },
+    {
+      label: "Timesheet",
+      value: loading ? "—" : tsStatus,
+      sub: "Current week",
+      icon: <Clock size={16} />,
+      color: "#3B82F6",
+      bg: "#EFF6FF",
+    },
+    {
+      label: "Announcements",
+      value: loading ? "—" : `${counts.announcements}`,
+      sub: "Published",
+      icon: <Megaphone size={16} />,
+      color: "#F59E0B",
+      bg: "#FFFBEB",
+    },
+    {
+      label: "Documents",
+      value: loading ? "—" : `${counts.documents}`,
+      sub: "Shared with me",
+      icon: <FileText size={16} />,
+      color: "#10B981",
+      bg: "#ECFDF5",
+    },
   ];
 
   const modules = [
-    { title: "My Profile", icon: <User />, path: "/employee/profile" },
-    { title: "My Leave", icon: <Calendar />, path: "/employee/leave" },
-    { title: "My Timesheets", icon: <Clock />, path: "/employee/timesheets" },
-    { title: "Company News", icon: <Megaphone />, path: "/employee/announcements" },
-    { title: "Documents", icon: <FileText />, path: "/employee/documents" },
-    { title: "Help & Support", icon: <HelpCircle />, path: "#" },
+    { title: "My Profile", icon: <User size={18} />, path: "/employee/profile", color: "#8B5CF6" },
+    { title: "My Leave", icon: <Calendar size={18} />, path: "/employee/leave", color: "#CE2124" },
+    { title: "My Timesheets", icon: <Clock size={18} />, path: "/employee/timesheets", color: "#3B82F6" },
+    { title: "Company News", icon: <Megaphone size={18} />, path: "/employee/announcements", color: "#F59E0B" },
+    { title: "Documents", icon: <FileText size={18} />, path: "/employee/documents", color: "#10B981" },
+    { title: "Help & Support", icon: <HelpCircle size={18} />, path: "#", color: "#6B7280" },
   ];
+
+  const getStatusBadgeStyle = (status: string) => {
+    if (status === "reviewed") return { background: "#ECFDF5", color: "#047857" };
+    if (status === "submitted") return { background: "#EFF6FF", color: "#1D4ED8" };
+    return { background: "var(--neutral-100)", color: "var(--neutral-500)" };
+  };
 
   return (
     <DashboardLayout internalUser={internalUser} role="Employee">
-      <header className="page-header">
-        <div className="breadcrumb">
-          <span>Home</span><span className="breadcrumb__separator">/</span><span>Employee Dashboard</span>
-        </div>
-        <h1 className="page-title">Personal Dashboard</h1>
-      </header>
 
-      <section className="welcome-card" style={{ height: "140px", padding: "var(--space-6) var(--space-10)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "var(--space-6)" }}>
-        <div className="welcome-card__content" style={{ textAlign: "center", width: "100%" }}>
-          <h1 className="welcome-card__title" style={{ fontSize: "2.5rem", fontWeight: 700, margin: 0, color: "white" }}>
-            Welcome back, {internalUser?.name?.split(" ")[0] || "there"}!
-          </h1>
+      {/* ── Page Header ── */}
+      <div style={{ marginBottom: "20px" }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: "8px",
+          fontSize: "12px", color: "var(--neutral-400)",
+          marginBottom: "6px", fontWeight: 500,
+        }}>
+          <span>Home</span>
+          <span style={{ color: "var(--neutral-300)" }}>/</span>
+          <span style={{ color: "var(--neutral-600)" }}>Dashboard</span>
         </div>
-      </section>
-
-      <div style={{ marginBottom: "var(--space-6)" }}>
-        <TopAnnouncementsCarousel />
+        <h1 style={{
+          fontSize: "1.375rem", fontWeight: 700,
+          color: "var(--neutral-900)", letterSpacing: "-0.02em",
+        }}>
+          My Dashboard
+        </h1>
       </div>
 
-      <section className="stats-grid" style={{ marginBottom: "var(--space-6)" }}>
-        {stats.map((stat, idx) => (
-          <div className="stat-card" key={idx}>
-            <div className="flex items-center gap-4">
-              <div className="stat-card__icon" style={{ backgroundColor: `${stat.color}15`, color: stat.color, width: "48px", height: "48px", borderRadius: "50%" }}>{stat.icon}</div>
-              <div>
-                <div className="stat-card__label" style={{ fontSize: "13px" }}>{stat.label}</div>
-                <div className="stat-card__value" style={{ fontSize: "18px", marginTop: "2px" }}>{stat.value}</div>
+      {/* ── Compact Hero Banner ── */}
+      <div style={{
+        background: "linear-gradient(120deg, #047857 0%, #10B981 100%)",
+        borderRadius: "12px",
+        padding: "16px 24px",
+        marginBottom: "20px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        position: "relative",
+        overflow: "hidden",
+        minHeight: "72px",
+      }}>
+        <div style={{
+          position: "absolute", top: "-30px", right: "-30px",
+          width: "120px", height: "120px",
+          borderRadius: "50%", background: "rgba(255,255,255,0.07)", pointerEvents: "none",
+        }} />
+        <div style={{
+          position: "absolute", bottom: "-20px", right: "80px",
+          width: "70px", height: "70px",
+          borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none",
+        }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.65)", fontWeight: 500, marginBottom: "2px" }}>
+            Employee Portal
+          </div>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
+            Welcome back, {internalUser?.name?.split(" ")[0] || "there"} 👋
+          </h2>
+        </div>
+        <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
+          <div style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.55)", marginBottom: "2px", fontWeight: 500 }}>
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
+          <div style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>
+            {annualBalance ? `${annualBalance.remaining_days} leave days remaining` : "Check your leave balance"}
+          </div>
+        </div>
+      </div>
+
+      {/* ── KPI Cards ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: "12px",
+        marginBottom: "20px",
+      }}>
+        {stats.map((s, i) => (
+          <div key={i} style={{
+            background: "var(--neutral-0)",
+            border: "1px solid var(--neutral-200)",
+            borderRadius: "10px",
+            padding: "14px 16px",
+            boxShadow: "var(--shadow-sm)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--neutral-500)", letterSpacing: "0.01em" }}>
+                {s.label}
+              </span>
+              <div style={{
+                width: "26px", height: "26px", borderRadius: "6px",
+                background: s.bg, color: s.color,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                {s.icon}
               </div>
             </div>
-            <div className="mt-auto pt-3 border-t border-gray-50">
-              <span className="stat-card__trend" style={{ color: stat.color, fontSize: "12px", opacity: 0.8 }}>{stat.trend}</span>
+            <div style={{
+              fontSize: "1.75rem", fontWeight: 700,
+              color: "var(--neutral-900)", lineHeight: 1, letterSpacing: "-0.03em",
+            }}>
+              {s.value}
+            </div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--neutral-400)", fontWeight: 500 }}>
+              {s.sub}
             </div>
           </div>
         ))}
-      </section>
+      </div>
 
-      <div className="content-grid" style={{ gap: "var(--space-6)" }}>
-        <div className="card" style={{ gridColumn: "span 12" }}>
-          <div className="card__header">
-            <h3 className="card__title">Quick Access</h3>
+      {/* ── Featured Announcements ── */}
+      <div style={{ marginBottom: "20px" }}>
+        <TopAnnouncementsCarousel />
+      </div>
+
+      {/* ── Quick Access Grid ── */}
+      <div style={{
+        background: "var(--neutral-0)",
+        border: "1px solid var(--neutral-200)",
+        borderRadius: "10px",
+        boxShadow: "var(--shadow-sm)",
+        overflow: "hidden",
+        marginBottom: "16px",
+      }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--neutral-100)" }}>
+          <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
+            Quick Access
+          </h3>
+        </div>
+        <div style={{
+          padding: "14px",
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "10px",
+        }}>
+          {modules.map((mod, i) => (
+            <a
+              key={i}
+              href={mod.path}
+              style={{
+                display: "flex", alignItems: "center", gap: "10px",
+                padding: "12px 14px",
+                borderRadius: "8px",
+                border: "1px solid var(--neutral-100)",
+                background: "var(--neutral-50)",
+                textDecoration: "none",
+                transition: "all 150ms",
+                cursor: "pointer",
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.background = "white";
+                e.currentTarget.style.borderColor = "var(--neutral-200)";
+                e.currentTarget.style.boxShadow = "var(--shadow-sm)";
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = "var(--neutral-50)";
+                e.currentTarget.style.borderColor = "var(--neutral-100)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              <div style={{
+                width: "32px", height: "32px",
+                borderRadius: "8px",
+                background: `${mod.color}15`,
+                color: mod.color,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                {mod.icon}
+              </div>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-700)" }}>
+                {mod.title}
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Current Week Timesheet ── */}
+      {timesheet && (
+        <div style={{
+          background: "var(--neutral-0)",
+          border: "1px solid var(--neutral-200)",
+          borderRadius: "10px",
+          boxShadow: "var(--shadow-sm)",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            padding: "12px 16px",
+            borderBottom: "1px solid var(--neutral-100)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
+              Current Week Timesheet
+            </h3>
+            <a
+              href="/employee/timesheets"
+              style={{
+                display: "flex", alignItems: "center", gap: "4px",
+                fontSize: "0.75rem", fontWeight: 600, color: "var(--primary-500)",
+                textDecoration: "none",
+              }}
+            >
+              Open <ArrowRight size={11} />
+            </a>
           </div>
-          <div className="card__body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-6)" }}>
-              {modules.map((mod, idx) => (
-                <a 
-                  key={idx} 
-                  href={mod.path} 
-                  className="btn btn--secondary hover:shadow-md transition-all duration-300" 
-                  style={{ 
-                    height: "120px", 
-                    padding: "var(--space-6)", 
-                    flexDirection: "column", 
-                    gap: "var(--space-3)", 
-                    textDecoration: "none",
-                    borderRadius: "10px",
-                    background: "var(--neutral-0)"
-                  }}
-                >
-                  <span style={{ color: "var(--primary-500)" }}>
-                    {React.cloneElement(mod.icon as React.ReactElement<any>, { size: 28 })}
-                  </span>
-                  <span style={{ fontSize: "14px", fontWeight: 600 }}>{mod.title}</span>
-                </a>
-              ))}
-            </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <thead>
+                <tr>
+                  {["Week Of", "Total Hours", "Entries", "Status", "Action"].map(h => (
+                    <th key={h} style={{
+                      background: "var(--neutral-50)",
+                      padding: "8px 12px",
+                      fontSize: "0.6875rem", fontWeight: 600,
+                      color: "var(--neutral-400)",
+                      textTransform: "uppercase", letterSpacing: "0.06em",
+                      borderBottom: "1px solid var(--neutral-200)",
+                      whiteSpace: "nowrap",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "10px 12px", fontSize: "0.8125rem", fontWeight: 500, color: "var(--neutral-700)" }}>
+                    {formatDate(timesheet.week_start_date)}
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--primary-600)" }}>
+                      {timesheet.total_hours}h
+                    </span>
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: "0.8125rem", color: "var(--neutral-500)" }}>
+                    {timesheet.entries?.length || 0} entries
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <span style={{
+                      ...getStatusBadgeStyle(timesheet.status),
+                      padding: "2px 8px", borderRadius: "20px",
+                      fontSize: "0.6875rem", fontWeight: 600,
+                    }}>
+                      {timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
+                    </span>
+                  </td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <a
+                      href="/employee/timesheets"
+                      style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--primary-500)", textDecoration: "none" }}
+                    >
+                      View Details
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-
-        {/* Current week timesheet summary */}
-        {timesheet && (
-          <div className="card" style={{ gridColumn: "span 12" }}>
-            <div className="card__header">
-              <h3 className="card__title">Current Week Timesheet</h3>
-              <a href="/employee/timesheets" className="btn btn--secondary" style={{ border: "1px solid var(--neutral-200)", height: "36px" }}>Open Timesheet</a>
-            </div>
-            <div className="card__body" style={{ padding: 0 }}>
-              <div className="table-container">
-                <table style={{ borderCollapse: "separate", borderSpacing: 0 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ paddingLeft: "var(--space-6)" }}>Week Of</th>
-                      <th>Total Hours</th>
-                      <th>Entries</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: "right", paddingRight: "var(--space-6)" }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ paddingLeft: "var(--space-6)", fontWeight: 500 }}>{timesheet.week_start_date}</td>
-                      <td>
-                        <span style={{ fontWeight: 700, fontSize: "1.125rem", color: "var(--primary-600)" }}>{timesheet.total_hours}h</span>
-                      </td>
-                      <td>{timesheet.entries?.length || 0}</td>
-                      <td>
-                        <span className={`badge ${timesheet.status === "reviewed" ? "badge--published" : timesheet.status === "submitted" ? "badge--it" : "badge--draft"}`}>
-                          {timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1)}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: "right", paddingRight: "var(--space-6)" }}>
-                         <a href="/employee/timesheets" className="text-primary-500 font-semibold text-sm hover:underline">View Details</a>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </DashboardLayout>
   );
 };

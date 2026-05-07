@@ -4,8 +4,8 @@ import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 import dotenv from "dotenv";
 import { query } from "../../db";
-import { requireAuth, AuthRequest } from "../../middleware/auth";
-import { getEffectiveRole } from "../../lib/roles";
+import { requireAuth, AuthRequest, invalidateUserCache } from "../../middleware/auth";
+import { seedRoleFromEntraClaims } from "../../lib/roles";
 
 dotenv.config();
 
@@ -75,11 +75,9 @@ const fetchGraphData = async (accessToken: string) => {
  *
  * Called by the frontend after Entra SSO login.
  * - Verifies the Entra ID token (JWT signature via JWKS)
- * - Reads roles ONLY from the verified ID token claims
- * - Upserts the user's profile cache (identity only — no role columns)
- * - Issues an httpOnly session cookie containing the Entra roles
- *
- * The database stores NO role data. Roles live exclusively in the session JWT.
+ * - Seeds the application role from Entra claims ONLY for new users (INSERT)
+ * - Subsequent role changes are managed by Admins via the SipraHub Admin UI
+ * - Issues a slim httpOnly session cookie (identity only, no roles)
  */
 router.post("/sync", async (req: Request, res: Response): Promise<void> => {
   const startTotal = Date.now();
@@ -151,108 +149,89 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
 
   const { profile, managerEntraOid } = graphData;
 
-  // 3. Extract roles from ID token — Entra is the ONLY source of truth
-  //    In dev with no app roles assigned, fall back to a full set for testing.
-  let appRoles: string[] = decodedIdToken?.roles || [];
-  if (appRoles.length === 0 && process.env.NODE_ENV !== "production") {
-    appRoles = ["Admin", "HR", "Manager", "Employee", "SipraHub-HR"];
-    console.warn("[SYNC] No Entra app roles found — using dev fallback roles:", appRoles);
-  }
+  // 3. Resolve role from Entra claims — Graph API is the ONLY source of truth.
+  // Role is written to DB on EVERY login (INSERT or UPDATE).
+  const entraClaims: string[] = decodedIdToken?.roles || [];
+  const syncedRole = seedRoleFromEntraClaims(entraClaims);
 
-  // Compute effective_role from priority hierarchy (never persisted to DB)
-  const effective_role = getEffectiveRole(appRoles);
-
-  console.log(`[SYNC] --- ROLE MAPPING ---`);
+  console.log(`[SYNC] --- ROLE SYNC ---`);
   console.log(`[SYNC] User: ${profile.mail || profile.userPrincipalName}`);
-  console.log(`[SYNC] Entra roles: ${JSON.stringify(appRoles)}`);
-  console.log(`[SYNC] Effective role (computed, not stored): ${effective_role}`);
+  console.log(`[SYNC] Entra claims: ${JSON.stringify(entraClaims)}`);
+  console.log(`[SYNC] Synced role (always from Entra): ${syncedRole}`);
 
-  // 4. Upsert identity profile cache — NO role columns written
+  // 4. Upsert profile — role ALWAYS written from Entra on every login
   const entra_oid = profile.id;
   const email = profile.mail || profile.userPrincipalName;
   const name = profile.displayName;
   const finalManagerOid = managerEntraOid && managerEntraOid.trim() !== "" ? managerEntraOid : null;
 
-  console.log("[SYNC] 3. Creating/updating user profile cache in database...");
+  console.log("[SYNC] 3. Upserting user (role always synced from Entra)...");
   const upsertQuery = `
     INSERT INTO users (
       entra_oid,
       email,
       name,
+      role,
       manager_entra_oid,
       last_login
     )
-    VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
-    ON CONFLICT (entra_oid) 
-    DO UPDATE SET 
+    VALUES ($1, $2, $3, $4, NULLIF($5, ''), NOW())
+    ON CONFLICT (entra_oid)
+    DO UPDATE SET
       email = EXCLUDED.email,
-      name = EXCLUDED.name,
+      name  = EXCLUDED.name,
+      role  = EXCLUDED.role,
       manager_entra_oid = CASE
         WHEN EXCLUDED.manager_entra_oid IS NOT NULL
         THEN EXCLUDED.manager_entra_oid
         ELSE users.manager_entra_oid
       END,
       last_login = NOW()
-    RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
+    RETURNING id, entra_oid, email, name, role, manager_entra_oid, is_active, created_at, last_login;
   `;
-  
-  const startDB = Date.now();
+
   let user;
   try {
-    const { rows } = await query(upsertQuery, [
-      entra_oid, 
-      email, 
-      name, 
-      finalManagerOid
-    ]);
+    const { rows } = await query(upsertQuery, [entra_oid, email, name, syncedRole, finalManagerOid]);
     user = rows[0];
-    console.log(`[SYNC] DB Query Time: ${Date.now() - startDB}ms`);
+    console.log(`[SYNC] user.role from DB: ${user.role}`);
   } catch (e: any) {
     console.error("[SYNC] Database upsert failed:", e.message);
     res.status(500).json({ error: "DATABASE_ERROR", details: e.message });
     return;
   }
-  
-  console.log("[SYNC] 4. Creating session cookie with roles...");
-  const startTokenGen = Date.now();
+
+  console.log("[SYNC] 4. Creating session cookie...");
   try {
-    const sessionToken = await new Promise<string>((resolve, reject) => {
-      jwt.sign(
-        { entra_oid: user.entra_oid, id: user.id, roles: appRoles },
-        JWT_SECRET,
-        { expiresIn: "8h" },
-        (err, token) => {
-          if (err || !token) reject(err || new Error("No token generated"));
-          else resolve(token);
-        }
-      );
-    });
-    console.log(`[SYNC] Token Gen Time: ${Date.now() - startTokenGen}ms`);
-    
+    // JWT contains only identity — role is read from DB by requireAuth middleware
+    const sessionToken = jwt.sign(
+      { entra_oid: user.entra_oid, id: user.id },
+      JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
     const isProd = process.env.NODE_ENV === "production";
     res.cookie("session_token", sessionToken, {
       httpOnly: true,
-      secure: isProd,
+      secure:   isProd,
       sameSite: isProd ? "strict" : "lax",
-      path: "/",
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      path:     "/",
+      maxAge:   24 * 60 * 60 * 1000
     });
 
+    // Bust the cache so next requireAuth picks up the fresh DB record
+    invalidateUserCache(user.entra_oid);
   } catch (e: any) {
     console.error("[SYNC] Session cookie creation failed:", e.message);
     res.status(500).json({ error: "SESSION_CREATION_FAILED", details: e.message });
     return;
   }
-  
-  console.log(`[SYNC] Total Request Time: ${Date.now() - startTotal}ms`);
-  // Return user profile + roles + computed effective_role to frontend
-  res.json({
-    message: "Sync successful",
-    user: { ...user, roles: appRoles, effective_role },
-  });
+
+  console.log("[SYNC] Sync completely successful");
+  res.json({ message: "Sync successful", user });
 });
 
-// GET /api/auth/me — returns DB profile + roles from session cookie
+// GET /api/auth/me — returns DB profile + role from session cookie
 router.get("/me", requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   res.json({ user: req.user });
 });

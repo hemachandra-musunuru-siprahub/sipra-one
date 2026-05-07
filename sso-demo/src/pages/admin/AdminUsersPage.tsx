@@ -1,21 +1,23 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { Users, CheckCircle, XCircle, RefreshCw, Search, X } from "lucide-react";
-import { setActive, setManager } from "../../api/users";
+import { setActive, setManager, getManagers } from "../../api/users";
 import { getAllUsers, deleteUser } from "../../api/admin";
 
 interface Props { internalUser: any; }
 
 // ─── Role badge styling ───────────────────────────────────────────────────────
 const ROLE_STYLES: Record<string, { label: string; bg: string; color: string }> = {
-  admin:    { label: "Admin",    bg: "#FEF3F2", color: "#B42318" },
-  hr:       { label: "HR",       bg: "#F0FDF4", color: "#15803D" },
-  manager:  { label: "Manager",  bg: "#EFF6FF", color: "#1D4ED8" },
-  employee: { label: "Employee", bg: "#F9FAFB", color: "#374151" },
+  Admin:    { label: "Admin",    bg: "#FEF3F2", color: "#B42318" },
+  HR:       { label: "HR",       bg: "#F0FDF4", color: "#15803D" },
+  Manager:  { label: "Manager",  bg: "#EFF6FF", color: "#1D4ED8" },
+  Employee: { label: "Employee", bg: "#F9FAFB", color: "#374151" },
 };
 
+// ─── Read-only role badge (always synced from Microsoft Entra ID) ─────────────
 function RoleBadge({ role }: { role: string | null }) {
-  if (!role) {
+  const style = role ? (ROLE_STYLES[role] ?? { label: role, bg: "#F9FAFB", color: "#374151" }) : null;
+  if (!style) {
     return (
       <span style={{
         display: "inline-block", padding: "2px 8px", borderRadius: 9999,
@@ -25,7 +27,6 @@ function RoleBadge({ role }: { role: string | null }) {
       </span>
     );
   }
-  const style = ROLE_STYLES[role] ?? { label: role, bg: "#F9FAFB", color: "#374151" };
   return (
     <span style={{
       display: "inline-block", padding: "2px 8px", borderRadius: 9999,
@@ -37,20 +38,17 @@ function RoleBadge({ role }: { role: string | null }) {
   );
 }
 
+
 // ─── Manager Picker ───────────────────────────────────────────────────────────
+// Fetches ONLY users with role='Manager' from the API.
+// Local filtering happens client-side after fetch; search debounce triggers re-fetch.
 interface ManagerPickerProps {
-  allUsers: any[];
-  targetUserOid: string;      // row being edited — excluded from list
   currentManagerOid: string | null;
   onSelect: (oid: string | null) => Promise<void>;
   onCancel: () => void;
 }
 
-const ELIGIBLE_ROLES = ["admin", "hr", "manager"];
-
 const ManagerPicker: React.FC<ManagerPickerProps> = ({
-  allUsers,
-  targetUserOid,
   currentManagerOid,
   onSelect,
   onCancel,
@@ -58,24 +56,33 @@ const ManagerPicker: React.FC<ManagerPickerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef     = useRef<HTMLInputElement>(null);
 
-  // Seed search with current manager's name for convenience
-  const currentManagerName = allUsers.find(u => u.entra_oid === currentManagerOid)?.name ?? "";
-  const [query, setQuery]   = useState(currentManagerName);
-  const [open, setOpen]     = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [query, setQuery]       = useState("");
+  const [managers, setManagers] = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [open, setOpen]         = useState(true);
 
-  // Eligible pool: All active users, exclude the row's own user
-  const eligible = allUsers.filter(
-    u => u.is_active !== false && u.entra_oid !== targetUserOid
-  );
+  // Fetch managers from API (only role='Manager' users)
+  const fetchManagers = useCallback(async (search?: string) => {
+    setLoading(true);
+    try {
+      const data = await getManagers(search);
+      setManagers(data.managers || []);
+    } catch {
+      setManagers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // Filter by search query
-  const lq = query.toLowerCase();
-  const filtered = query.trim()
-    ? eligible.filter(
-        u => u.name?.toLowerCase().includes(lq) || u.email?.toLowerCase().includes(lq)
-      )
-    : eligible;
+  // Initial load
+  useEffect(() => { fetchManagers(); }, [fetchManagers]);
+
+  // Debounced search re-fetch
+  useEffect(() => {
+    const t = setTimeout(() => fetchManagers(query.trim() || undefined), 300);
+    return () => clearTimeout(t);
+  }, [query, fetchManagers]);
 
   // Focus input on mount
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -175,15 +182,17 @@ const ManagerPicker: React.FC<ManagerPickerProps> = ({
             </span>
           </button>
 
-          {/* Eligible manager options */}
-          {filtered.length === 0 ? (
+          {/* Manager list */}
+          {loading ? (
             <div style={{ padding: "14px 16px", fontSize: "0.8125rem", color: "var(--neutral-400)", textAlign: "center" }}>
-              No eligible managers found
+              Loading managers…
             </div>
-          ) : filtered.map(u => {
+          ) : managers.length === 0 ? (
+            <div style={{ padding: "14px 16px", fontSize: "0.8125rem", color: "var(--neutral-400)", textAlign: "center" }}>
+              No managers found
+            </div>
+          ) : managers.map(u => {
             const isCurrentManager = u.entra_oid === currentManagerOid;
-            const roleStyle = ROLE_STYLES[u.roleFromEntra] ?? { bg: "#F9FAFB", color: "#374151", label: u.roleFromEntra };
-
             return (
               <button
                 key={u.entra_oid}
@@ -201,7 +210,7 @@ const ManagerPicker: React.FC<ManagerPickerProps> = ({
                 {/* Avatar */}
                 <div style={{
                   width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                  background: "var(--dept-it)", color: "white",
+                  background: "#1D4ED8", color: "white",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: "0.7rem", fontWeight: 700,
                 }}>
@@ -230,15 +239,13 @@ const ManagerPicker: React.FC<ManagerPickerProps> = ({
                   </div>
                 </div>
 
-                {/* Role badge */}
+                {/* Manager badge */}
                 <span style={{
                   flexShrink: 0, padding: "2px 7px", borderRadius: 9999,
                   fontSize: "0.65rem", fontWeight: 700,
-                  background: u.roleFromEntra ? roleStyle.bg : "#FEF9C3",
-                  color: u.roleFromEntra ? roleStyle.color : "#854D0E",
-                  textTransform: "capitalize",
+                  background: "#EFF6FF", color: "#1D4ED8",
                 }}>
-                  {u.roleFromEntra ? roleStyle.label : "Not Synced"}
+                  Manager
                 </span>
               </button>
             );
@@ -328,11 +335,11 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
               className="btn btn--ghost btn--sm"
               onClick={() => loadUsers(true)}
               disabled={refreshing}
-              title="Refresh roles from Microsoft Entra ID"
+              title="Refresh user list"
               style={{ display: "flex", alignItems: "center", gap: 6 }}
             >
               <RefreshCw size={14} style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }} />
-              {refreshing ? "Refreshing…" : "Refresh Roles"}
+              {refreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
         </div>
@@ -368,7 +375,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Microsoft Entra Role</th>
+                <th>Entra Role</th>
                 <th>Manager</th>
                 <th>Status</th>
                 <th>Last Login</th>
@@ -397,15 +404,15 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                   {/* Email */}
                   <td style={{ fontSize: "0.875rem" }}>{user.email}</td>
 
-                  {/* Role */}
-                  <td><RoleBadge role={user.roleFromEntra} /></td>
+                  {/* Role — read-only, always synced from Microsoft Entra ID */}
+                  <td>
+                    <RoleBadge role={user.role} />
+                  </td>
 
                   {/* Manager — picker or display */}
                   <td style={{ minWidth: 200 }}>
                     {editingId === user.entra_oid ? (
                       <ManagerPicker
-                        allUsers={users}
-                        targetUserOid={user.entra_oid}
                         currentManagerOid={user.manager_entra_oid}
                         onSelect={(oid) => handlePickManager(user.entra_oid, oid)}
                         onCancel={() => setEditingId(null)}
@@ -486,10 +493,16 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
         </div>
 
         <div className="card__footer">
-          <p style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>
-            Roles are resolved in real-time from <strong>Microsoft Entra ID</strong> app role assignments.
-            No role data is stored in the local database. Click <em>Refresh Roles</em> to re-fetch.
-            Only Admin, HR and Manager roles are eligible as managers.
+          <p style={{ fontSize: "0.75rem", color: "var(--neutral-500)", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px",
+              background: "#EFF6FF", color: "#1D4ED8", borderRadius: 9999,
+              fontSize: "0.7rem", fontWeight: 600,
+            }}>
+              🔒 Synced from Microsoft Entra ID
+            </span>
+            Roles are managed in Microsoft Entra and automatically synchronized on every login.
+            Role editing is not available in SipraHub.
           </p>
         </div>
       </div>

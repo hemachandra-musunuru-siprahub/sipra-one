@@ -8,12 +8,11 @@ export const AccessDenied = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    fetch("http://localhost:3000/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    }).finally(() => {
-      instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
-    });
+    localStorage.removeItem("sipra_session");
+    sessionStorage.clear();
+    // Fire backend logout in parallel — don't block on it
+    fetch("http://localhost:3000/api/auth/logout", { method: "POST", credentials: "include" }).catch(console.error);
+    instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
   };
 
   return (

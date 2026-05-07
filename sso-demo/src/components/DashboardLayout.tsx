@@ -79,9 +79,10 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
     
     // Run backend cleanup request in background without waiting
     const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+    localStorage.removeItem("sipra_session");
+    sessionStorage.clear();
+    // Fire backend logout in parallel — don't block on it
     fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(console.error);
-    
-    // Navigate out via MSAL
     instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
   };
 

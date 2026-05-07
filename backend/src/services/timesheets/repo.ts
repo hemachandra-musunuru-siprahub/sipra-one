@@ -105,23 +105,23 @@ export const deleteEntry = async (entryId: string, timesheetId: string) => {
 
 // ─── Submit timesheet ─────────────────────────────────────────────────────────
 export const submitTimesheet = async (timesheetId: string) => {
-  const { rows } = await query(
+  await query(
     `UPDATE timesheet_weeks SET status = 'submitted', submitted_at = NOW(), updated_at = NOW()
-     WHERE id = $1 RETURNING *`,
+     WHERE id = $1`,
     [timesheetId]
   );
-  return rows[0];
+  return getWeekWithEntries(timesheetId);
 };
 
 // ─── Update status (manager) ──────────────────────────────────────────────────
-export const updateStatus = async (timesheetId: string, status: "draft" | "reviewed", managerOid: string, comment?: string) => {
-  const { rows } = await query(
+export const updateStatus = async (timesheetId: string, status: "draft" | "reviewed" | "rejected", managerOid: string, comment?: string) => {
+  await query(
     `UPDATE timesheet_weeks
      SET status = $2, reviewed_by_oid = $3, reviewed_at = NOW(), manager_comment = $4, updated_at = NOW()
-     WHERE id = $1 RETURNING *`,
+     WHERE id = $1`,
     [timesheetId, status, managerOid, comment || null]
   );
-  return rows[0];
+  return getWeekWithEntries(timesheetId);
 };
 
 export const getTeamTimesheets = async (
@@ -135,12 +135,16 @@ export const getTeamTimesheets = async (
   let paramIdx = 2; // $1 is already directReportOids
 
   let queryStr = `
-    SELECT tw.*, u.name AS employee_name, u.email AS employee_email,
+    SELECT tw.id, tw.employee_oid, tw.week_start_date, tw.status, tw.submitted_at, tw.reviewed_at, tw.reviewed_by_oid, tw.manager_comment,
+       u.name AS employee_name, u.email AS employee_email,
+       (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = tw.id) AS total_hours,
+       (SELECT COUNT(*) FROM timesheet_entries WHERE timesheet_week_id = tw.id) AS entries_count,
        COALESCE(json_agg(te ORDER BY te.work_date) FILTER (WHERE te.id IS NOT NULL), '[]') AS entries
     FROM timesheet_weeks tw
     LEFT JOIN users u ON u.entra_oid = tw.employee_oid
     LEFT JOIN timesheet_entries te ON te.timesheet_week_id = tw.id
     WHERE tw.employee_oid = ANY($1)
+      AND tw.status != 'draft'
   `;
 
   if (status && status !== "all") {
@@ -156,6 +160,7 @@ export const getTeamTimesheets = async (
 
   queryStr += `
     GROUP BY tw.id, u.name, u.email
+    HAVING (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = tw.id) > 0
     ORDER BY tw.week_start_date DESC
   `;
 
@@ -164,17 +169,58 @@ export const getTeamTimesheets = async (
 };
 
 
-// ─── Export data (hr_admin) ───────────────────────────────────────────────────
-export const getExportData = async (startDate: string, endDate: string) => {
+// ─── HR export data (all employees, with filters) ─────────────────────────────
+export const getHRExportData = async (options?: {
+  employeeOid?: string;
+  status?: string;
+  month?: string;
+}) => {
+  const params: any[] = [];
+  let paramIdx = 1;
+  const conditions: string[] = [`tw.status IN ('submitted', 'reviewed', 'rejected')`];
+
+  if (options?.employeeOid && options.employeeOid !== "all") {
+    conditions.push(`tw.employee_oid = $${paramIdx++}`);
+    params.push(options.employeeOid);
+  }
+
+  if (options?.status && options.status !== "all" && options.status !== "draft") {
+    conditions.push(`tw.status = $${paramIdx++}`);
+    params.push(options.status.toLowerCase());
+  }
+
+  if (options?.month) {
+    const startOfMonth = `${options.month}-01`;
+    const endOfMonth   = `(date '${startOfMonth}' + interval '1 month' - interval '1 day')`;
+    conditions.push(`tw.week_start_date <= ${endOfMonth}`);
+    conditions.push(`(tw.week_start_date + interval '6 days') >= date '${startOfMonth}'`);
+  }
+
+  const where = `WHERE ${conditions.join(" AND ")}`;
+
   const { rows } = await query(
-    `SELECT u.name, u.email, tw.week_start_date, tw.total_hours, tw.status,
-            te.work_date, te.project_name, te.task_description, te.hours
+    `SELECT
+       u.name               AS employee_name,
+       u.email              AS employee_email,
+       tw.id                AS timesheet_id,
+       tw.week_start_date,
+       (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = tw.id) AS total_hours,
+       tw.status,
+       tw.submitted_at,
+       tw.reviewed_at,
+       tw.manager_comment,
+       rev.name             AS reviewed_by_name,
+       te.work_date,
+       te.project_name,
+       te.task_description,
+       te.hours             AS entry_hours
      FROM timesheet_weeks tw
-     JOIN users u ON u.entra_oid = tw.employee_oid
+     LEFT JOIN users u      ON u.entra_oid = tw.employee_oid
+     LEFT JOIN users rev    ON rev.entra_oid = tw.reviewed_by_oid
      LEFT JOIN timesheet_entries te ON te.timesheet_week_id = tw.id
-     WHERE tw.status = 'reviewed' AND tw.week_start_date BETWEEN $1 AND $2
+     ${where}
      ORDER BY u.name, tw.week_start_date, te.work_date`,
-    [startDate, endDate]
+    params
   );
   return rows;
 };
@@ -227,7 +273,7 @@ export const getManagerExportData = async (
        u.email              AS employee_email,
        tw.id                AS timesheet_id,
        tw.week_start_date,
-       tw.total_hours,
+       (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = tw.id) AS total_hours,
        tw.status,
        tw.reviewed_at,
        tw.manager_comment,
@@ -261,6 +307,43 @@ export const getManagerExportData = async (
   return rows;
 };
 
+// ─── Employee history: all own timesheets (no entries, lightweight) ───────────
+export const getMyHistory = async (
+  employeeOid: string,
+  options?: { status?: string; month?: string }
+) => {
+  const params: any[] = [employeeOid];
+  let paramIdx = 2;
+  const conditions: string[] = [`tw.employee_oid = $1`];
+
+  if (options?.status && options.status !== "all") {
+    conditions.push(`tw.status = $${paramIdx++}`);
+    params.push(options.status.toLowerCase());
+  }
+
+  if (options?.month) {
+    conditions.push(`to_char(tw.week_start_date, 'YYYY-MM') = $${paramIdx++}`);
+    params.push(options.month);
+  }
+
+  const { rows } = await query(
+    `SELECT
+       tw.id,
+       tw.week_start_date,
+       (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries te WHERE te.timesheet_week_id = tw.id) AS total_hours,
+       tw.status,
+       tw.submitted_at,
+       tw.reviewed_at,
+       tw.manager_comment,
+       (SELECT COUNT(*) FROM timesheet_entries te WHERE te.timesheet_week_id = tw.id) AS entries_count
+     FROM timesheet_weeks tw
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY tw.week_start_date DESC`,
+    params
+  );
+  return rows;
+};
+
 // ─── HR view: all timesheets across all employees ─────────────────────────────
 export const getHRTimesheets = async (options?: {
   employeeOid?: string;
@@ -270,22 +353,27 @@ export const getHRTimesheets = async (options?: {
   const params: any[] = [];
   let paramIdx = 1;
   // ── SECURITY: HR must never see draft records — always enforced server-side.
-  const conditions: string[] = [`tw.status IN ('submitted', 'reviewed')`];
+  const conditions: string[] = [`tw.status IN ('submitted', 'reviewed', 'rejected')`];
 
   if (options?.employeeOid) {
     conditions.push(`tw.employee_oid = $${paramIdx++}`);
     params.push(options.employeeOid);
   }
 
-  // Only allow narrowing to 'submitted' or 'reviewed' — 'draft' is silently rejected.
+  // Only allow narrowing to valid statuses — 'draft' is silently rejected.
   if (options?.status && options.status !== "all" && options.status !== "draft") {
     conditions.push(`tw.status = $${paramIdx++}`);
     params.push(options.status.toLowerCase());
   }
 
   if (options?.month) {
-    conditions.push(`to_char(tw.week_start_date, 'YYYY-MM') = $${paramIdx++}`);
-    params.push(options.month);
+    // Overlap logic: week must start on or before end of month AND end on or after start of month.
+    // options.month is 'YYYY-MM'
+    const startOfMonth = `${options.month}-01`;
+    const endOfMonth   = `(date '${startOfMonth}' + interval '1 month' - interval '1 day')`;
+    
+    conditions.push(`tw.week_start_date <= ${endOfMonth}`);
+    conditions.push(`(tw.week_start_date + interval '6 days') >= date '${startOfMonth}'`);
   }
 
   const where = `WHERE ${conditions.join(" AND ")}`; // always at least one condition
@@ -297,13 +385,16 @@ export const getHRTimesheets = async (options?: {
        u.name        AS employee_name,
        u.email       AS employee_email,
        tw.week_start_date,
-       tw.total_hours,
+       (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = tw.id) AS total_hours,
+       (SELECT COUNT(*) FROM timesheet_entries WHERE timesheet_week_id = tw.id) AS entries_count,
        tw.status,
        tw.submitted_at,
        tw.reviewed_at
      FROM timesheet_weeks tw
      LEFT JOIN users u ON u.entra_oid = tw.employee_oid
      ${where}
+     GROUP BY tw.id, u.name, u.email
+     HAVING (SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = tw.id) > 0
      ORDER BY tw.week_start_date DESC, u.name ASC`,
     params
   );

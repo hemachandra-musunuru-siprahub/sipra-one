@@ -43,6 +43,7 @@ import adminRoutes         from "./services/admin/routes";
 import managerRoutes       from "./services/manager/routes";
 import employeeRoutes      from "./services/employee/routes";
 import notificationRoutes  from "./services/notifications/routes";
+import { initSocketServer } from "./lib/socketServer";
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -94,9 +95,13 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
+// Initialize Socket.IO (must be before httpServer.listen)
+initSocketServer(httpServer, FRONTEND_URL);
+
 httpServer.listen(PORT, () => {
   logger.info(`🚀 SipraHub backend running on port ${PORT}`);
   logger.info(`   Tenant:   ${process.env.ENTRA_TENANT_ID}`);
   logger.info(`   Frontend: ${FRONTEND_URL}`);
+  logger.info(`   WebSocket: Socket.IO ready`);
 });
 

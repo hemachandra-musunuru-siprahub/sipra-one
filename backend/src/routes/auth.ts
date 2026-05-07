@@ -4,7 +4,8 @@ import jwt from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
 import dotenv from "dotenv";
 import { query } from "../db";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, AuthRequest, invalidateUserCache } from "../middleware/auth";
+import { seedRoleFromEntraClaims } from "../lib/roles";
 
 dotenv.config();
 
@@ -151,17 +152,18 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ error: e.code || "TOKEN_VERIFICATION_FAILED", details: e.message });
       return;
     }
-
-    // Roles are extracted from ID token but NOT stored in DB
-    const appRoles = decodedIdToken?.roles || [];
+    // Extract roles from Entra ID token — Graph API / token claims are the ONLY source of truth.
+    // The resolved role is written to the DB on EVERY login (INSERT or UPDATE).
+    const entraClaims: string[] = decodedIdToken?.roles || [];
+    const syncedRole = seedRoleFromEntraClaims(entraClaims);
     
-    // 3. Extract required fields for profile cache
+    // 3. Extract required fields
     const entra_oid = profile.id;
     const email = profile.mail || profile.userPrincipalName;
     const name = profile.displayName;
     
-    // ─── Step 3: Upsert user — CASE in SQL preserves existing manager if Graph returns null ─
-    console.log("[SYNC] 3. Upserting user profile cache in database...");
+    // ─── Step 3: Upsert — role is ALWAYS written from Entra source ────────────
+    console.log("[SYNC] 3. Upserting user in database (role always synced from Entra)...");
     const finalManagerOid = managerEntraOid && managerEntraOid.trim() !== "" ? managerEntraOid : null;
 
     const upsertQuery = `
@@ -169,29 +171,32 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         entra_oid,
         email,
         name,
+        role,
         manager_entra_oid,
         last_login
       )
-      VALUES ($1, $2, $3, NULLIF($4, ''), NOW())
-      ON CONFLICT (entra_oid) 
-      DO UPDATE SET 
+      VALUES ($1, $2, $3, $4, NULLIF($5, ''), NOW())
+      ON CONFLICT (entra_oid)
+      DO UPDATE SET
         email = EXCLUDED.email,
-        name = EXCLUDED.name,
+        name  = EXCLUDED.name,
+        role  = EXCLUDED.role,
         manager_entra_oid = CASE
           WHEN EXCLUDED.manager_entra_oid IS NOT NULL
           THEN EXCLUDED.manager_entra_oid
           ELSE users.manager_entra_oid
         END,
         last_login = NOW()
-      RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
+      RETURNING id, entra_oid, email, name, role, manager_entra_oid, is_active, created_at, last_login;
     `;
     
     let user;
     try {
       const { rows } = await query(upsertQuery, [
-        entra_oid, 
-        email, 
-        name, 
+        entra_oid,
+        email,
+        name,
+        syncedRole,
         finalManagerOid
       ]);
       user = rows[0];
@@ -202,30 +207,29 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       return;
     }
     
-    console.log("[SYNC] 4. Creating session cookie with roles...");
+    console.log("[SYNC] 4. Creating session cookie...");
     try {
-      // Include roles directly in the JWT session token
+      // JWT contains only identity — role is read from DB by requireAuth middleware
       const sessionToken = jwt.sign(
-        { 
-          entra_oid: user.entra_oid, 
-          id: user.id,
-          roles: appRoles 
-        }, 
-        JWT_SECRET, 
+        {
+          entra_oid: user.entra_oid,
+          id:        user.id,
+        },
+        JWT_SECRET,
         { expiresIn: "8h" }
       );
-      
+
       const isProd = process.env.NODE_ENV === "production";
       res.cookie("session_token", sessionToken, {
         httpOnly: true,
-        secure: isProd,
+        secure:   isProd,
         sameSite: isProd ? "strict" : "lax",
-        path: "/",
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        path:     "/",
+        maxAge:   24 * 60 * 60 * 1000 // 24 hours
       });
 
-      // Add roles to user object for response
-      user.roles = appRoles;
+      // Invalidate in-memory user cache so next requireAuth gets fresh role
+      invalidateUserCache(user.entra_oid);
     } catch (e: any) {
       console.error("[SYNC] Session cookie creation failed:", e.message);
       res.status(500).json({ error: "SESSION_CREATION_FAILED", details: e.message });

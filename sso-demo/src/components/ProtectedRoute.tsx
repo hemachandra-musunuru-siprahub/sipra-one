@@ -1,9 +1,15 @@
 import { AuthenticatedTemplate, UnauthenticatedTemplate } from "@azure/msal-react";
 import { LoginHandler } from "./LoginHandler";
 
-export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+export const ProtectedRoute = ({ 
+  children, 
+  onSyncComplete 
+}: { 
+  children: React.ReactNode;
+  onSyncComplete?: (user: any) => void;
+}) => {
   return (
-    <LoginHandler>
+    <LoginHandler onSyncComplete={onSyncComplete}>
       <AuthenticatedTemplate>
         {children}
       </AuthenticatedTemplate>

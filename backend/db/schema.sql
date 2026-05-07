@@ -1,23 +1,24 @@
 -- Database schema for SipraHub MVP
--- Microsoft Entra ID is the single source of truth for identity, roles, and authentication.
--- Roles are handled via token/session claims; the database does not store user roles.
--- The users table serves only as a lightweight profile cache.
+-- Microsoft Entra ID handles authentication (identity, token signing, MFA).
+-- Application roles ('Admin', 'HR', 'Manager', 'Employee') are stored in
+-- the users table and managed by Admins via the SipraHub Admin UI.
+-- Entra ID roles are only used to SEED the role on first login.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ==========================================
--- 0. User Profile Cache
+-- 0. Users
 -- ==========================================
--- NOTE: Microsoft Entra ID is the SINGLE SOURCE OF TRUTH for roles.
--- Roles are read from the Entra ID token at login, stored in the
--- session JWT, and NEVER persisted to this table.
--- This table stores identity/profile data only.
+-- Stores identity profile data AND the application role.
+-- 'role' is the single source of truth for access control within SipraHub.
+-- Allowed values: 'Admin', 'HR', 'Manager', 'Employee'
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     entra_oid VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'Employee',
     manager_entra_oid VARCHAR(255),
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

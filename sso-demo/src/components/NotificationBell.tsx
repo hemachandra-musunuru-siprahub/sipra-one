@@ -1,15 +1,15 @@
 import { useRef, useState, useEffect } from "react";
-import { Bell, CheckCheck, X } from "lucide-react";
+import { Bell, CheckCheck, X, Megaphone, Info, Calendar, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Notification } from "../api/notifications";
 
 // ── Type icon mapping ─────────────────────────────────────────────────────────
-const TYPE_META: Record<string, { icon: string; color: string }> = {
-  leave_request:  { icon: "📅", color: "#3b82f6" },
-  leave_approved: { icon: "✅", color: "#22c55e" },
-  leave_rejected: { icon: "❌", color: "#ef4444" },
-  announcement:   { icon: "📢", color: "#f59e0b" },
-  hr_document:    { icon: "📄", color: "#8b5cf6" },
+const TYPE_META: Record<string, { icon: React.ReactNode; color: string }> = {
+  leave_request:  { icon: <Calendar size={14} />, color: "#3b82f6" },
+  leave_approved: { icon: <CheckCircle2 size={14} />, color: "#10b981" },
+  leave_rejected: { icon: <AlertCircle size={14} />, color: "#ef4444" },
+  announcement:   { icon: <Megaphone size={14} />, color: "#f59e0b" },
+  hr_document:    { icon: <FileText size={14} />, color: "#8b5cf6" },
 };
 
 function relativeTime(dateStr: string): string {
@@ -40,8 +40,13 @@ export function NotificationBell({
   onMarkAllRead,
 }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const INITIAL_LIMIT = 2;
+  const hasMore = notifications.length > INITIAL_LIMIT;
+  const visibleNotifications = isExpanded ? notifications : notifications.slice(0, INITIAL_LIMIT);
 
   // Close on outside click
   useEffect(() => {
@@ -54,12 +59,16 @@ export function NotificationBell({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleToggle = () => setIsOpen(prev => !prev);
+  // Reset expansion state when dropdown closes
+  useEffect(() => {
+    if (!isOpen) {
+      // Small delay to prevent flickering during close animation
+      const timer = setTimeout(() => setIsExpanded(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
-  const handleMarkRead = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    onMarkRead(id);
-  };
+  const handleToggle = () => setIsOpen(prev => !prev);
 
   const handleNotificationClick = (e: React.MouseEvent, notif: Notification) => {
     e.stopPropagation();
@@ -73,8 +82,8 @@ export function NotificationBell({
 
     if (notif.type === "leave_request") {
       if (r === "manager") path = "/manager/leave-approvals";
-      else if (r === "hr" || r === "admin") path = "/hr/leave-management";
-      else path = "/employee/leave"; // fallback
+      else if (r === "hr" || r === "admin") path = "/hr/leave-requests";
+      else path = "/employee/leave";
     } else if (notif.type === "leave_approved" || notif.type === "leave_rejected") {
       if (r === "manager") path = "/manager/my-leave";
       else if (r === "hr" || r === "admin") path = "/hr/my-leave";
@@ -91,7 +100,7 @@ export function NotificationBell({
   };
 
   return (
-    <div ref={panelRef} style={{ position: "relative" }}>
+    <div ref={panelRef} className="notif-bell-container" style={{ position: "relative" }}>
       {/* ── Bell Button ───────────────────────────────────────────────── */}
       <button
         id="notification-bell-btn"
@@ -104,25 +113,26 @@ export function NotificationBell({
         {unreadCount > 0 && (
           <span
             id="notif-badge"
+            className="notif-badge"
             style={{
               position: "absolute",
-              top: "-4px",
-              right: "-4px",
-              minWidth: "18px",
-              height: "18px",
-              borderRadius: "9px",
-              background: "var(--error, #ef4444)",
+              top: "-2px",
+              right: "-2px",
+              minWidth: "14px",
+              height: "14px",
+              borderRadius: "7px",
+              background: "#ef4444",
               color: "#fff",
-              fontSize: "10px",
+              fontSize: "9px",
               fontWeight: 700,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              padding: "0 4px",
-              border: "2px solid var(--sidebar-bg, #1a1a2e)",
+              padding: "0 3px",
+              border: "1.5px solid var(--topbar-bg, #fff)",
               lineHeight: 1,
               pointerEvents: "none",
-              animation: unreadCount > 0 ? "notif-pulse 2s ease infinite" : "none",
+              zIndex: 1,
             }}
           >
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -134,166 +144,180 @@ export function NotificationBell({
       {isOpen && (
         <div
           id="notification-dropdown"
+          className="notif-dropdown"
           style={{
             position: "absolute",
-            top: "calc(100% + 8px)",
+            top: "calc(100% + 10px)",
             right: 0,
-            width: "360px",
-            maxHeight: "480px",
-            background: "var(--surface, #fff)",
-            border: "1px solid var(--border, #e5e7eb)",
-            borderRadius: "12px",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-            zIndex: 9999,
+            width: "330px",
+            maxWidth: "90vw",
+            maxHeight: isExpanded ? "480px" : "280px",
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "10px",
+            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+            zIndex: 1000,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            animation: "notif-drop 0.18s ease",
+            transition: "max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+            animation: "notif-drop 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
           }}
         >
           {/* Header */}
           <div
+            className="notif-header"
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "14px 16px 12px",
-              borderBottom: "1px solid var(--border, #e5e7eb)",
-              background: "var(--surface-raised, #f9fafb)",
+              padding: "8px 12px",
+              borderBottom: "1px solid #f1f5f9",
+              background: "#fff",
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Bell size={16} color="var(--primary-500, #e53e3e)" />
-              <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--text-primary, #111)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>
                 Notifications
               </span>
               {unreadCount > 0 && (
                 <span
                   style={{
-                    background: "var(--error, #ef4444)",
-                    color: "#fff",
-                    borderRadius: "10px",
-                    padding: "1px 7px",
-                    fontSize: "11px",
-                    fontWeight: 700,
+                    background: "#fecaca",
+                    color: "#dc2626",
+                    borderRadius: "3px",
+                    padding: "0 5px",
+                    fontSize: "10px",
+                    fontWeight: 600,
                   }}
                 >
-                  {unreadCount} new
+                  {unreadCount}
                 </span>
               )}
             </div>
-            <div style={{ display: "flex", gap: "6px" }}>
+            <div style={{ display: "flex", gap: "2px" }}>
               {unreadCount > 0 && (
                 <button
                   id="mark-all-read-btn"
-                  onClick={onMarkAllRead}
+                  onClick={(e) => { e.stopPropagation(); onMarkAllRead(); }}
                   title="Mark all as read"
+                  className="notif-action-btn"
                   style={{
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    color: "var(--text-secondary, #6b7280)",
+                    color: "#64748b",
                     padding: "4px",
-                    borderRadius: "6px",
+                    borderRadius: "4px",
                     display: "flex",
                     alignItems: "center",
-                    transition: "color 0.15s, background 0.15s",
+                    transition: "all 0.15s",
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "var(--hover-bg, #f3f4f6)")}
-                  onMouseLeave={e => (e.currentTarget.style.background = "none")}
                 >
-                  <CheckCheck size={16} />
+                  <CheckCheck size={14} />
                 </button>
               )}
               <button
                 onClick={() => setIsOpen(false)}
+                className="notif-action-btn"
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  color: "var(--text-secondary, #6b7280)",
+                  color: "#64748b",
                   padding: "4px",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   display: "flex",
                   alignItems: "center",
                 }}
               >
-                <X size={16} />
+                <X size={14} />
               </button>
             </div>
           </div>
 
           {/* Notification List */}
-          <div style={{ overflowY: "auto", flex: 1 }}>
+          <div className="notif-list" style={{ overflowY: isExpanded ? "auto" : "hidden", flex: 1, position: "relative" }}>
             {isLoading && (
-              <div style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary, #6b7280)", fontSize: "13px" }}>
-                Loading notifications…
+              <div style={{ padding: "24px", textAlign: "center", color: "#64748b", fontSize: "12px" }}>
+                <div className="notif-spinner" />
+                Loading...
               </div>
             )}
             {!isLoading && notifications.length === 0 && (
               <div
                 style={{
-                  padding: "48px 24px",
+                  padding: "40px 16px",
                   textAlign: "center",
-                  color: "var(--text-secondary, #6b7280)",
-                  fontSize: "13px",
+                  color: "#94a3b8",
                 }}
               >
-                <Bell size={32} style={{ opacity: 0.25, marginBottom: "8px", display: "block", margin: "0 auto 8px" }} />
-                <div>You're all caught up!</div>
+                <div style={{ 
+                  width: "36px", 
+                  height: "36px", 
+                  background: "#f8fafc", 
+                  borderRadius: "50%", 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "center",
+                  margin: "0 auto 10px"
+                }}>
+                  <Bell size={16} />
+                </div>
+                <div style={{ fontWeight: 600, fontSize: "13px", color: "#475569", marginBottom: "2px" }}>No notifications</div>
+                <div style={{ fontSize: "11px" }}>All caught up!</div>
               </div>
             )}
             {!isLoading &&
-              notifications.map(notif => {
-                const meta = TYPE_META[notif.type] ?? { icon: "🔔", color: "#6b7280" };
+              visibleNotifications.map(notif => {
+                const meta = TYPE_META[notif.type] ?? { icon: <Info size={12} />, color: "#64748b" };
                 return (
                   <div
                     key={notif.id}
-                    id={`notif-item-${notif.id}`}
+                    className={`notif-item ${notif.is_read ? "" : "is-unread"}`}
+                    onClick={(e) => handleNotificationClick(e, notif)}
                     style={{
                       display: "flex",
-                      alignItems: "flex-start",
                       gap: "10px",
-                      padding: "12px 16px",
-                      background: notif.is_read ? "transparent" : "rgba(59,130,246,0.05)",
-                      borderBottom: "1px solid var(--border, #f0f0f0)",
+                      padding: "8px 12px",
+                      background: notif.is_read ? "#fff" : "#f8fafc",
+                      borderBottom: "1px solid #f1f5f9",
                       cursor: "pointer",
                       transition: "background 0.15s",
                       position: "relative",
-                    }}
-                    onClick={(e) => handleNotificationClick(e, notif)}
-                    onMouseEnter={e => { 
-                      (e.currentTarget as HTMLElement).style.background = notif.is_read ? "var(--hover-bg, #f9fafb)" : "rgba(59,130,246,0.08)"; 
-                    }}
-                    onMouseLeave={e => { 
-                      (e.currentTarget as HTMLElement).style.background = notif.is_read ? "transparent" : "rgba(59,130,246,0.05)"; 
+                      minHeight: "60px",
                     }}
                   >
-                    {/* Icon */}
+                    {/* Icon Column */}
                     <div
                       style={{
-                        width: "36px",
-                        height: "36px",
+                        width: "28px",
+                        height: "28px",
                         borderRadius: "50%",
-                        background: `${meta.color}18`,
+                        background: `${meta.color}10`,
+                        color: meta.color,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "16px",
                         flexShrink: 0,
-                        marginTop: "1px",
+                        marginTop: "2px",
                       }}
                     >
                       {meta.icon}
                     </div>
 
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Content Column */}
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                       <div
                         style={{
-                          fontWeight: notif.is_read ? 400 : 600,
+                          fontWeight: 500,
                           fontSize: "13px",
-                          color: "var(--text-primary, #111)",
+                          color: "#1e293b",
+                          lineHeight: "1.2",
+                          marginBottom: "1px",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -304,8 +328,9 @@ export function NotificationBell({
                       <div
                         style={{
                           fontSize: "12px",
-                          color: "var(--text-secondary, #6b7280)",
-                          marginTop: "2px",
+                          color: "#64748b",
+                          lineHeight: "1.3",
+                          marginBottom: "2px",
                           display: "-webkit-box",
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: "vertical",
@@ -314,23 +339,31 @@ export function NotificationBell({
                       >
                         {notif.message}
                       </div>
-                      <div style={{ fontSize: "11px", color: "var(--text-tertiary, #9ca3af)", marginTop: "4px" }}>
+                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>
                         {relativeTime(notif.created_at)}
                       </div>
                     </div>
 
-                    {/* Unread dot */}
+                    {/* Status Column */}
                     {!notif.is_read && (
                       <div
                         style={{
-                          width: "8px",
-                          height: "8px",
-                          borderRadius: "50%",
-                          background: "var(--primary-500, #e53e3e)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "6px",
                           flexShrink: 0,
-                          marginTop: "4px",
                         }}
-                      />
+                      >
+                        <div
+                          style={{
+                            width: "6px",
+                            height: "6px",
+                            borderRadius: "50%",
+                            background: "#3b82f6",
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
                 );
@@ -340,29 +373,88 @@ export function NotificationBell({
           {/* Footer */}
           {notifications.length > 0 && (
             <div
+              className="notif-footer"
               style={{
-                padding: "10px 16px",
-                borderTop: "1px solid var(--border, #e5e7eb)",
-                textAlign: "center",
-                background: "var(--surface-raised, #f9fafb)",
+                height: "36px",
+                padding: "0 12px",
+                borderTop: "1px solid #f1f5f9",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#fff",
+                position: "sticky",
+                bottom: 0,
+                zIndex: 2,
               }}
             >
-              <span style={{ fontSize: "12px", color: "var(--text-secondary, #6b7280)" }}>
-                Showing last {notifications.length} notifications
-              </span>
+              {hasMore && !isExpanded ? (
+                <button
+                  onClick={() => setIsExpanded(true)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "#3b82f6",
+                    cursor: "pointer",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    transition: "background 0.2s",
+                    width: "100%",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#eff6ff")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "none")}
+                >
+                  View all ({notifications.length})
+                </button>
+              ) : (
+                <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                  {isExpanded ? "All notifications" : `${notifications.length} notifications`}
+                </span>
+              )}
             </div>
           )}
         </div>
       )}
 
       <style>{`
-        @keyframes notif-pulse {
-          0%, 100% { transform: scale(1); }
-          50%       { transform: scale(1.15); }
+        .notif-item:hover {
+          background-color: #f8fafc !important;
+        }
+        .notif-action-btn:hover {
+          background-color: #f1f5f9 !important;
+          color: #0f172a !important;
+        }
+        .notif-spinner {
+          width: 12px;
+          height: 12px;
+          border: 1.5px solid #e2e8f0;
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          display: inline-block;
+          margin-right: 6px;
+          animation: notif-spin 0.6s linear infinite;
+          vertical-align: middle;
+        }
+        @keyframes notif-spin {
+          to { transform: rotate(360deg); }
         }
         @keyframes notif-drop {
-          from { opacity: 0; transform: translateY(-8px); }
-          to   { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(-8px) scale(0.99); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .notif-list::-webkit-scrollbar {
+          width: 4px;
+        }
+        .notif-list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .notif-list::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .notif-list::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
         }
       `}</style>
     </div>

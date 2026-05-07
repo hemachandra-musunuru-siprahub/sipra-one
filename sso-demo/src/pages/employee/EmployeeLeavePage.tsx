@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getMyLeave, getLeaveBalances, submitLeave, cancelLeave } from "../../api/leave";
 import type { LeaveRequest, LeaveBalance } from "../../api/types";
+import { formatLeaveDates } from "../../utils/dateFormatter";
 
 interface Props { internalUser: any; role?: string; }
 
@@ -36,9 +37,6 @@ const statusClass = (s: string) => ({
 
 const leaveTypeAccent = (t: string) =>
   ({ annual: "annual", sick: "sick", casual: "casual", unpaid: "unpaid", other: "other" }[t] ?? "other");
-
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 /* ─── Sub-components ────────────────────────────────────── */
 function BalanceSkeleton() {
@@ -428,9 +426,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
                       </span>
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      {formatDate(r.start_date)}
-                      <span style={{ color: "var(--neutral-400)", margin: "0 4px" }}>→</span>
-                      {formatDate(r.end_date)}
+                      {formatLeaveDates(r.start_date, r.end_date)}
                     </td>
                     <td style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{r.total_days}</td>
                     <td style={{ maxWidth: 200 }}>
@@ -527,9 +523,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
 
                 <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Dates</span>
                 <span style={{ fontSize: "0.875rem", color: "var(--neutral-800)" }}>
-                  {formatDate(detailRequest.start_date)}
-                  <span style={{ color: "var(--neutral-400)", margin: "0 6px" }}>→</span>
-                  {formatDate(detailRequest.end_date)}
+                  {formatLeaveDates(detailRequest.start_date, detailRequest.end_date)}
                 </span>
 
                 <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Days</span>
