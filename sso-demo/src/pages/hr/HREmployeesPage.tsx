@@ -6,8 +6,13 @@ import type { User } from "../../api/types";
 
 interface Props { internalUser: any; }
 
+interface EnrichedUser extends User {
+  manager_name?: string;
+  manager_email?: string;
+}
+
 export const HREmployeesPage = ({ internalUser }: Props) => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<EnrichedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -37,10 +42,7 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
     <DashboardLayout internalUser={internalUser} role="HR">
       <header className="page-header">
         <div className="breadcrumb"><span>HR</span><span className="breadcrumb__separator">/</span><span>Employees</span></div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 className="page-title">Employee Directory</h1>
-          <button className="btn btn--secondary"><Download size={16} /> Export CSV</button>
-        </div>
+        <h1 className="page-title">Employee Directory</h1>
       </header>
       <div className="card">
         <div className="card__header">

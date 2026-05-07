@@ -74,15 +74,20 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
   }, []);
 
   const handleLogout = () => {
+    // Clear local auth state instantly
+    sessionStorage.clear();
+    
+    // Run backend cleanup request in background without waiting
     const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
-    fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).finally(() => {
-      instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
-    });
+    fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(console.error);
+    
+    // Navigate out via MSAL
+    instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
   };
 
   const currentRole = role || "Employee";
   const basePath = currentRole === "Admin" ? "/admin" : currentRole === "HR" ? "/hr" : currentRole === "Manager" ? "/manager" : "/employee";
-  const dashboardPath = currentRole === "Admin" ? "/admin-dashboard" : currentRole === "HR" ? "/hr-dashboard" : currentRole === "Manager" ? "/manager/dashboard" : "/employee-dashboard";
+  const dashboardPath = currentRole === "Admin" ? "/admin-dashboard" : currentRole === "HR" ? "/hr/dashboard" : currentRole === "Manager" ? "/manager/dashboard" : "/employee-dashboard";
 
   const userName = internalUser?.name || accounts[0]?.name || "User";
   const userEmail = internalUser?.email || accounts[0]?.username || "";

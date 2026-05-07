@@ -28,14 +28,14 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
   }, []);
 
   const pendingLeave = leaveRequests.filter(r => r.status === "pending");
-  const submittedTs  = timesheets.filter(t => t.status === "submitted");
-  const reviewedTs   = timesheets.filter(t => t.status === "reviewed");
+  const submittedTs = timesheets.filter(t => t.status === "submitted");
+  const reviewedTs = timesheets.filter(t => t.status === "reviewed");
 
   const stats = [
-    { label: "Pending Approvals",  value: loading ? "…" : `${pendingLeave.length}`, trend: "Requires Action", icon: <CheckSquare size={20} />, color: "#CE2124" },
-    { label: "Timesheets Pending", value: loading ? "…" : `${submittedTs.length}`,  trend: "Awaiting Review",  icon: <Clock size={20} />,       color: "#3B82F6" },
-    { label: "Reviewed",           value: loading ? "…" : `${reviewedTs.length}`,   trend: "Completed",        icon: <CheckCircle size={20} />,  color: "#10B981" },
-    { label: "Team Size",          value: "—",                                        trend: "From Entra ID",    icon: <Users size={20} />,        color: "#8B5CF6" },
+    { label: "Pending Approvals", value: loading ? "…" : `${pendingLeave.length}`, trend: "Requires Action", icon: <CheckSquare size={20} />, color: "#CE2124" },
+    { label: "Timesheets Pending", value: loading ? "…" : `${submittedTs.length}`, trend: "Awaiting Review", icon: <Clock size={20} />, color: "#3B82F6" },
+    { label: "Reviewed", value: loading ? "…" : `${reviewedTs.length}`, trend: "Completed", icon: <CheckCircle size={20} />, color: "#10B981" },
+    { label: "Team Size", value: "—", trend: "From Entra ID", icon: <Users size={20} />, color: "#8B5CF6" },
   ];
 
   const handleApprove = async (id: string) => {
@@ -117,21 +117,21 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
               <tbody>
                 {loading ? <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading…</td></tr>
                   : pendingLeave.length === 0 ? <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No pending requests 🎉</td></tr>
-                  : pendingLeave.map(req => (
-                    <tr key={req.id}>
-                      <td style={{ fontSize: "0.875rem" }}>{req.employee_name || req.employee_oid.slice(0, 8) + "…"}</td>
-                      <td><span className="badge badge--hr">{req.leave_type}</span></td>
-                      <td>{req.total_days}</td>
-                      <td style={{ fontSize: "0.875rem" }}>{req.start_date} → {req.end_date}</td>
-                      <td><span className="badge badge--draft">{req.status}</span></td>
-                      <td>
-                        <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                          <button className="btn btn--primary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => handleApprove(req.id)}>Approve</button>
-                          <button className="btn btn--secondary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => setRejectingId(req.id)}>Reject</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                    : pendingLeave.map(req => (
+                      <tr key={req.id}>
+                        <td style={{ fontSize: "0.875rem" }}>{req.employee_name || req.employee_oid.slice(0, 8) + "…"}</td>
+                        <td><span className="badge badge--hr">{req.leave_type}</span></td>
+                        <td>{req.total_days}</td>
+                        <td style={{ fontSize: "0.875rem" }}>{req.start_date} → {req.end_date}</td>
+                        <td><span className="badge badge--draft">{req.status}</span></td>
+                        <td>
+                          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                            <button className="btn btn--primary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => handleApprove(req.id)}>Approve</button>
+                            <button className="btn btn--secondary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => setRejectingId(req.id)}>Reject</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
@@ -148,20 +148,20 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
               <tbody>
                 {loading ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading…</td></tr>
                   : submittedTs.length === 0 ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No timesheets awaiting review</td></tr>
-                  : submittedTs.map(ts => (
-                    <tr key={ts.id}>
-                      <td style={{ fontSize: "0.875rem" }}>{ts.employee_name || ts.employee_oid.slice(0, 8) + "…"}</td>
-                      <td>{ts.week_start_date}</td>
-                      <td><strong>{ts.total_hours}h</strong></td>
-                      <td><span className="badge badge--draft">{ts.status}</span></td>
-                      <td>
-                        <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                          <button className="btn btn--primary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => handleReviewTs(ts.id, "reviewed")}>Approve</button>
-                          <button className="btn btn--secondary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => handleReviewTs(ts.id, "draft")}>Send Back</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                    : submittedTs.map(ts => (
+                      <tr key={ts.id}>
+                        <td style={{ fontSize: "0.875rem" }}>{ts.employee_name || ts.employee_oid.slice(0, 8) + "…"}</td>
+                        <td>{ts.week_start_date}</td>
+                        <td><strong>{ts.total_hours}h</strong></td>
+                        <td><span className="badge badge--draft">{ts.status}</span></td>
+                        <td>
+                          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                            <button className="btn btn--primary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => handleReviewTs(ts.id, "reviewed")}>Approve</button>
+                            <button className="btn btn--secondary btn--sm" style={{ height: 28, fontSize: "0.75rem" }} onClick={() => handleReviewTs(ts.id, "draft")}>Send Back</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>

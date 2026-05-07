@@ -267,6 +267,7 @@ h6 {
   color: var(--neutral-600);
   font-size: 0.875rem;
   font-weight: 500;
+  cursor: pointer;
   position: relative;
   transition: background var(--transition), color var(--transition);
   white-space: nowrap;

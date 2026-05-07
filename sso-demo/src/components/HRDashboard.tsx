@@ -53,12 +53,7 @@ export const HRDashboard = ({ internalUser }: Props) => {
           <span className="breadcrumb__separator">/</span>
           <span>HR Dashboard</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 className="page-title">People &amp; Culture</h1>
-          <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <button className="btn btn--secondary"><FileText size={16} /> Export Reports</button>
-          </div>
-        </div>
+        <h1 className="page-title">People &amp; Culture</h1>
       </header>
 
 
@@ -115,7 +110,7 @@ export const HRDashboard = ({ internalUser }: Props) => {
             </table>
           </div>
           <div className="card__footer">
-            <button className="btn btn--ghost btn--sm" style={{ width: "100%" }} onClick={() => navigate("/hr/leave")}>View All Leave Requests →</button>
+            <button className="btn btn--ghost btn--sm" style={{ width: "100%", cursor: "pointer" }} onClick={() => navigate("/hr/leave-management")}>View All Leave Requests →</button>
           </div>
         </div>
 
@@ -124,11 +119,11 @@ export const HRDashboard = ({ internalUser }: Props) => {
           <div className="card__header"><h3 className="card__title">HR Modules</h3></div>
           <div className="card__body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {[
-              { label: "Leave Management", icon: <Calendar size={18} />, color: "var(--dept-hr)", path: "/hr/leave" },
+              { label: "Leave Management", icon: <Calendar size={18} />, color: "var(--dept-hr)", path: "/hr/leave-management" },
               { label: "Document Management", icon: <FileText size={18} />, color: "var(--dept-it)", path: "/hr/documents" },
               { label: "Announcements", icon: <Megaphone size={18} />, color: "var(--dept-comm)", path: "/hr/announcements" },
             ].map((mod, idx) => (
-              <button key={idx} className="btn btn--secondary" style={{ justifyContent: "flex-start", padding: "var(--space-4)" }} onClick={() => navigate(mod.path)}>
+              <button key={idx} className="btn btn--secondary" style={{ justifyContent: "flex-start", padding: "var(--space-4)", cursor: "pointer" }} onClick={() => navigate(mod.path)}>
                 <span style={{ color: mod.color }}>{mod.icon}</span>
                 <span style={{ flex: 1, textAlign: "left" }}>{mod.label}</span>
               </button>

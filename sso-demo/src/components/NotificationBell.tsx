@@ -73,7 +73,7 @@ export function NotificationBell({
 
     if (notif.type === "leave_request") {
       if (r === "manager") path = "/manager/leave-approvals";
-      else if (r === "hr" || r === "admin") path = "/hr/leave-requests";
+      else if (r === "hr" || r === "admin") path = "/hr/leave-management";
       else path = "/employee/leave"; // fallback
     } else if (notif.type === "leave_approved" || notif.type === "leave_rejected") {
       if (r === "manager") path = "/manager/my-leave";

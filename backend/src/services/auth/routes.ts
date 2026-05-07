@@ -82,6 +82,7 @@ const fetchGraphData = async (accessToken: string) => {
  * The database stores NO role data. Roles live exclusively in the session JWT.
  */
 router.post("/sync", async (req: Request, res: Response): Promise<void> => {
+  const startTotal = Date.now();
   console.log("[SYNC] Received sync request");
   const { accessToken, idToken } = req.body;
 
@@ -90,19 +91,10 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // 1. Fetch profile + manager from Graph API
-  console.log("[SYNC] 1. Fetching user data from Graph API...");
-  let graphData;
-  try {
-    graphData = await fetchGraphData(accessToken);
-  } catch (e: any) {
-    res.status(401).json({ error: "GRAPH_API_FAILED", details: e.message });
-    return;
-  }
-  const { profile, managerEntraOid } = graphData;
-
-  // 2. Verify ID token signature via Entra JWKS
-  console.log("[SYNC] 2. Verifying ID token signature...");
+  // Parallelize Graph API fetch and Token Verification
+  const startGraphAndVerify = Date.now();
+  let graphDataPromise = fetchGraphData(accessToken).catch(e => ({ error: e }));
+  
   const ENTRA_TENANT_ID = process.env.ENTRA_TENANT_ID;
   const ENTRA_CLIENT_ID = process.env.ENTRA_CLIENT_ID;
 
@@ -123,29 +115,41 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     });
   };
 
-  let decodedIdToken: any;
+  let verifyPromise = new Promise<any>((resolve, reject) => {
+    const startVerify = Date.now();
+    jwt.verify(
+      idToken,
+      getKey,
+      { algorithms: ["RS256"], audience: ENTRA_CLIENT_ID, issuer: `https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0` },
+      (err, decoded: any) => {
+        console.log(`[SYNC] Token Verify Time: ${Date.now() - startVerify}ms`);
+        if (err) {
+          if (err.message === "TENANT_NOT_FOUND") reject({ code: "TENANT_NOT_FOUND", message: "Invalid Tenant ID?" });
+          else if (err.message.includes("audience invalid")) reject({ code: "INVALID_AUDIENCE", message: err.message });
+          else if (err.message.includes("jwt issuer invalid")) reject({ code: "INVALID_ISSUER", message: err.message });
+          else reject({ code: "TOKEN_VERIFICATION_FAILED", message: err.message });
+        } else {
+          resolve(decoded);
+        }
+      }
+    );
+  });
+
+  let graphData, decodedIdToken;
   try {
-    decodedIdToken = await new Promise<any>((resolve, reject) => {
-      jwt.verify(
-        idToken,
-        getKey,
-        { algorithms: ["RS256"], audience: ENTRA_CLIENT_ID, issuer: `https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0` },
-        (err, decoded: any) => {
-          if (err) {
-            if (err.message === "TENANT_NOT_FOUND") reject({ code: "TENANT_NOT_FOUND", message: "Invalid Tenant ID?" });
-            else if (err.message.includes("audience invalid")) reject({ code: "INVALID_AUDIENCE", message: err.message });
-            else if (err.message.includes("jwt issuer invalid")) reject({ code: "INVALID_ISSUER", message: err.message });
-            else reject({ code: "TOKEN_VERIFICATION_FAILED", message: err.message });
-          } else {
-            resolve(decoded);
-          }
-        });
-      });
-    } catch (e: any) {
-      console.error("[SYNC] ID token verification failed:", e.code || e.message);
-      res.status(401).json({ error: e.code || "TOKEN_VERIFICATION_FAILED", details: e.message });
-      return;
-    }
+    [graphData, decodedIdToken] = await Promise.all([graphDataPromise, verifyPromise]);
+  } catch (e: any) {
+    console.error("[SYNC] Parallel verification failed:", e.code || e.message);
+    res.status(401).json({ error: e.code || "TOKEN_VERIFICATION_FAILED", details: e.message });
+    return;
+  }
+
+  if (graphData.error) {
+    res.status(401).json({ error: "GRAPH_API_FAILED", details: graphData.error.message });
+    return;
+  }
+
+  const { profile, managerEntraOid } = graphData;
 
   // 3. Extract roles from ID token — Entra is the ONLY source of truth
   //    In dev with no app roles assigned, fall back to a full set for testing.
@@ -192,6 +196,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     RETURNING id, entra_oid, email, name, manager_entra_oid, is_active, created_at, last_login;
   `;
   
+  const startDB = Date.now();
   let user;
   try {
     const { rows } = await query(upsertQuery, [
@@ -201,7 +206,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       finalManagerOid
     ]);
     user = rows[0];
-    console.log(`[SYNC] Returned user.manager_entra_oid: ${user.manager_entra_oid}`);
+    console.log(`[SYNC] DB Query Time: ${Date.now() - startDB}ms`);
   } catch (e: any) {
     console.error("[SYNC] Database upsert failed:", e.message);
     res.status(500).json({ error: "DATABASE_ERROR", details: e.message });
@@ -209,17 +214,20 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
   }
   
   console.log("[SYNC] 4. Creating session cookie with roles...");
+  const startTokenGen = Date.now();
   try {
-    // Include roles directly in the JWT session token
-    const sessionToken = jwt.sign(
-      { 
-        entra_oid: user.entra_oid, 
-        id: user.id,
-        roles: appRoles 
-      }, 
-      JWT_SECRET, 
-      { expiresIn: "8h" }
-    );
+    const sessionToken = await new Promise<string>((resolve, reject) => {
+      jwt.sign(
+        { entra_oid: user.entra_oid, id: user.id, roles: appRoles },
+        JWT_SECRET,
+        { expiresIn: "8h" },
+        (err, token) => {
+          if (err || !token) reject(err || new Error("No token generated"));
+          else resolve(token);
+        }
+      );
+    });
+    console.log(`[SYNC] Token Gen Time: ${Date.now() - startTokenGen}ms`);
     
     const isProd = process.env.NODE_ENV === "production";
     res.cookie("session_token", sessionToken, {
@@ -236,7 +244,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     return;
   }
   
-  console.log("[SYNC] Sync completely successful");
+  console.log(`[SYNC] Total Request Time: ${Date.now() - startTotal}ms`);
   // Return user profile + roles + computed effective_role to frontend
   res.json({
     message: "Sync successful",
@@ -250,8 +258,12 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response): Promise<
 });
 
 // POST /api/auth/logout
-router.post("/logout", requireAuth, (req: AuthRequest, res: Response) => {
+router.post("/logout", requireAuth, async (req: AuthRequest, res: Response) => {
+  const startTotal = Date.now();
+  const startSessionDestruction = Date.now();
   res.clearCookie("session_token");
+  console.log(`[LOGOUT] Session Destruction Time: ${Date.now() - startSessionDestruction}ms`);
+  console.log(`[LOGOUT] Total Request Time: ${Date.now() - startTotal}ms`);
   res.json({ message: "Logged out successfully" });
 });
 
