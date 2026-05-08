@@ -23,8 +23,16 @@ export function initSocketServer(httpServer: HttpServer, frontendUrl: string): S
       console.log(`[WS] User ${oid} connected (socket ${socket.id})`);
     }
 
-    socket.on("disconnect", () => {
-      console.log(`[WS] Socket ${socket.id} disconnected`);
+    // Allow identification after connection (for singleton socket)
+    socket.on("authenticate", (newOid: string) => {
+      if (newOid) {
+        socket.join(`user:${newOid}`);
+        console.log(`[WS] User ${newOid} authenticated (socket ${socket.id})`);
+      }
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log(`[WS] Socket ${socket.id} disconnected. Reason: ${reason}`);
     });
   });
 

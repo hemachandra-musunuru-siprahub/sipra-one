@@ -5,6 +5,10 @@ import "./index.css";
 import { PublicClientApplication } from "@azure/msal-browser";
 import { MsalProvider } from "@azure/msal-react";
 import { msalConfig } from "./authConfig";
+import { socket } from "./lib/socket";
+
+// Connect socket once on app bootstrap
+socket.connect();
 
 const msalInstance = new PublicClientApplication(msalConfig);
 

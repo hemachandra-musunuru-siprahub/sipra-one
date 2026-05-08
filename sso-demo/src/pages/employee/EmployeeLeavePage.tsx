@@ -104,10 +104,8 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
 
   /* ─── Load data ── */
   const fetchData = useCallback(() => {
-    console.log(`[DEBUG] Fetching leave data for user: ${internalUser?.entra_oid || "unknown"}`);
     Promise.all([getMyLeave(), getLeaveBalances()])
       .then(([lData, bData]) => {
-        console.log(`[DEBUG] Loaded ${lData.requests?.length || 0} leave requests from DB.`);
         setRequests(lData.requests || []);
         setBalances(bData.balances || []);
       })
@@ -116,7 +114,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         addToast("error", "Failed to load leave data", "Please refresh the page.");
       })
       .finally(() => setLoading(false));
-  }, [addToast, internalUser?.entra_oid]);
+  }, [addToast]);
 
   useEffect(() => {
     fetchData();
@@ -128,7 +126,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
     if (!form.startDate) errs.startDate = "Start date is required";
     if (!form.endDate) errs.endDate = "End date is required";
     if (form.startDate && form.endDate && form.startDate > form.endDate)
-      errs.endDate = "End date must be on or after start date";
+      errs.endDate = "End date must be after start date";
     return errs;
   };
 
@@ -143,15 +141,15 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
       setRequests(prev => [request, ...prev]);
       setForm({ leaveType: "annual", startDate: "", endDate: "", reason: "" });
       setShowForm(false);
-      fetchData(); // Immediately refresh the leave balances from DB
+      fetchData();
       const isAutoApproved = isHRRole || isManagerRole;
       addToast(
         "success",
-        isAutoApproved ? "Leave approved" : "Leave request submitted",
-        isAutoApproved ? "Your leave has been automatically approved and balance updated." : "Your manager has been notified."
+        isAutoApproved ? "Leave approved" : "Request submitted",
+        isAutoApproved ? "Your leave was auto-approved." : "Your manager has been notified."
       );
     } catch (e: any) {
-      addToast("error", "Submission failed", e.message || "An unexpected error occurred.");
+      addToast("error", "Submission failed", e.message || "An error occurred.");
     } finally {
       setSubmitting(false);
     }
@@ -163,7 +161,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
     try {
       const { request } = await cancelLeave(cancelTarget);
       setRequests(prev => prev.map(r => r.id === cancelTarget ? request : r));
-      fetchData(); // Immediately refresh the leave balances from DB
+      fetchData();
       addToast("success", "Request cancelled");
     } catch (e: any) {
       addToast("error", "Cancel failed", e.message);
@@ -176,8 +174,6 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   const filteredRequests = requests.filter(r =>
     activeTab === "all" ? true : r.status === activeTab
   );
-
-  console.log(`[DEBUG] Rendering ${filteredRequests.length} rows. Tab: ${activeTab}. Total State Count: ${requests.length}`);
 
   const selectedBalance = balances.find(b => b.leave_type === form.leaveType);
   const isLowBalance = selectedBalance && selectedBalance.remaining_days <= 2;
@@ -192,9 +188,12 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   if (isAdminRole) {
     return (
       <DashboardLayout internalUser={internalUser} role="Admin">
-        <div style={{ padding: 40, textAlign: "center" }}>
-          <h2>Access Denied</h2>
-          <p>Admin users cannot apply for leave.</p>
+        <div className="card" style={{ margin: "var(--space-12) auto", maxWidth: 500, textAlign: "center" }}>
+          <div className="card__body">
+            <XCircle size={48} color="var(--error-500)" style={{ marginBottom: "var(--space-4)" }} />
+            <h2 className="card__title" style={{ fontSize: "1.5rem" }}>Access Denied</h2>
+            <p style={{ color: "var(--neutral-500)", marginTop: "var(--space-2)" }}>Admin users do not have leave accounts.</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -202,201 +201,88 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
 
   return (
     <DashboardLayout internalUser={internalUser} role={displayRole}>
-
       {/* ── Page Header ──────────────────────────────────────── */}
-      <header className="page-header">
-        <div className="breadcrumb">
-          <span>{displayRole}</span>
-          <ChevronRight size={14} className="breadcrumb__separator" />
-          <span className="breadcrumb__current">My leave</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-4)" }}>
-          <div>
-            <h1 className="page-title">My leave</h1>
+      <header className="page-header" style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "baseline",
+        borderBottom: "1px solid var(--neutral-100)",
+        paddingBottom: "var(--space-4)"
+      }}>
+        <div>
+          <div className="breadcrumb" style={{ marginBottom: "var(--space-1)", fontSize: "0.75rem" }}>
+            <span>Dashboard</span>
+            <ChevronRight size={12} className="breadcrumb__separator" />
+            <span className="breadcrumb__current" style={{ fontWeight: 600, color: "var(--neutral-800)" }}>My Leave</span>
           </div>
-          <button
-            className="btn btn--primary"
-            onClick={() => { setShowForm(v => !v); setFieldErrors({}); }}
-            style={{ flexShrink: 0 }}
-          >
-            <Plus size={16} /> Apply for leave
-          </button>
+          <h1 className="page-title" style={{ fontSize: "1.5rem", margin: 0 }}>My Leave</h1>
         </div>
+        <button className="btn btn--primary" onClick={() => setShowForm(true)} style={{ height: "32px", fontSize: "0.8125rem", padding: "0 var(--space-3)" }}>
+          <Plus size={16} /> Apply for Leave
+        </button>
       </header>
 
-      {/* ── Balance Cards ─────────────────────────────────────── */}
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        {loading ? <BalanceSkeleton /> : (
-          balances.length === 0 ? (
-            <div className="alert alert--warning" style={{ maxWidth: 480 }}>
-              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>No leave balances set yet. Contact HR to configure your allowances.</span>
+      {/* ── KPI Grid ────────────────────────────────────────── */}
+      <section className="kpi-grid" style={{ marginBottom: "var(--space-5)" }}>
+        {loading ? (
+          [1, 2, 3].map(i => (
+            <div key={i} className="kpi-card skeleton-card">
+              <div className="skeleton" style={{ width: "40%", height: 10, marginBottom: 6 }} />
+              <div className="skeleton" style={{ width: "60%", height: 20 }} />
             </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "var(--space-4)" }}>
-              {balances.map(b => {
-                const pct = b.total_days > 0 ? Math.max(0, Math.min(100, (b.used_days / b.total_days) * 100)) : 0;
-                const accent = leaveTypeAccent(b.leave_type);
-                return (
-                  <div key={b.id} className={`leave-balance-card leave-balance-card--${accent}`}>
-                    <div className="leave-balance-card__label">
-                      {LEAVE_TYPE_LABELS[b.leave_type] ?? b.leave_type} leave ({b.year})
-                    </div>
-                    <div className="leave-balance-card__value">{b.remaining_days}
-                      <span style={{ fontSize: "1rem", fontWeight: 400, color: "var(--neutral-500)" }}> / {b.total_days} days</span>
-                    </div>
-                    <div className="progress-track">
-                      <div className={`progress-fill progress-fill--${accent}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="leave-balance-card__meta">{b.used_days} days used</div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+          ))
+        ) : (
+          balances.map(b => {
+            const pct = b.total_days > 0 ? (b.used_days / b.total_days) * 100 : 0;
+            const accent = leaveTypeAccent(b.leave_type);
+            return (
+              <div key={b.id} className="kpi-card" style={{ minHeight: "90px" }}>
+                <Calendar size={28} className="kpi-card__icon" />
+                <div className="kpi-card__label">{LEAVE_TYPE_LABELS[b.leave_type] || b.leave_type}</div>
+                <div className="kpi-card__value">
+                  {b.remaining_days}
+                  <span style={{ fontSize: "0.75rem", marginLeft: "2px" }}> / {b.total_days} days</span>
+                </div>
+                <div className="kpi-card__progress" style={{ marginTop: "auto" }}>
+                  <div className={`kpi-card__bar progress-fill--${accent}`} style={{ width: `${pct}%` }} />
+                </div>
+                <div style={{ fontSize: "0.625rem", color: "var(--neutral-400)", marginTop: 2 }}>
+                  {b.used_days}d used
+                </div>
+              </div>
+            );
+          })
         )}
       </section>
 
-      {/* ── Apply for Leave Form ──────────────────────────────── */}
-      {showForm && (
-        <div className="card" style={{ marginBottom: "var(--space-6)" }}>
-          <div className="card__header">
-            <h3 className="card__title">Apply for leave</h3>
-            <button
-              className="topbar__icon-btn"
-              onClick={() => { setShowForm(false); setFieldErrors({}); }}
-              aria-label="Close form"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
-            {/* Leave Type */}
-            <div className="form-field" style={{ gridColumn: "span 2" }}>
-              <label className="form-label form-label--required">Leave type</label>
-              <select
-                className="form-select"
-                value={form.leaveType}
-                onChange={e => setForm(f => ({ ...f, leaveType: e.target.value as any }))}
+      {/* ── History Section ──────────────────────────────────── */}
+      <div className="card" style={{ border: "1px solid var(--neutral-100)", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+        <div className="card__header" style={{ padding: "var(--space-3) var(--space-6)", background: "var(--neutral-0)" }}>
+          <h3 className="card__title" style={{ fontSize: "0.875rem", color: "var(--neutral-500)" }}>Leave History</h3>
+          <div className="tab-nav" style={{ border: "none", padding: 0, gap: "var(--space-1)" }}>
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                className={`tab-nav__item ${activeTab === t.key ? "tab-nav__item--active" : ""}`}
+                onClick={() => setActiveTab(t.key)}
+                style={{ fontSize: "0.75rem", padding: "6px 12px", borderRadius: "var(--rounded-md)" }}
               >
-                <option value="annual">Annual</option>
-                <option value="sick">Sick</option>
-                <option value="casual">Casual</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            {/* Low balance warning */}
-            {isLowBalance && (
-              <div className="alert alert--warning" style={{ gridColumn: "span 2" }}>
-                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>
-                  <strong>Low balance:</strong> you have only {selectedBalance!.remaining_days} {form.leaveType} day{selectedBalance!.remaining_days !== 1 ? "s" : ""} remaining.
-                </span>
-              </div>
-            )}
-
-            {/* Start Date */}
-            <div className="form-field">
-              <label className="form-label form-label--required">Start date</label>
-              <input
-                type="date"
-                className="form-input"
-                value={form.startDate}
-                onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
-                style={fieldErrors.startDate ? { borderColor: "var(--error-500)" } : {}}
-              />
-              {fieldErrors.startDate && (
-                <span className="form-error"><AlertTriangle size={12} />{fieldErrors.startDate}</span>
-              )}
-            </div>
-
-            {/* End Date */}
-            <div className="form-field">
-              <label className="form-label form-label--required">End date</label>
-              <input
-                type="date"
-                className="form-input"
-                value={form.endDate}
-                onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
-                style={fieldErrors.endDate ? { borderColor: "var(--error-500)" } : {}}
-              />
-              {fieldErrors.endDate && (
-                <span className="form-error"><AlertTriangle size={12} />{fieldErrors.endDate}</span>
-              )}
-            </div>
-
-            {/* Reason */}
-            <div className="form-field" style={{ gridColumn: "span 2" }}>
-              <label className="form-label">Reason <span style={{ color: "var(--neutral-400)", fontWeight: 400 }}>(optional)</span></label>
-              <textarea
-                className="form-textarea"
-                placeholder="Briefly describe your reason…"
-                rows={3}
-                value={form.reason}
-                onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-              />
-            </div>
+                {t.label}
+              </button>
+            ))}
           </div>
-
-          <div className="card__footer" style={{ display: "flex", gap: "var(--space-3)" }}>
-            <button className="btn btn--primary" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Submitting…" : "Submit request"}
-            </button>
-            <button className="btn btn--secondary" onClick={() => { setShowForm(false); setFieldErrors({}); }}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Leave History Table ───────────────────────────────── */}
-      <div className="card">
-        <div className="card__header">
-          <h3 className="card__title">Leave history</h3>
-          <span style={{ fontSize: "0.875rem", color: "var(--neutral-500)" }}>
-            {requests.length} {requests.length === 1 ? "request" : "requests"} total
-          </span>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="tab-nav" style={{ padding: "0 var(--space-6)" }}>
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              className={`tab-nav__item ${activeTab === t.key ? "tab-nav__item--active" : ""}`}
-              onClick={() => setActiveTab(t.key)}
-            >
-              {t.label}
-              {t.key !== "all" && (
-                <span style={{
-                  marginLeft: 6,
-                  fontSize: "0.7rem",
-                  background: activeTab === t.key ? "var(--primary-100)" : "var(--neutral-100)",
-                  color: activeTab === t.key ? "var(--primary-700)" : "var(--neutral-500)",
-                  borderRadius: "var(--rounded-full)",
-                  padding: "1px 6px",
-                  fontWeight: 600,
-                }}>
-                  {requests.filter(r => r.status === t.key).length}
-                </span>
-              )}
-            </button>
-          ))}
         </div>
 
         <div className="table-container">
           <table className="leave-table">
             <thead>
               <tr>
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Days</th>
+                <th style={{ paddingLeft: "var(--space-6)", width: "180px" }}>Leave Type</th>
+                <th style={{ width: "200px" }}>Dates</th>
+                <th style={{ width: "100px" }}>Duration</th>
                 <th>Reason</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={{ width: "120px" }}>Status</th>
+                <th style={{ paddingRight: "var(--space-6)", textAlign: "right", width: "100px" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -404,80 +290,52 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
                 <TableSkeleton />
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ border: "none", padding: 0 }}>
-                    <div className="empty-state">
-                      <Inbox size={48} className="empty-state__icon" />
-                      <div className="empty-state__heading">No {activeTab !== "all" ? activeTab : ""} requests</div>
-                      <div className="empty-state__description">
-                        {activeTab === "all"
-                          ? "You haven't made any leave requests yet. Click \"Apply for leave\" to get started."
-                          : `You have no ${activeTab} leave requests.`}
-                      </div>
-                    </div>
+                  <td colSpan={6} style={{ padding: "var(--space-12) 0", textAlign: "center" }}>
+                    <Inbox size={40} color="var(--neutral-100)" style={{ margin: "0 auto var(--space-3)" }} />
+                    <div style={{ fontWeight: 600, color: "var(--neutral-400)", fontSize: "0.875rem" }}>No records found</div>
                   </td>
                 </tr>
               ) : (
                 filteredRequests.map(r => (
                   <tr key={r.id}>
+                    <td style={{ paddingLeft: "var(--space-6)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className={`leave-type-dot leave-type-dot--${leaveTypeAccent(r.leave_type)}`} style={{ width: 6, height: 6 }} />
+                        <span style={{ fontWeight: 500, color: "var(--neutral-700)" }}>
+                          {LEAVE_TYPE_LABELS[r.leave_type] || r.leave_type}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{formatLeaveDates(r.start_date, r.end_date)}</td>
                     <td>
-                      <span className="leave-type-tag">
-                        <span className={`leave-type-dot leave-type-dot--${leaveTypeAccent(r.leave_type)}`} />
-                        {LEAVE_TYPE_LABELS[r.leave_type] ?? r.leave_type}
+                      <span style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{r.total_days}</span>
+                      <span style={{ fontSize: "0.6875rem", color: "var(--neutral-400)", marginLeft: 3 }}>days</span>
+                    </td>
+                    <td style={{ maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <button 
+                        className="link-btn" 
+                        onClick={() => { setDetailRequest(r); setDetailMode("reason"); }}
+                        style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", textDecoration: "none" }}
+                      >
+                        {r.reason || "—"}
+                      </button>
+                    </td>
+                    <td>
+                      <span className={`status-badge status-badge--${r.status}`} style={{ fontSize: "0.6875rem", padding: "1px 8px" }}>
+                        {r.status}
                       </span>
                     </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {formatLeaveDates(r.start_date, r.end_date)}
-                    </td>
-                    <td style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{r.total_days}</td>
-                    <td style={{ maxWidth: 200 }}>
-                      {r.reason ? (
-                        <button
-                          onClick={() => { setDetailRequest(r); setDetailMode("reason"); }}
-                          style={{
-                            background: "none", border: "none", cursor: "pointer", padding: 0,
-                            color: "var(--primary-500)", fontSize: "0.875rem", fontFamily: "inherit",
-                            textAlign: "left", maxWidth: 200,
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            display: "block", textDecoration: "underline", textUnderlineOffset: 2,
-                          }}
-                          title="View full reason"
-                        >
-                          {r.reason.length > 28 ? r.reason.slice(0, 28) + "…" : r.reason}
+                    <td style={{ paddingRight: "var(--space-6)", textAlign: "right" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-1)" }}>
+                        {r.status === "pending" && (
+                          <button className="btn--icon btn--icon-danger" onClick={() => setCancelTarget(r.id)} style={{ width: 24, height: 24 }}>
+                            <X size={12} />
+                          </button>
+                        )}
+                        <button className="btn--icon" onClick={() => { setDetailRequest(r); setDetailMode("reason"); }} style={{ width: 24, height: 24 }}>
+                          <ChevronRight size={12} />
                         </button>
-                      ) : (
-                        <span style={{ color: "var(--neutral-300)" }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`status-badge ${statusClass(r.status)}`}>
-                        {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
-                      </span>
-                      {r.status === "rejected" && r.manager_comment && (
-                        <button
-                          onClick={() => { setDetailRequest(r); setDetailMode("rejection"); }}
-                          style={{
-                            background: "none", border: "none", cursor: "pointer", padding: 0,
-                            color: "var(--error-700)", fontSize: "0.75rem", fontFamily: "inherit",
-                            textAlign: "left", display: "block", marginTop: 3,
-                            maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            textDecoration: "underline", textUnderlineOffset: 2,
-                          }}
-                          title="View full rejection reason"
-                        >
-                          {r.manager_comment.length > 26 ? r.manager_comment.slice(0, 26) + "…" : r.manager_comment}
-                        </button>
-                      )}
-                    </td>
-                    <td>
-                      {r.status === "pending" && (
-                        <button
-                          className="btn--cancel-leave"
-                          onClick={() => setCancelTarget(r.id)}
-                          title="Cancel this request"
-                        >
-                          <XCircle size={13} /> Cancel
-                        </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -487,124 +345,124 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         </div>
       </div>
 
-      {/* ── Leave Detail Modal ────────────────────────────────── */}
+      {/* ── Apply for Leave Drawer ────────────────────────────── */}
+      {showForm && (
+        <div className="drawer-overlay" onClick={() => setShowForm(false)}>
+          <div className="drawer" onClick={e => e.stopPropagation()}>
+            <div className="drawer__header">
+              <h2 className="drawer__title">Apply for Leave</h2>
+              <button className="topbar__icon-btn" onClick={() => setShowForm(false)}><X size={20} /></button>
+            </div>
+            
+            <div className="drawer__body">
+              <div className="form-field--compact">
+                <label className="form-label--compact">Leave Type</label>
+                <select 
+                  className="form-select--compact"
+                  value={form.leaveType}
+                  onChange={e => setForm(f => ({ ...f, leaveType: e.target.value as any }))}
+                >
+                  <option value="annual">Annual Leave</option>
+                  <option value="sick">Sick Leave</option>
+                  <option value="casual">Casual Leave</option>
+                  <option value="unpaid">Unpaid Leave</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {isLowBalance && (
+                <div className="alert alert--warning" style={{ marginBottom: "var(--space-4)", padding: "10px" }}>
+                  <AlertTriangle size={14} />
+                  <span style={{ fontSize: "0.75rem" }}>Low balance: {selectedBalance?.remaining_days} days left.</span>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
+                <div className="form-field--compact">
+                  <label className="form-label--compact">Start Date</label>
+                  <input 
+                    type="date" 
+                    className={`form-input--compact ${fieldErrors.startDate ? "border-error" : ""}`}
+                    value={form.startDate}
+                    onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                  />
+                  {fieldErrors.startDate && <div className="form-error">{fieldErrors.startDate}</div>}
+                </div>
+                <div className="form-field--compact">
+                  <label className="form-label--compact">End Date</label>
+                  <input 
+                    type="date" 
+                    className={`form-input--compact ${fieldErrors.endDate ? "border-error" : ""}`}
+                    value={form.endDate}
+                    onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
+                  />
+                  {fieldErrors.endDate && <div className="form-error">{fieldErrors.endDate}</div>}
+                </div>
+              </div>
+
+              <div className="form-field--compact">
+                <label className="form-label--compact">Reason (Optional)</label>
+                <textarea 
+                  className="form-textarea--compact"
+                  placeholder="Tell us why you're taking leave..."
+                  value={form.reason}
+                  onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="drawer__footer">
+              <button className="btn btn--primary" style={{ flex: 1 }} onClick={handleSubmit} disabled={submitting}>
+                {submitting ? "Submitting..." : "Submit Application"}
+              </button>
+              <button className="btn btn--secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Details / Cancel Modals ── */}
+      {/* (Preserving existing logic for these) */}
       {detailRequest && detailMode && (
         <div className="modal-overlay" onClick={() => { setDetailRequest(null); setDetailMode(null); }}>
-          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <div className="modal__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div className="modal__title">
-                  {detailMode === "reason" ? "Leave request reason" : "Rejection reason"}
-                </div>
-                <div className="modal__subtitle">
-                  {detailMode === "reason"
-                    ? "Full reason provided for this leave request"
-                    : "Manager's comment on why this request was rejected"}
-                </div>
-              </div>
-              <button
-                className="topbar__icon-btn"
-                onClick={() => { setDetailRequest(null); setDetailMode(null); }}
-                aria-label="Close"
-                style={{ marginLeft: "var(--space-4)", flexShrink: 0 }}
-              >
-                <X size={18} />
-              </button>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+            <div className="modal__header">
+              <div className="modal__title">{detailMode === "reason" ? "Request Details" : "Rejection Details"}</div>
+              <button className="topbar__icon-btn" onClick={() => { setDetailRequest(null); setDetailMode(null); }}><X size={18} /></button>
             </div>
-
             <div className="modal__body">
-              {/* Detail rows */}
-              <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "var(--space-3) var(--space-4)", marginBottom: "var(--space-5)" }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Leave type</span>
-                <span className="leave-type-tag">
-                  <span className={`leave-type-dot leave-type-dot--${leaveTypeAccent(detailRequest.leave_type)}`} />
-                  {LEAVE_TYPE_LABELS[detailRequest.leave_type] ?? detailRequest.leave_type}
-                </span>
-
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Dates</span>
-                <span style={{ fontSize: "0.875rem", color: "var(--neutral-800)" }}>
-                  {formatLeaveDates(detailRequest.start_date, detailRequest.end_date)}
-                </span>
-
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Days</span>
-                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)" }}>{detailRequest.total_days}</span>
-
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Status</span>
-                <span className={`status-badge ${statusClass(detailRequest.status)}`}>
-                  {detailRequest.status.charAt(0).toUpperCase() + detailRequest.status.slice(1)}
-                </span>
+              <div style={{ padding: "var(--space-4)", background: "var(--neutral-50)", borderRadius: "var(--rounded-md)", fontSize: "0.9rem" }}>
+                {detailMode === "reason" ? (detailRequest.reason || "No reason provided.") : (detailRequest.manager_comment || "No comment provided.")}
               </div>
-
-              {/* Full text */}
-              <div style={{
-                background: detailMode === "rejection" ? "var(--error-50)" : "var(--neutral-50)",
-                border: `1px solid ${detailMode === "rejection" ? "var(--error-500)" : "var(--neutral-200)"}`,
-                borderRadius: "var(--rounded-md)",
-                padding: "var(--space-4)",
-              }}>
-                <div style={{
-                  fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em",
-                  color: detailMode === "rejection" ? "var(--error-700)" : "var(--neutral-500)",
-                  marginBottom: "var(--space-2)",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <FileText size={12} />
-                  {detailMode === "reason" ? "Employee's reason" : "Manager's comment"}
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: "var(--neutral-800)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
-                  {detailMode === "reason"
-                    ? (detailRequest.reason || "No reason provided.")
-                    : (detailRequest.manager_comment || "No comment provided.")}
-                </p>
-              </div>
-            </div>
-
-            <div className="modal__footer">
-              <button
-                className="btn btn--secondary"
-                onClick={() => { setDetailRequest(null); setDetailMode(null); }}
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Cancel Confirmation Modal ─────────────────────────── */}
       {cancelTarget && (
         <div className="modal-overlay" onClick={() => setCancelTarget(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal__header">
-              <div className="modal__title">Cancel leave request</div>
-              <div className="modal__subtitle">This action cannot be undone. Are you sure you want to cancel this request?</div>
+              <div className="modal__title">Cancel Request?</div>
+              <div className="modal__subtitle">This action cannot be undone.</div>
             </div>
             <div className="modal__footer">
-              <button className="btn btn--secondary" onClick={() => setCancelTarget(null)}>Keep request</button>
-              <button className="btn btn--primary" style={{ background: "var(--error-500)" }} onClick={handleConfirmCancel}>
-                Yes, cancel it
-              </button>
+              <button className="btn btn--primary" style={{ background: "var(--error-500)" }} onClick={handleConfirmCancel}>Confirm Cancel</button>
+              <button className="btn btn--secondary" onClick={() => setCancelTarget(null)}>Keep Request</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Toast Container ───────────────────────────────────── */}
+      {/* ── Toasts ── */}
       <div className="toast-container">
         {toasts.map(t => (
           <div key={t.id} className={`toast toast--${t.type}`}>
-            <div style={{ flexShrink: 0, marginTop: 1 }}>
-              {t.type === "success" && <CheckCircle2 size={16} color="var(--success-500)" />}
-              {t.type === "error" && <XCircle size={16} color="var(--error-500)" />}
-              {t.type === "warning" && <AlertTriangle size={16} color="var(--warning-500)" />}
-            </div>
             <div className="toast__content">
               <div className="toast__title">{t.title}</div>
               {t.message && <div className="toast__message">{t.message}</div>}
             </div>
-            <button className="toast__close" onClick={() => removeToast(t.id)} aria-label="Dismiss">
-              <X size={14} />
-            </button>
+            <button className="toast__close" onClick={() => removeToast(t.id)}><X size={14} /></button>
           </div>
         ))}
       </div>
@@ -612,3 +470,4 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
     </DashboardLayout>
   );
 };
+

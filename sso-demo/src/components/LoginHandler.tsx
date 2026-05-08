@@ -97,8 +97,9 @@ export const LoginHandler = ({
         if (!res.ok) {
           console.error("[LoginHandler] Backend sync failed:", res.status);
           if (isBackground) {
+            // Don't force re-login — just clear stale cache so next page load re-syncs fresh
             clearSessionCache();
-            await instance.loginRedirect(loginRequest);
+            console.warn("[LoginHandler] Background sync failed — stale session cleared. Will re-authenticate.");
           }
           return null;
         }
@@ -111,9 +112,9 @@ export const LoginHandler = ({
       } catch (e: any) {
         console.error("[LoginHandler] Sync error:", e.message);
         if (isBackground) {
-          // Timeout or network failure during background verify → force re-login
+          // Timeout or network failure — clear cache but don't force re-login aggressively
           clearSessionCache();
-          try { await instance.loginRedirect(loginRequest); } catch { /* ignore */ }
+          console.warn("[LoginHandler] Background sync timed out — stale session cleared.");
         }
         return null;
       } finally {
@@ -139,9 +140,21 @@ export const LoginHandler = ({
 
           if (cachedUser) {
             // Returning user — already surfaced from cache; re-verify silently in bg
-            syncWithBackend(true).finally(() => {
-              setIsInitializing(false);
-              setSyncComplete(true);
+            // If bg sync fails (stale cookie), cache is cleared so next refresh does full sync
+            syncWithBackend(true).then(result => {
+              if (!result) {
+                // Background sync failed — session cookie is gone. Do a foreground sync now.
+                console.warn("[LoginHandler] Session stale, performing foreground re-sync...");
+                setIsSyncing(true);
+                syncWithBackend(false).finally(() => {
+                  setIsSyncing(false);
+                  setIsInitializing(false);
+                  setSyncComplete(true);
+                });
+              } else {
+                setIsInitializing(false);
+                setSyncComplete(true);
+              }
             });
           } else {
             // Fresh login — show spinner, do full sync

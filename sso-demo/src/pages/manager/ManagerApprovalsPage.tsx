@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import {
   UserCheck,
@@ -11,6 +11,10 @@ import {
   Inbox,
   Check,
   FileText,
+  Search,
+  Filter,
+  Calendar as CalendarIcon,
+  Users,
 } from "lucide-react";
 import { getAllLeave, actionLeave } from "../../api/leave";
 import type { LeaveRequest } from "../../api/types";
@@ -25,7 +29,7 @@ let _toastId = 0;
 
 /* ─── Helpers ───────────────────────────────────────────── */
 const LEAVE_TYPE_LABELS: Record<string, string> = {
-  annual: "Annual", sick: "Sick", unpaid: "Unpaid", other: "Other",
+  annual: "Annual", sick: "Sick", casual: "Casual", unpaid: "Unpaid", other: "Other",
 };
 
 const statusClass = (s: string) => ({
@@ -36,7 +40,7 @@ const statusClass = (s: string) => ({
 }[s] ?? "status-badge--pending");
 
 const leaveTypeDotClass = (t: string) =>
-  ({ annual: "annual", sick: "sick", unpaid: "unpaid", other: "other" }[t] ?? "other");
+  ({ annual: "annual", sick: "sick", casual: "casual", unpaid: "unpaid", other: "other" }[t] ?? "other");
 
 const initials = (name: string) =>
   name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -45,10 +49,15 @@ const initials = (name: string) =>
 function TableSkeleton() {
   return (
     <>
-      {[1, 2, 3].map(i => (
+      {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
         <tr key={i}>
-          <td colSpan={7} style={{ padding: 0, borderBottom: "1px solid var(--neutral-200)" }}>
-            <div className="skeleton skeleton--row" style={{ margin: "4px 0" }} />
+          <td colSpan={7} style={{ padding: "10px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div className="skeleton" style={{ width: 28, height: 28, borderRadius: "50%" }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton" style={{ width: "35%", height: 10 }} />
+              </div>
+            </div>
           </td>
         </tr>
       ))}
@@ -63,7 +72,12 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectError, setRejectError] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  
+  // Filters State
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  
   const [detailRequest, setDetailRequest] = useState<LeaveRequest | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -76,11 +90,10 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
   const removeToast = (id: number) => setToasts(t => t.filter(x => x.id !== id));
 
   /* ─── Load ── */
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     setLoading(true);
     getAllLeave()
       .then(data => {
-        console.log(`[DEBUG] Loaded ${data.requests?.length || 0} leave requests from API.`);
         setLeaveRequests(data.requests || []);
       })
       .catch((err) => {
@@ -88,14 +101,17 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
         addToast("error", "Failed to load team leave", "Please refresh the page.");
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [addToast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   /* ─── Approve ── */
   const handleApprove = async (id: string) => {
     const req = leaveRequests.find(r => r.id === id);
     try {
       const { request } = await actionLeave(id, "approved");
-      // Merge only updated fields from backend to preserve existing fields like employee_name if they were missing in response
       setLeaveRequests(prev => prev.map(r => r.id === id ? { ...r, ...request } : r));
       addToast("success", "Leave approved", `Approved for ${request.employee_name || req?.employee_name || "employee"}.`);
     } catch (e: any) {
@@ -105,8 +121,8 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
 
   /* ─── Reject ── */
   const handleReject = async (id: string) => {
-    if (!rejectReason.trim() || rejectReason.trim().length < 10) {
-      setRejectError("Comment is required (minimum 10 characters)");
+    if (!rejectReason.trim() || rejectReason.trim().length < 5) {
+      setRejectError("Comment is required (minimum 5 characters)");
       return;
     }
     try {
@@ -123,111 +139,140 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
   };
 
   /* ─── Derived ── */
-  const filteredRequests = leaveRequests.filter(r =>
-    filter === "all" ? true : r.status === filter
-  );
-
-  console.log(`[DEBUG] Rendering ${filteredRequests.length} rows. Filter: ${filter}. Total State Count: ${leaveRequests.length}`);
+  const filteredRequests = useMemo(() => {
+    return leaveRequests.filter(r => {
+      const matchesStatus = statusFilter === "all" ? true : r.status === statusFilter;
+      const matchesType = typeFilter === "all" ? true : r.leave_type === typeFilter;
+      const matchesSearch = (r.employee_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (r.reason || "").toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesStatus && matchesType && matchesSearch;
+    });
+  }, [leaveRequests, statusFilter, typeFilter, searchQuery]);
 
   const pendingCount  = leaveRequests.filter(r => r.status === "pending").length;
   const approvedCount = leaveRequests.filter(r => r.status === "approved").length;
   const rejectedCount = leaveRequests.filter(r => r.status === "rejected").length;
 
-  const filterTabs: { key: typeof filter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "pending", label: "Pending" },
-    { key: "approved", label: "Approved" },
-    { key: "rejected", label: "Rejected" },
+  const tabs: { key: typeof statusFilter; label: string; count: number }[] = [
+    { key: "pending", label: "Pending", count: pendingCount },
+    { key: "approved", label: "Approved", count: approvedCount },
+    { key: "rejected", label: "Rejected", count: rejectedCount },
+    { key: "all", label: "All", count: leaveRequests.length },
   ];
 
   return (
     <DashboardLayout internalUser={internalUser} role="Manager">
 
       {/* ── Page Header ──────────────────────────────────────── */}
-      <header className="page-header">
-        <div className="breadcrumb">
+      <header className="page-header" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="breadcrumb" style={{ fontSize: "0.7rem", marginBottom: 4 }}>
           <span>Manager</span>
-          <ChevronRight size={14} className="breadcrumb__separator" />
-          <span className="breadcrumb__current">Leave approvals</span>
+          <ChevronRight size={12} className="breadcrumb__separator" />
+          <span className="breadcrumb__current" style={{ color: "var(--neutral-900)", fontWeight: 600 }}>Leave Approvals</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <h1 className="page-title">Leave approvals</h1>
-          {pendingCount > 0 && (
-            <span className="status-badge status-badge--pending" style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px" }}>
-              <Clock size={13} /> {pendingCount} pending
-            </span>
-          )}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <h1 className="page-title" style={{ fontSize: "1.25rem", margin: 0 }}>Leave Approvals</h1>
+            {pendingCount > 0 && (
+              <span className="status-badge status-badge--pending" style={{ fontSize: "0.65rem", padding: "1px 8px" }}>
+                {pendingCount} Pending Action
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+             <button className="btn btn--secondary btn--sm" onClick={fetchData} title="Refresh data">
+               Refresh
+             </button>
+          </div>
         </div>
       </header>
 
-      {/* ── Metric Cards ──────────────────────────────────────── */}
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
-        <div className="metric-card metric-card--pending">
-          <div className="metric-card__number">{loading ? "—" : pendingCount}</div>
-          <div className="metric-card__label">Pending approval</div>
+      {/* ── KPI Grid ────────────────────────────────────────── */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-4)", marginBottom: "var(--space-5)" }}>
+        <div className="kpi-card--modern kpi--pending">
+          <div className="kpi-card__icon-wrap"><Clock size={20} /></div>
+          <div className="kpi-card__info">
+            <div className="kpi-card__val">{loading ? "—" : pendingCount}</div>
+            <div className="kpi-card__lbl">Awaiting Action</div>
+          </div>
         </div>
-        <div className="metric-card metric-card--approved">
-          <div className="metric-card__number">{loading ? "—" : approvedCount}</div>
-          <div className="metric-card__label">Approved</div>
+        <div className="kpi-card--modern kpi--approved">
+          <div className="kpi-card__icon-wrap"><CheckCircle2 size={20} /></div>
+          <div className="kpi-card__info">
+            <div className="kpi-card__val">{loading ? "—" : approvedCount}</div>
+            <div className="kpi-card__lbl">Approved this period</div>
+          </div>
         </div>
-        <div className="metric-card metric-card--rejected">
-          <div className="metric-card__number">{loading ? "—" : rejectedCount}</div>
-          <div className="metric-card__label">Rejected</div>
+        <div className="kpi-card--modern kpi--rejected">
+          <div className="kpi-card__icon-wrap"><XCircle size={20} /></div>
+          <div className="kpi-card__info">
+            <div className="kpi-card__val">{loading ? "—" : rejectedCount}</div>
+            <div className="kpi-card__lbl">Rejected requests</div>
+          </div>
+        </div>
+        <div className="kpi-card--modern kpi--total">
+          <div className="kpi-card__icon-wrap"><Users size={20} /></div>
+          <div className="kpi-card__info">
+            <div className="kpi-card__val">{loading ? "—" : leaveRequests.length}</div>
+            <div className="kpi-card__lbl">Total Requests</div>
+          </div>
         </div>
       </section>
 
-      {/* ── Team Leave Requests Table ─────────────────────────── */}
-      <div className="card">
-        <div className="card__header">
-          <h3 className="card__title">
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
-              <UserCheck size={18} /> Team leave requests
-            </span>
-          </h3>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-            <span style={{ fontSize: "0.875rem", color: "var(--neutral-500)" }}>
-              {leaveRequests.length} total
-            </span>
+      {/* ── Main Content Area ────────────────────────────────── */}
+      <div className="card" style={{ border: "1px solid var(--neutral-100)", overflow: "visible" }}>
+        
+        {/* Filter Bar */}
+        <div className="filter-bar">
+          <div className="segmented-control">
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                className={`segmented-control__item ${statusFilter === t.key ? "segmented-control__item--active" : ""}`}
+                onClick={() => setStatusFilter(t.key)}
+              >
+                {t.label}
+                <span className="segmented-control__count">{t.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-3)", flex: 1, justifyContent: "flex-end" }}>
+            <div className="search-input-wrapper" style={{ maxWidth: 300 }}>
+              <Search size={16} />
+              <input 
+                className="search-input-modern" 
+                placeholder="Search employee or reason..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <select 
+              className="filter-select-modern"
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              {Object.entries(LEAVE_TYPE_LABELS).map(([val, lbl]) => (
+                <option key={val} value={val}>{lbl}</option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="tab-nav" style={{ padding: "0 var(--space-6)" }}>
-          {filterTabs.map(t => (
-            <button
-              key={t.key}
-              className={`tab-nav__item ${filter === t.key ? "tab-nav__item--active" : ""}`}
-              onClick={() => setFilter(t.key)}
-            >
-              {t.label}
-              {t.key !== "all" && (
-                <span style={{
-                  marginLeft: 6,
-                  fontSize: "0.7rem",
-                  background: filter === t.key ? "var(--primary-100)" : "var(--neutral-100)",
-                  color: filter === t.key ? "var(--primary-700)" : "var(--neutral-500)",
-                  borderRadius: "var(--rounded-full)",
-                  padding: "1px 6px",
-                  fontWeight: 600,
-                }}>
-                  {leaveRequests.filter(r => r.status === t.key).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div className="table-container">
-          <table className="leave-table">
+        {/* Table Area */}
+        <div className="table-container--responsive" style={{ minHeight: "440px" }}>
+          <table className="table-modern">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Type</th>
-                <th>Days</th>
-                <th>Dates</th>
-                <th>Reason</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={{ width: "26%" }}>Employee</th>
+                <th style={{ width: "12%" }}>Type</th>
+                <th style={{ width: "8%" }}>Days</th>
+                <th style={{ width: "18%" }}>Dates</th>
+                <th style={{ width: "22%" }}>Reason</th>
+                <th style={{ width: "10%" }}>Status</th>
+                <th style={{ width: "80px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -235,100 +280,96 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
                 <TableSkeleton />
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ border: "none", padding: 0 }}>
+                  <td colSpan={7} style={{ padding: "64px 0", textAlign: "center" }}>
                     <div className="empty-state">
-                      <Inbox size={48} className="empty-state__icon" />
-                      <div className="empty-state__heading">
-                        {filter === "pending" ? "No pending approvals" : `No ${filter !== "all" ? filter : ""} requests`}
-                      </div>
-                      <div className="empty-state__description">
-                        {filter === "pending"
-                          ? "Your team has no leave requests awaiting approval."
-                          : "No leave requests match the selected filter."}
-                      </div>
+                      <Inbox size={32} color="var(--neutral-200)" style={{ margin: "0 auto 12px" }} />
+                      <div style={{ fontWeight: 600, color: "var(--neutral-500)", fontSize: "0.875rem" }}>No requests found</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--neutral-400)", marginTop: 4 }}>Try adjusting your filters or search query.</div>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredRequests.map(req => (
                   <tr key={req.id}>
-                    {/* Employee */}
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                        <div className="emp-avatar">
-                          {initials(req.employee_name || req.employee?.name || req.requester_name || "E")}
+                      <div className="user-identity">
+                        <div className="user-identity__avatar">
+                          {initials(req.employee_name || "E")}
                         </div>
-                        <span style={{ fontWeight: 500, color: "var(--neutral-800)", fontSize: "0.9375rem" }}>
-                          {req.employee_name || req.employee?.name || req.requester_name || req.employee_oid?.slice(0, 8) || "Unknown Employee"}
-                        </span>
+                        <div className="user-identity__name" title={req.employee_name}>{req.employee_name || "Unknown Employee"}</div>
                       </div>
                     </td>
-                    {/* Type */}
                     <td>
-                      <span className="leave-type-tag">
+                      <span className="leave-type-tag" style={{ border: "none", padding: 0 }}>
                         <span className={`leave-type-dot leave-type-dot--${leaveTypeDotClass(req.leave_type)}`} />
-                        {LEAVE_TYPE_LABELS[req.leave_type] ?? req.leave_type}
+                        <span style={{ color: "var(--neutral-700)", fontWeight: 500 }}>
+                          {LEAVE_TYPE_LABELS[req.leave_type] ?? req.leave_type}
+                        </span>
                       </span>
                     </td>
-                    {/* Days */}
-                    <td style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{req.total_days}</td>
-                    {/* Dates */}
-                    <td style={{ whiteSpace: "nowrap", fontSize: "0.875rem" }}>
-                      {formatLeaveDates(req.start_date, req.end_date)}
+                    <td style={{ fontWeight: 700, color: "var(--neutral-800)" }}>
+                      {req.total_days}
+                      <span style={{ fontSize: "0.65rem", color: "var(--neutral-400)", marginLeft: 1.5, fontWeight: 500 }}>d</span>
                     </td>
-                    {/* Reason */}
-                    <td style={{ maxWidth: 160 }}>
-                      {req.reason ? (
+                    <td>
+                      <div style={{ color: "var(--neutral-600)", fontWeight: 500 }}>
+                        {formatLeaveDates(req.start_date, req.end_date)}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="truncate-cell" title={req.reason}>
                         <button
+                          className="link-btn"
                           onClick={() => setDetailRequest(req)}
-                          style={{
-                            background: "none", border: "none", cursor: "pointer", padding: 0,
-                            color: "var(--primary-500)", fontSize: "0.8125rem", fontFamily: "inherit",
-                            textAlign: "left", maxWidth: 160,
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            display: "block", textDecoration: "underline", textUnderlineOffset: 2,
+                          style={{ 
+                            fontSize: "inherit", 
+                            color: "var(--neutral-500)", 
+                            textAlign: "left",
+                            textDecoration: "none",
+                            width: "100%",
+                            display: "block",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis"
                           }}
-                          title="View full reason"
                         >
-                          {req.reason.length > 22 ? req.reason.slice(0, 22) + "…" : req.reason}
+                          {req.reason || <span style={{ color: "var(--neutral-300)", fontStyle: "italic" }}>No reason provided</span>}
                         </button>
-                      ) : (
-                        <span style={{ color: "var(--neutral-300)" }}>—</span>
-                      )}
+                      </div>
                     </td>
-                    {/* Status */}
                     <td>
-                      <span className={`status-badge ${statusClass(req.status)}`}>
-                        {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                      <span className={`status-badge ${statusClass(req.status)}`} style={{ fontSize: "0.625rem", padding: "1px 6px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em" }}>
+                        {req.status}
                       </span>
-                      {req.status === "rejected" && req.manager_comment && (
-                        <div style={{ fontSize: "0.75rem", color: "var(--neutral-400)", marginTop: 2 }}>
-                          {req.manager_comment.slice(0, 30)}{req.manager_comment.length > 30 ? "…" : ""}
-                        </div>
-                      )}
                     </td>
-                    {/* Actions */}
                     <td>
-                      {req.status === "pending" ? (
-                        <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                          <button
-                            className="btn--approve"
-                            onClick={() => handleApprove(req.id)}
-                            title="Approve this request"
+                      <div className="action-group">
+                        {req.status === "pending" ? (
+                          <>
+                            <button 
+                              className="btn-action-ghost btn-action-ghost--success" 
+                              onClick={() => handleApprove(req.id)}
+                              title="Approve Request"
+                            >
+                              <Check size={14} strokeWidth={2.5} />
+                            </button>
+                            <button 
+                              className="btn-action-ghost btn-action-ghost--danger" 
+                              onClick={() => { setRejectingId(req.id); setRejectReason(""); setRejectError(""); }}
+                              title="Reject Request"
+                            >
+                              <X size={14} strokeWidth={2.5} />
+                            </button>
+                          </>
+                        ) : (
+                          <button 
+                            className="btn-action-ghost" 
+                            onClick={() => setDetailRequest(req)}
+                            title="View Full Details"
                           >
-                            <Check size={13} /> Approve
+                            <ChevronRight size={14} strokeWidth={2.5} />
                           </button>
-                          <button
-                            className="btn--reject"
-                            onClick={() => { setRejectingId(req.id); setRejectReason(""); setRejectError(""); }}
-                            title="Reject this request"
-                          >
-                            <X size={13} /> Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: "0.8125rem", color: "var(--neutral-300)" }}>—</span>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -336,82 +377,95 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination / Footer */}
+        <div className="card__footer" style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          padding: "8px 16px", 
+          background: "#fcfcfc",
+          borderTop: "1px solid var(--neutral-100)"
+        }}>
+          <div style={{ fontSize: "0.725rem", color: "var(--neutral-500)", fontWeight: 500 }}>
+            Showing <span style={{ color: "var(--neutral-900)", fontWeight: 700 }}>{filteredRequests.length}</span> results 
+            {searchQuery && <span> for "<span style={{ color: "var(--primary-600)" }}>{searchQuery}</span>"</span>}
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="btn btn--secondary btn--sm" style={{ height: 28, fontSize: "0.75rem", padding: "0 10px" }} disabled>Previous</button>
+            <button className="btn btn--secondary btn--sm" style={{ height: 28, fontSize: "0.75rem", padding: "0 10px" }} disabled>Next</button>
+          </div>
+        </div>
       </div>
 
       {/* ── Leave Detail Modal ────────────────────────────────── */}
       {detailRequest && (
         <div className="modal-overlay" onClick={() => setDetailRequest(null)}>
-          <div className="modal" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <div className="modal__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div className="modal__title">Leave request reason</div>
-                <div className="modal__subtitle">Full details for this employee's leave request</div>
+          <div className="modal" style={{ maxWidth: 480, borderRadius: 12 }} onClick={e => e.stopPropagation()}>
+            <div className="modal__header" style={{ padding: "20px 24px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                <div>
+                  <div className="modal__title" style={{ fontSize: "1.125rem" }}>Request Details</div>
+                  <div className="modal__subtitle">Full context for this leave application</div>
+                </div>
+                <button className="btn-action-ghost" onClick={() => setDetailRequest(null)}><X size={16} /></button>
               </div>
-              <button
-                className="topbar__icon-btn"
-                onClick={() => setDetailRequest(null)}
-                aria-label="Close"
-                style={{ marginLeft: "var(--space-4)", flexShrink: 0 }}
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            <div className="modal__body">
-              {/* Detail rows */}
-              <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "var(--space-3) var(--space-4)", marginBottom: "var(--space-5)" }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Employee</span>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <div className="emp-avatar" style={{ width: 28, height: 28, fontSize: "0.75rem" }}>
+            <div className="modal__body" style={{ padding: "0 24px 24px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "12px 16px", marginBottom: "20px" }}>
+                <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" }}>Employee</span>
+                <div className="user-identity">
+                  <div className="user-identity__avatar" style={{ width: 24, height: 24, fontSize: "0.65rem" }}>
                     {initials(detailRequest.employee_name || "E")}
                   </div>
-                  <span style={{ fontWeight: 500, color: "var(--neutral-800)" }}>
-                    {detailRequest.employee_name || detailRequest.employee?.name || detailRequest.requester_name || detailRequest.employee_oid?.slice(0, 8) || "Unknown Employee"}
-                  </span>
+                  <span style={{ fontWeight: 700, color: "var(--neutral-800)", fontSize: "0.875rem" }}>{detailRequest.employee_name}</span>
                 </div>
 
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Leave type</span>
-                <span className="leave-type-tag">
+                <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" }}>Type</span>
+                <span className="leave-type-tag" style={{ border: "none", padding: 0 }}>
                   <span className={`leave-type-dot leave-type-dot--${leaveTypeDotClass(detailRequest.leave_type)}`} />
-                  {LEAVE_TYPE_LABELS[detailRequest.leave_type] ?? detailRequest.leave_type}
+                  <span style={{ fontSize: "0.875rem", color: "var(--neutral-700)", fontWeight: 600 }}>
+                    {LEAVE_TYPE_LABELS[detailRequest.leave_type] ?? detailRequest.leave_type}
+                  </span>
                 </span>
 
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Dates</span>
-                <span style={{ fontSize: "0.875rem", color: "var(--neutral-800)" }}>
-                  {formatLeaveDates(detailRequest.start_date, detailRequest.end_date)}
-                </span>
+                <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" }}>Duration</span>
+                <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--neutral-900)" }}>{detailRequest.total_days} days</span>
 
-                <span style={{ fontSize: "0.8125rem", color: "var(--neutral-500)", fontWeight: 500 }}>Days</span>
-                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)" }}>{detailRequest.total_days}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" }}>Period</span>
+                <span style={{ fontSize: "0.875rem", color: "var(--neutral-800)", fontWeight: 500 }}>{formatLeaveDates(detailRequest.start_date, detailRequest.end_date)}</span>
               </div>
 
-              {/* Full reason text */}
-              <div style={{
-                background: "var(--neutral-50)",
-                border: "1px solid var(--neutral-200)",
-                borderRadius: "var(--rounded-md)",
-                padding: "var(--space-4)",
-              }}>
-                <div style={{
-                  fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em",
-                  color: "var(--neutral-500)", marginBottom: "var(--space-2)",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <FileText size={12} /> Employee's reason
+              <div style={{ background: "var(--neutral-50)", padding: "16px", borderRadius: "10px", border: "1px solid var(--neutral-100)" }}>
+                <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", color: "var(--neutral-400)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6, letterSpacing: "0.05em" }}>
+                  <FileText size={12} /> Reason for request
                 </div>
-                <p style={{ fontSize: "0.9375rem", color: "var(--neutral-800)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
+                <p style={{ fontSize: "0.875rem", color: "var(--neutral-800)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap", fontWeight: 500 }}>
                   {detailRequest.reason || "No reason provided."}
                 </p>
               </div>
+              
+              {detailRequest.status === "rejected" && detailRequest.manager_comment && (
+                <div style={{ background: "var(--error-50)", padding: "16px", borderRadius: "10px", border: "1px solid var(--error-100)", marginTop: 16 }}>
+                  <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", color: "var(--error-600)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6, letterSpacing: "0.05em" }}>
+                    <AlertTriangle size={12} /> Manager's Comment
+                  </div>
+                  <p style={{ fontSize: "0.8125rem", color: "var(--error-700)", lineHeight: 1.5, margin: 0, fontWeight: 500 }}>
+                    {detailRequest.manager_comment}
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="modal__footer">
-              <button
-                className="btn btn--secondary"
-                onClick={() => setDetailRequest(null)}
-              >
-                Close
-              </button>
+            <div className="modal__footer" style={{ padding: "16px 24px", background: "var(--neutral-50)", borderBottomLeftRadius: 12, borderBottomRightRadius: 12 }}>
+              <button className="btn btn--secondary btn--sm" onClick={() => setDetailRequest(null)}>Close</button>
+              {detailRequest.status === "pending" && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn--secondary btn--sm" style={{ color: "var(--error-600)", fontWeight: 600 }} onClick={() => { setRejectingId(detailRequest.id); setDetailRequest(null); }}>Reject</button>
+                  <button className="btn btn--primary btn--sm" onClick={() => { handleApprove(detailRequest.id); setDetailRequest(null); }}>Approve Request</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -419,73 +473,74 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
 
       {/* ── Rejection Modal ────────────────────────────────────── */}
       {rejectingId && (
-        <div
-          className="modal-overlay"
-          onClick={() => { setRejectingId(null); setRejectReason(""); setRejectError(""); }}
-        >
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal__header">
-              <div className="modal__title">Reject leave request</div>
-              <div className="modal__subtitle">
-                Provide a reason for the employee —{" "}
-                <strong>
-                  {leaveRequests.find(r => r.id === rejectingId)?.employee_name ?? "this employee"}
-                </strong>.
-              </div>
+        <div className="modal-overlay" onClick={() => { setRejectingId(null); setRejectReason(""); setRejectError(""); }}>
+          <div className="modal" style={{ maxWidth: 400, borderRadius: 16, boxShadow: "var(--shadow-xl)" }} onClick={e => e.stopPropagation()}>
+            <div className="modal__header" style={{ padding: "24px 24px 16px" }}>
+              <div className="modal__title" style={{ fontSize: "1.125rem", color: "var(--neutral-900)" }}>Reject Leave Request</div>
+              <div className="modal__subtitle">Provide a valid reason for the employee</div>
             </div>
-            <div className="modal__body">
-              <div className="form-field">
-                <label className="form-label form-label--required">Manager comment</label>
+            <div className="modal__body" style={{ padding: "0 24px 20px" }}>
+              <div className="form-field--compact">
+                <label className="form-label--compact" style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", color: "var(--neutral-400)", marginBottom: 8, letterSpacing: "0.05em", display: "block" }}>
+                  Rejection Reason <span style={{ color: "var(--error-500)" }}>*</span>
+                </label>
                 <textarea
-                  className="form-textarea"
-                  rows={4}
-                  placeholder="Explain why this request is being rejected…"
+                  className={`form-textarea--compact ${rejectError ? "border-error" : ""}`}
+                  rows={3}
+                  placeholder="Example: Insufficient coverage for the team during these dates..."
                   value={rejectReason}
                   onChange={e => { setRejectReason(e.target.value); if (rejectError) setRejectError(""); }}
-                  style={rejectError ? { borderColor: "var(--error-500)" } : {}}
+                  style={{ minHeight: "88px", fontSize: "0.875rem", borderRadius: 10, padding: "12px", lineHeight: "1.5" }}
                 />
-                {rejectError && (
-                  <span className="form-error">
-                    <AlertTriangle size={12} />{rejectError}
-                  </span>
-                )}
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                  {rejectError ? (
+                    <div className="form-error" style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: 4 }}>
+                      <AlertTriangle size={12} /> {rejectError}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.7rem", color: "var(--neutral-400)" }}>Min. 5 characters required</div>
+                  )}
+                  <div style={{ fontSize: "0.7rem", color: rejectReason.length < 5 ? "var(--neutral-400)" : "var(--success-600)", fontWeight: 600 }}>
+                    {rejectReason.length} characters
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="modal__footer">
-              <button
-                className="btn btn--secondary"
+            <div className="modal__footer" style={{ padding: "16px 24px", background: "var(--neutral-50)", borderBottomLeftRadius: 16, borderBottomRightRadius: 16, display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button 
+                className="btn btn--secondary" 
+                style={{ height: 38, padding: "0 18px" }}
                 onClick={() => { setRejectingId(null); setRejectReason(""); setRejectError(""); }}
               >
                 Cancel
               </button>
-              <button
-                className="btn btn--primary"
-                style={{ background: "var(--error-500)" }}
+              <button 
+                className="btn btn--danger" 
+                style={{ height: 38, padding: "0 18px" }}
                 onClick={() => handleReject(rejectingId)}
+                disabled={rejectReason.trim().length < 5}
               >
-                Confirm rejection
+                Confirm Rejection
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Toast Container ───────────────────────────────────── */}
+      {/* ── Toasts ── */}
       <div className="toast-container">
         {toasts.map(t => (
           <div key={t.id} className={`toast toast--${t.type}`}>
-            <div style={{ flexShrink: 0, marginTop: 1 }}>
-              {t.type === "success" && <CheckCircle2 size={16} color="var(--success-500)" />}
-              {t.type === "error"   && <XCircle      size={16} color="var(--error-500)" />}
-              {t.type === "warning" && <AlertTriangle size={16} color="var(--warning-500)" />}
+            <div style={{ flexShrink: 0 }}>
+              {t.type === "success" && <CheckCircle2 size={16} />}
+              {t.type === "error" && <XCircle size={16} />}
+              {t.type === "warning" && <AlertTriangle size={16} />}
             </div>
             <div className="toast__content">
               <div className="toast__title">{t.title}</div>
               {t.message && <div className="toast__message">{t.message}</div>}
             </div>
-            <button className="toast__close" onClick={() => removeToast(t.id)} aria-label="Dismiss">
-              <X size={14} />
-            </button>
+            <button className="toast__close" onClick={() => removeToast(t.id)}><X size={14} /></button>
           </div>
         ))}
       </div>
@@ -493,3 +548,4 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
     </DashboardLayout>
   );
 };
+

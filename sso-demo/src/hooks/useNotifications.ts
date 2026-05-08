@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { useState, useEffect, useCallback } from "react";
+import { socket } from "../lib/socket";
 import { notificationsApi } from "../api/notifications";
 import type { Notification } from "../api/notifications";
 
@@ -14,7 +14,6 @@ export function useNotifications({ userOid }: UseNotificationsOptions) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
 
   // ── Fetch initial notifications from REST API ─────────────────────────────
   const fetchNotifications = useCallback(async () => {
@@ -31,42 +30,52 @@ export function useNotifications({ userOid }: UseNotificationsOptions) {
     }
   }, [userOid]);
 
-  // ── Connect Socket.IO ─────────────────────────────────────────────────────
+  // ── Handle Socket.IO Listeners ───────────────────────────────────────────
   useEffect(() => {
     if (!userOid) return;
 
-    const socket = io(BACKEND_URL, {
-      withCredentials: true,
-      auth: { oid: userOid },
-      transports: ["websocket", "polling"],
-    });
+    // Update auth data - will be used if the socket reconnects automatically
+    socket.auth = { oid: userOid };
 
-    socketRef.current = socket;
+    // Ensure we are connected
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      // If already connected, identify this session
+      socket.emit("authenticate", userOid);
+    }
+
+    // Prevent duplicate listeners
+    socket.off("notification");
+    socket.off("unread_count");
+    socket.off("connect");
+    socket.off("disconnect");
 
     socket.on("connect", () => {
       console.log("[WS] Connected:", socket.id);
     });
 
-    // Real-time new notification
     socket.on("notification", (notification: Notification) => {
       setNotifications(prev => [notification, ...prev]);
       setUnreadCount(prev => prev + 1);
     });
 
-    // Server pushed updated unread count (after mark-read etc.)
     socket.on("unread_count", ({ count }: { count: number }) => {
       setUnreadCount(count);
     });
 
-    socket.on("disconnect", () => {
-      console.log("[WS] Disconnected");
+    socket.on("disconnect", (reason) => {
+      console.log("[WS] Disconnected. Reason:", reason);
     });
 
     fetchNotifications();
 
+    // No disconnect in cleanup as per requirements
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      socket.off("notification");
+      socket.off("unread_count");
+      socket.off("connect");
+      socket.off("disconnect");
     };
   }, [userOid, fetchNotifications]);
 

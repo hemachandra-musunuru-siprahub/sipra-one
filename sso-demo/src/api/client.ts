@@ -21,6 +21,7 @@ export const apiFetch = async <T>(path: string, init?: RequestInit): Promise<T> 
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    console.error(`[API] ${res.status} ${res.statusText} on ${init?.method || 'GET'} ${path}`, body);
     throw new ApiError(res.status, body.error || "UNKNOWN_ERROR", body.message || res.statusText);
   }
   if (res.status === 204) return undefined as T;

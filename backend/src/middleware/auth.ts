@@ -48,11 +48,17 @@ const setCachedUser = (entra_oid: string, user: AuthRequest["user"]) => {
 
 // ─── requireAuth ──────────────────────────────────────────────────────────────
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
-  const token = req.cookies.session_token;
+  const cookies = req.cookies || {};
+  const token = cookies.session_token;
+
   if (!token) {
+    console.warn(`[AUTH] 401 - No session_token cookie on ${req.method} ${req.path}.`);
     res.status(401).json({ error: "Unauthorized: No session token provided" });
     return;
   }
+
+  let userRow: AuthRequest["user"];
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { entra_oid: string };
 
@@ -68,17 +74,24 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       "SELECT id, entra_oid, email, name, role, manager_entra_oid, is_active FROM users WHERE entra_oid = $1 AND is_active = true",
       [decoded.entra_oid]
     );
+
     if (rows.length === 0) {
+      console.warn(`[AUTH] 401 - User ${decoded.entra_oid} not found in DB or is inactive`);
       res.status(401).json({ error: "Unauthorized: User not found or inactive" });
       return;
     }
-    const userRow = rows[0] as AuthRequest["user"];
+
+    userRow = rows[0] as NonNullable<AuthRequest["user"]>;
+    console.log(`[AUTH] ✓ Authenticated ${userRow.name} (${userRow.role}) on ${req.method} ${req.path}`);
     setCachedUser(decoded.entra_oid, userRow);
-    req.user = userRow;
-    next();
-  } catch {
+  } catch (err: any) {
+    console.warn(`[AUTH] 401 - JWT verification failed on ${req.method} ${req.path}: ${err.message}`);
     res.status(401).json({ error: "Unauthorized: Invalid or expired session token" });
+    return;
   }
+
+  req.user = userRow;
+  next();
 };
 
 // ─── requireRole ──────────────────────────────────────────────────────────────

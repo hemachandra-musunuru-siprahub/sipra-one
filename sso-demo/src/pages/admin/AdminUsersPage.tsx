@@ -8,9 +8,9 @@ interface Props { internalUser: any; }
 
 // ─── Role badge styling ───────────────────────────────────────────────────────
 const ROLE_STYLES: Record<string, { label: string; bg: string; color: string }> = {
-  Admin:    { label: "Admin",    bg: "#FEF3F2", color: "#B42318" },
-  HR:       { label: "HR",       bg: "#F0FDF4", color: "#15803D" },
-  Manager:  { label: "Manager",  bg: "#EFF6FF", color: "#1D4ED8" },
+  Admin: { label: "Admin", bg: "#FEF3F2", color: "#B42318" },
+  HR: { label: "HR", bg: "#F0FDF4", color: "#15803D" },
+  Manager: { label: "Manager", bg: "#EFF6FF", color: "#1D4ED8" },
   Employee: { label: "Employee", bg: "#F9FAFB", color: "#374151" },
 };
 
@@ -54,13 +54,13 @@ const ManagerPicker: React.FC<ManagerPickerProps> = ({
   onCancel,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef     = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const [query, setQuery]       = useState("");
+  const [query, setQuery] = useState("");
   const [managers, setManagers] = useState<any[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [open, setOpen]         = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(true);
 
   // Fetch managers from API (only role='Manager' users)
   const fetchManagers = useCallback(async (search?: string) => {
@@ -258,12 +258,12 @@ const ManagerPicker: React.FC<ManagerPickerProps> = ({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export const AdminUsersPage = ({ internalUser }: Props) => {
-  const [users, setUsers]           = useState<any[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [editingId, setEditingId]   = useState<string | null>(null);
-  const [search, setSearch]         = useState("");
-  const [error, setError]           = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const loadUsers = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -311,7 +311,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
-  const activeCount   = users.filter(u => u.is_active).length;
+  const activeCount = users.filter(u => u.is_active).length;
   const inactiveCount = users.filter(u => !u.is_active).length;
 
   return (
