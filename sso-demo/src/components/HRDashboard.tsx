@@ -98,14 +98,7 @@ export const HRDashboard = ({ internalUser }: Props) => {
           }}>
             People &amp; Culture
           </h1>
-          <button
-            className="btn btn--secondary"
-            style={{ height: 32, fontSize: "0.8125rem", gap: "6px", paddingInline: "12px" }}
-            onClick={() => navigate("/hr/employees")}
-          >
-            <Users size={14} />
-            View All Employees
-          </button>
+
         </div>
       </div>
 

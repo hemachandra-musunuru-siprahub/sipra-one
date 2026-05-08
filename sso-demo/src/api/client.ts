@@ -22,6 +22,13 @@ export const apiFetch = async <T>(path: string, init?: RequestInit): Promise<T> 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     console.error(`[API] ${res.status} ${res.statusText} on ${init?.method || 'GET'} ${path}`, body);
+    
+    if (res.status === 403) {
+      if (typeof window !== "undefined" && window.location.pathname !== "/access-denied") {
+        window.location.href = "/access-denied";
+      }
+    }
+    
     throw new ApiError(res.status, body.error || "UNKNOWN_ERROR", body.message || res.statusText);
   }
   if (res.status === 204) return undefined as T;

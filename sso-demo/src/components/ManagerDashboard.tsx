@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
-import { Users, CheckSquare, Clock, CheckCircle, Download, X } from "lucide-react";
+import { Users, CheckSquare, Clock, CheckCircle, X } from "lucide-react";
 
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import { getTeamLeave, actionLeave } from "../api/leave";
-import { getTeamTimesheets, reviewTimesheet, exportTimesheets } from "../api/timesheets";
+import { getTeamTimesheets, reviewTimesheet } from "../api/timesheets";
 import { getTeamMembers } from "../api/users";
 import type { LeaveRequest, Timesheet, User } from "../api/types";
 import { formatDate, formatLeaveDates } from "../utils/dateFormatter";
@@ -121,17 +121,7 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
           }}>
             Team Overview
           </h1>
-          <button
-            className="btn btn--secondary"
-            style={{ height: 32, fontSize: "0.8125rem", gap: "6px", paddingInline: "12px" }}
-            onClick={() => {
-              const d = new Date().toISOString().slice(0, 10);
-              exportTimesheets("2026-01-01", d);
-            }}
-          >
-            <Download size={14} />
-            Export Timesheets
-          </button>
+
         </div>
       </div>
 

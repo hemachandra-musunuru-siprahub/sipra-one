@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireRole, AuthRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { notFound, forbidden, badRequest } from "../../lib/errors";
-import { isAdmin, ADMIN_ROLES, HR_ROLES } from "../../lib/roles";
+import { isAdmin, ADMIN_ROLES, HR_ROLES, MANAGER_ROLES } from "../../lib/roles";
 import * as repo from "./repo";
 import * as hrRepo from "../hr-documents/repo";
 import * as annRepo from "../announcements/repo";
@@ -36,8 +36,8 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) =>
   }
 });
 
-// ─── GET /api/users — list all (admin and hr) ────────────────────────────────
-router.get("/", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]), async (req: AuthRequest, res: Response) => {
+// ─── GET /api/users — list all (admin, hr, manager) ────────────────────────
+router.get("/", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES, ...MANAGER_ROLES]), async (req: AuthRequest, res: Response) => {
   const users = await repo.listUsers();
   res.json({ users });
 });

@@ -109,7 +109,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
  *
  * No client-side filtering is needed or expected.
  */
-router.get("/all", requireAuth,
+router.get("/all", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES, ...MANAGER_ROLES]),
   async (req: AuthRequest, res: Response) => {
     const roles = [req.user!.role];
 

@@ -74,7 +74,7 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
     },
   ];
 
-  const modules = [
+  const allModules = [
     { title: "My Profile", icon: <User size={18} />, path: "/employee/profile", color: "#8B5CF6" },
     { title: "My Leave", icon: <Calendar size={18} />, path: "/employee/leave", color: "#CE2124" },
     { title: "My Timesheets", icon: <Clock size={18} />, path: "/employee/timesheets", color: "#3B82F6" },
@@ -82,6 +82,10 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
     { title: "Documents", icon: <FileText size={18} />, path: "/employee/documents", color: "#10B981" },
     { title: "Help & Support", icon: <HelpCircle size={18} />, path: "#", color: "#6B7280" },
   ];
+
+  const modules = internalUser?.role === "Employee"
+    ? allModules.filter(m => m.title !== "My Profile" && m.title !== "Help & Support")
+    : allModules;
 
   const getStatusBadgeStyle = (status: string) => {
     if (status === "reviewed") return { background: "#ECFDF5", color: "#047857" };
@@ -217,8 +221,8 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
         <div style={{
           padding: "14px",
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "10px",
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+          gap: "12px",
         }}>
           {modules.map((mod, i) => (
             <a

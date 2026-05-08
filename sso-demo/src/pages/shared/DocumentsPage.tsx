@@ -390,21 +390,42 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                 </>
               ) : (
                 <div style={{ padding: "var(--space-6)" }}>
-                  <div className="share-settings" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
+                  <div className="share-settings" style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", 
+                    gap: "var(--space-5)", 
+                    marginBottom: "var(--space-8)" 
+                  }}>
                     <div className="form-field">
-                      <label className="form-label">Document Type</label>
-                      <input className="input" value={shareDocType} onChange={e => setShareDocType(e.target.value)} />
+                      <label className="form-label" style={{ fontWeight: 600, color: "var(--neutral-700)" }}>Document Type</label>
+                      <input className="input" placeholder="e.g. Employee Handbook" value={shareDocType} onChange={e => setShareDocType(e.target.value)} />
                     </div>
                     <div className="form-field">
-                      <label className="form-label">Description (Optional)</label>
-                      <input className="input" value={shareDesc} onChange={e => setShareDesc(e.target.value)} />
+                      <label className="form-label" style={{ fontWeight: 600, color: "var(--neutral-700)" }}>Description (Optional)</label>
+                      <input className="input" placeholder="Briefly describe this document" value={shareDesc} onChange={e => setShareDesc(e.target.value)} />
                     </div>
                   </div>
                   
-                  <h4 style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "var(--space-3)", display: "flex", justifyContent: "space-between" }}>
-                    Select Employees ({selectedEmpOids.length} selected)
-                    {selectedEmpOids.length > 0 && <button className="btn btn--ghost btn--sm" style={{ height: "auto", padding: 0 }} onClick={() => setSelectedEmpOids([])}>Clear</button>}
-                  </h4>
+                  <div style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center", 
+                    marginBottom: "var(--space-4)",
+                    paddingBottom: "var(--space-2)",
+                    borderBottom: "1px solid var(--neutral-100)"
+                  }}>
+                    <h4 style={{ fontSize: "0.9375rem", fontWeight: 700, margin: 0, color: "var(--neutral-800)" }}>
+                      Select Employees 
+                      <span style={{ marginLeft: "var(--space-2)", fontWeight: 500, color: "var(--neutral-500)", fontSize: "0.8125rem" }}>
+                        ({selectedEmpOids.length} selected)
+                      </span>
+                    </h4>
+                    {selectedEmpOids.length > 0 && (
+                      <button className="btn btn--ghost btn--sm" style={{ height: 32, fontSize: "0.75rem", color: "var(--primary-600)" }} onClick={() => setSelectedEmpOids([])}>
+                        Deselect All
+                      </button>
+                    )}
+                  </div>
                   
                   <div className="employee-selector-grid">
                     {allEmployees.map(emp => {
@@ -417,11 +438,15 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                         >
                           <div className="emp-avatar">{emp.name[0]}</div>
                           <div className="emp-info">
-                            <div className="emp-name">{emp.name}</div>
-                            <div className="emp-email">{emp.email}</div>
+                            <div className="emp-name" title={emp.name}>{emp.name}</div>
+                            <div className="emp-email" title={emp.email}>{emp.email}</div>
                           </div>
                           <div className="emp-check">
-                            {isSelected ? <CheckCircle size={18} /> : <div className="check-placeholder" />}
+                            {isSelected ? (
+                              <CheckCircle size={20} fill="var(--primary-500)" color="white" />
+                            ) : (
+                              <div className="check-placeholder" />
+                            )}
                           </div>
                         </div>
                       );
@@ -476,16 +501,84 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
         .onedrive-item:hover .item-action { opacity: 1; transform: translateX(0); }
         
         /* Employee Selector */
-        .employee-selector-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
-        .employee-select-card { display: flex; align-items: center; padding: var(--space-3); border: 1px solid var(--neutral-200); border-radius: var(--rounded-lg); cursor: pointer; transition: all 0.2s; position: relative; }
-        .employee-select-card:hover { border-color: var(--primary-300); background: var(--primary-50); }
-        .employee-select-card.selected { border-color: var(--primary-500); background: var(--primary-50); box-shadow: 0 0 0 1px var(--primary-500); }
-        .emp-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--neutral-200); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: var(--neutral-600); margin-right: var(--space-3); }
+        .employee-selector-grid { 
+          display: grid; 
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); 
+          gap: var(--space-4); 
+          padding: 2px;
+        }
+        .employee-select-card { 
+          display: flex; 
+          align-items: center; 
+          padding: var(--space-3); 
+          border: 1px solid var(--neutral-200); 
+          border-radius: var(--rounded-xl); 
+          cursor: pointer; 
+          transition: all 0.2s ease; 
+          background: white;
+          min-height: 64px;
+          user-select: none;
+        }
+        .employee-select-card:hover { 
+          border-color: var(--primary-400); 
+          background: var(--neutral-50); 
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-md);
+        }
+        .employee-select-card.selected { 
+          border-color: var(--primary-500); 
+          background: var(--primary-50); 
+          box-shadow: 0 0 0 1px var(--primary-500); 
+        }
+        .emp-avatar { 
+          width: 36px; 
+          height: 36px; 
+          border-radius: 10px; 
+          background: var(--neutral-100); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          font-size: 0.8125rem; 
+          font-weight: 700; 
+          color: var(--neutral-600); 
+          margin-right: var(--space-3); 
+          flex-shrink: 0;
+          transition: all 0.2s;
+        }
         .selected .emp-avatar { background: var(--primary-500); color: white; }
-        .emp-name { font-size: 0.8125rem; font-weight: 600; color: var(--neutral-900); }
-        .emp-email { font-size: 0.75rem; color: var(--neutral-500); }
-        .emp-check { margin-left: auto; color: var(--primary-500); }
-        .check-placeholder { width: 18px; height: 18px; border: 1px solid var(--neutral-300); border-radius: 50%; }
+        .emp-info { flex: 1; min-width: 0; }
+        .emp-name { 
+          font-size: 0.875rem; 
+          font-weight: 600; 
+          color: var(--neutral-900); 
+          white-space: nowrap; 
+          overflow: hidden; 
+          text-overflow: ellipsis; 
+          margin-bottom: 2px;
+        }
+        .emp-email { 
+          font-size: 0.75rem; 
+          color: var(--neutral-500); 
+          white-space: nowrap; 
+          overflow: hidden; 
+          text-overflow: ellipsis; 
+        }
+        .emp-check { 
+          margin-left: var(--space-2); 
+          color: var(--primary-500); 
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .check-placeholder { 
+          width: 20px; 
+          height: 20px; 
+          border: 2px solid var(--neutral-200); 
+          border-radius: 6px; 
+          transition: all 0.2s;
+        }
+        .employee-select-card:hover .check-placeholder { border-color: var(--neutral-300); }
         
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
         .animate-spin { animation: spin 1s linear infinite; }
