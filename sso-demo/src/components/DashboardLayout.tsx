@@ -133,7 +133,6 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           { label: "Leave Requests", icon: <Calendar size={18} />, path: `${basePath}/leave-requests` },
           { label: "Leave Policies", icon: <ClipboardList size={18} />, path: `${basePath}/leave-policies` },
           { label: "Timesheets", icon: <Briefcase size={18} />, path: `${basePath}/timesheets` },
-          { label: "Performance", icon: <Target size={18} />, path: `${basePath}/performance` },
         ],
       },
       {
@@ -162,7 +161,6 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "Leave Approvals", icon: <UserCheck size={18} />, path: "/manager/leave-approvals" },
           { label: "Timesheets", icon: <ClipboardList size={18} />, path: "/manager/timesheets" },
-          { label: "Performance", icon: <Target size={18} />, path: "/manager/performance" },
         ],
       },
       {
@@ -191,7 +189,6 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "My Leave", icon: <Calendar size={18} />, path: `${basePath}/leave` },
           { label: "Timesheets", icon: <ClipboardList size={18} />, path: `${basePath}/timesheets` },
-          { label: "Performance", icon: <Target size={18} />, path: `${basePath}/performance` },
         ],
       },
       {

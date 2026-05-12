@@ -91,17 +91,64 @@ app.use((_req, res) => {
 // ─── Global error handler (must be last) ──────────────────────────────────────
 app.use(errorHandler);
 
-// ─── Start ────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+// ─── Bootstrap & Port Fallback ────────────────────────────────────────────────
+const bootstrap = async () => {
+  const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+  const initialPort = Number(process.env.PORT) || 3000;
 
-// Initialize Socket.IO (must be before httpServer.listen)
-initSocketServer(httpServer, FRONTEND_URL);
+  // Initialize Socket.IO
+  initSocketServer(httpServer, FRONTEND_URL);
 
-httpServer.listen(PORT, () => {
-  logger.info(`🚀 SipraHub backend running on port ${PORT}`);
-  logger.info(`   Tenant:   ${process.env.ENTRA_TENANT_ID}`);
-  logger.info(`   Frontend: ${FRONTEND_URL}`);
-  logger.info(`   WebSocket: Socket.IO ready`);
-});
+  const startServer = (port: number): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const server = httpServer.listen(port);
 
+      server.once("listening", () => {
+        resolve(port);
+      });
+
+      server.once("error", (err: any) => {
+        if (err.code === "EADDRINUSE") {
+          console.warn(`⚠️  Port ${port} is already in use. Stop the existing process or change the PORT value.`);
+          console.info(`👉 Automatically trying next available port...`);
+          server.close();
+          resolve(startServer(port + 1));
+        } else {
+          reject(err);
+        }
+      });
+    });
+  };
+
+  try {
+    const finalPort = await startServer(initialPort);
+    
+    console.log("\n" + "=".repeat(50));
+    logger.info(`🚀 SipraHub Backend Startup Success`);
+    logger.info(`   Port:      ${finalPort}`);
+    logger.info(`   Env:       ${process.env.NODE_ENV || "development"}`);
+    logger.info(`   Tenant:    ${process.env.ENTRA_TENANT_ID}`);
+    logger.info(`   Frontend:  ${FRONTEND_URL}`);
+    logger.info(`   WebSocket: Socket.IO initialized`);
+    console.log("=".repeat(50) + "\n");
+
+  } catch (error) {
+    logger.error("❌ Critical Failure during backend startup:", error);
+    process.exit(1);
+  }
+};
+
+// ─── Graceful Shutdown ────────────────────────────────────────────────────────
+const shutdown = (signal: string) => {
+  logger.info(`\nReceived ${signal}. Shutting down gracefully...`);
+  httpServer.close(() => {
+    logger.info("Server closed. Goodbye!");
+    process.exit(0);
+  });
+};
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+// ─── Run ──────────────────────────────────────────────────────────────────────
+bootstrap();

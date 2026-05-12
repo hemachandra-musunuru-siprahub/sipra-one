@@ -49,6 +49,18 @@ export interface Timesheet {
   entries: TimesheetEntry[];
 }
 
+/** Lightweight summary row returned by GET /api/timesheets/history */
+export interface TimesheetHistoryItem {
+  id: string;
+  week_start_date: string;
+  total_hours: number;
+  status: "draft" | "submitted" | "reviewed" | "rejected";
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  manager_comment: string | null;
+  entries_count: number | string; // Postgres COUNT() returns string
+}
+
 export interface LeaveRequest {
   id: string;
   employee_oid: string;

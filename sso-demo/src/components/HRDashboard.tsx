@@ -82,7 +82,6 @@ export const HRDashboard = ({ internalUser }: Props) => {
     { label: "Announcements", path: "/hr/announcements", color: "#10B981", bg: "#ECFDF5" },
     { label: "Employees", path: "/hr/employees", color: "#8B5CF6", bg: "#F5F3FF" },
     { label: "Timesheets", path: "/hr/timesheets", color: "#CE2124", bg: "#FFF0F0" },
-    { label: "Performance", path: "/hr/performance", color: "#6B7280", bg: "#F9FAFB" },
   ];
 
   return (

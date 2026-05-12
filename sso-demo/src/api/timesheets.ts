@@ -1,17 +1,6 @@
 import { api } from "./client";
-import type { Timesheet } from "./types";
+import type { Timesheet, TimesheetHistoryItem } from "./types";
 
-/** Lightweight summary row returned by GET /api/timesheets/history */
-export interface TimesheetHistoryItem {
-  id: string;
-  week_start_date: string;
-  total_hours: number;
-  status: "draft" | "submitted" | "reviewed";
-  submitted_at: string | null;
-  reviewed_at: string | null;
-  manager_comment: string | null;
-  entries_count: number | string; // Postgres COUNT() returns string
-}
 
 /** Employee's own full history — no entries payload, lightweight */
 export const getMyTimesheetHistory = (options?: {
