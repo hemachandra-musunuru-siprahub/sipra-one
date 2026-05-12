@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Users, Search, Download } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import { getUsers } from "../../api/users";
 import type { User } from "../../api/types";
 
@@ -39,14 +39,13 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
   });
 
   return (
-    <DashboardLayout internalUser={internalUser} role="HR">
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "HR"}>
       <header className="page-header">
-        <div className="breadcrumb"><span>HR</span><span className="breadcrumb__separator">/</span><span>Employees</span></div>
         <h1 className="page-title">Employee Directory</h1>
       </header>
       <div className="card">
         <div className="card__header">
-          <h3 className="card__title"><Users size={18} style={{ marginRight: "var(--space-2)" }} /> All Employees</h3>
+          <h3 className="card__title">Employees</h3>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
             <div className="topbar__search" style={{ border: "1px solid var(--neutral-200)", borderRadius: "var(--rounded-md)", padding: "0 var(--space-3)" }}>
               <Search size={16} color="var(--neutral-400)" />

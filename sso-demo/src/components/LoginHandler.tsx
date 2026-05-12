@@ -1,7 +1,7 @@
 import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { useEffect, useRef, useState } from "react";
 import { loginRequest } from "../authConfig";
-import { InteractionStatus, InteractionRequiredAuthError } from "@azure/msal-browser";
+import { InteractionStatus } from "@azure/msal-browser";
 
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
@@ -132,7 +132,7 @@ export const LoginHandler = ({
       if (accounts.length > 0) {
         // ── Strip OAuth code from URL immediately to prevent re-triggers ───────
         if (window.location.hash.includes("code=") || window.location.search.includes("code=")) {
-          history.replaceState({}, "", "/");
+          history.replaceState({}, "", window.location.pathname);
         }
 
         if (!hasSynced.current) {
@@ -170,18 +170,9 @@ export const LoginHandler = ({
         return;
       }
 
-      // No MSAL account — try SSO silent, then redirect to login
-      try {
-        await instance.ssoSilent(loginRequest);
-      } catch (error) {
-        if (error instanceof InteractionRequiredAuthError) {
-          await instance.loginRedirect(loginRequest);
-        } else {
-          await instance.loginRedirect(loginRequest);
-        }
-      } finally {
-        setIsInitializing(false);
-      }
+      // No MSAL account here — ProtectedRoute already redirected to /login.
+      // LoginHandler should not trigger auth flows; just clear initializing state.
+      setIsInitializing(false);
     };
 
     checkLogin();

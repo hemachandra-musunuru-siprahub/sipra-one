@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Calendar, Search, ShieldCheck, PlusCircle, CheckCircle, HelpCircle } from "lucide-react";
+import { Search, CheckCircle, HelpCircle } from "lucide-react";
 import { getAllLeave, getPolicies, createPolicy } from "../../api/leave";
 import type { LeavePolicy } from "../../api/leave";
 import { getUsers } from "../../api/users";
@@ -36,7 +36,7 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   // Requests Tab State
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -45,7 +45,7 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
   const [policyName, setPolicyName] = useState("");
   const [policyType, setPolicyType] = useState<"annual" | "sick" | "casual" | "unpaid" | "other">("annual");
   const [policyDays, setPolicyDays] = useState(10);
-  const [policyScope, setPolicyScope] = useState<"all" | "department" | "individual">("all");
+  const [policyScope, setPolicyScope] = useState<"all" | "individual">("all");
   const [policyTarget, setPolicyTarget] = useState("");
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -92,7 +92,7 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
 
       setPolicies(prev => [res.policy, ...prev]);
       setSuccessMsg(`Policy "${policyName}" created and leave balances applied successfully.`);
-      
+
       // Reset form
       setPolicyName("");
       setPolicyDays(10);
@@ -127,11 +127,8 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
     : "Leave Administration";
 
   return (
-    <DashboardLayout internalUser={internalUser} role={displayRole}>
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "HR"}>
       <header className="page-header">
-        <div className="breadcrumb">
-          <span>{displayRole}</span><span className="breadcrumb__separator">/</span><span>Leave Management</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">{pageTitle}</h1>
         </div>
@@ -156,8 +153,8 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
       {activeTab === "requests" ? (
         <div className="card">
           <div className="card__header">
-            <h3 className="card__title"><Calendar size={18} style={{ marginRight: "var(--space-2)" }} />
-              {isManagerRole && !isAdminRole ? "My Team's Requests" : "All Employee Requests"}
+            <h3 className="card__title">
+              {isManagerRole && !isAdminRole ? "My Team's Requests" : "Employee Requests"}
             </h3>
             <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
               {/* Search filters within the server-scoped result set */}
@@ -180,30 +177,29 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
               <tbody>
                 {loading ? <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading leave data…</td></tr>
                   : filteredRequests.length === 0 ? <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No leave requests found.</td></tr>
-                  : filteredRequests.map(r => (
-                    <tr key={r.id}>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                          <div className="avatar avatar--sm" style={{ width: 24, height: 24 }}>{(r.employee_name || "E")[0]}</div>
-                          <span style={{ fontSize: "0.875rem", fontWeight: 500 }}>{r.employee_name || r.employee_oid.slice(0,8)}</span>
-                        </div>
-                      </td>
-                      <td><span className="badge badge--hr" style={{ textTransform: "capitalize" }}>{r.leave_type} Leave</span></td>
-                      <td style={{ fontSize: "0.875rem" }}>{formatLeaveDates(r.start_date, r.end_date)}</td>
-                      <td>{r.total_days}</td>
-                      <td>
-                        <span className={`badge ${
-                          r.status === "approved" ? "badge--published"
-                          : r.status === "rejected" ? "badge--urgent"
-                          : r.status === "cancelled" ? "badge--it"
-                          : "badge--draft"
-                        }`}>{r.status}</span>
-                      </td>
-                      <td style={{ fontSize: "0.875rem", color: "var(--neutral-600)" }}>
-                        {(r as EnrichedLeaveRequest).manager_name || (r.manager_oid ? r.manager_oid.slice(0, 12) + "…" : "—")}
-                      </td>
-                    </tr>
-                  ))}
+                    : filteredRequests.map(r => (
+                      <tr key={r.id}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                            <div className="avatar avatar--sm" style={{ width: 24, height: 24 }}>{(r.employee_name || "E")[0]}</div>
+                            <span style={{ fontSize: "0.875rem", fontWeight: 500 }}>{r.employee_name || r.employee_oid.slice(0, 8)}</span>
+                          </div>
+                        </td>
+                        <td><span className="badge badge--hr" style={{ textTransform: "capitalize" }}>{r.leave_type} Leave</span></td>
+                        <td style={{ fontSize: "0.875rem" }}>{formatLeaveDates(r.start_date, r.end_date)}</td>
+                        <td>{r.total_days}</td>
+                        <td>
+                          <span className={`badge ${r.status === "approved" ? "badge--published"
+                              : r.status === "rejected" ? "badge--urgent"
+                                : r.status === "cancelled" ? "badge--it"
+                                  : "badge--draft"
+                            }`}>{r.status}</span>
+                        </td>
+                        <td style={{ fontSize: "0.875rem", color: "var(--neutral-600)" }}>
+                          {(r as EnrichedLeaveRequest).manager_name || (r.manager_oid ? r.manager_oid.slice(0, 12) + "…" : "—")}
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
@@ -212,13 +208,13 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
         <div className="content-grid">
           {/* Create Policy Form */}
           <div className="card" style={{ gridColumn: "span 4" }}>
-            <div className="card__header"><h3 className="card__title"><PlusCircle size={18} /> Create New Policy</h3></div>
+            <div className="card__header"><h3 className="card__title">Create New Policy</h3></div>
             <form onSubmit={handleCreatePolicy} className="card__body" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
               <div>
                 <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-700)", marginBottom: "var(--space-1)" }}>Policy Name *</label>
                 <input className="input" type="text" placeholder="e.g. Standard Annual Leave" value={policyName} onChange={e => setPolicyName(e.target.value)} required />
               </div>
-              
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-700)", marginBottom: "var(--space-1)" }}>Leave Type *</label>
@@ -231,7 +227,7 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-700)", marginBottom: "var(--space-1)" }}>Total Allowed Days *</label>
+                  <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-700)", marginBottom: "var(--space-1)" }}>Total Days *</label>
                   <input className="input" type="number" min={0} max={365} value={policyDays} onChange={e => setPolicyDays(Number(e.target.value))} required />
                 </div>
               </div>
@@ -240,7 +236,6 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
                 <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-700)", marginBottom: "var(--space-1)" }}>Policy Scope *</label>
                 <select className="input" value={policyScope} onChange={e => setPolicyScope(e.target.value as any)}>
                   <option value="all">Apply to All Employees</option>
-                  <option value="department">Apply to Department (Global Fallback)</option>
                   <option value="individual">Assign to Specific Employee</option>
                 </select>
               </div>
@@ -265,30 +260,28 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
 
           {/* Active Policies List */}
           <div className="card" style={{ gridColumn: "span 8" }}>
-            <div className="card__header"><h3 className="card__title"><ShieldCheck size={18} /> Configured Leave Policies</h3></div>
+            <div className="card__header"><h3 className="card__title">Configured Leave Policies</h3></div>
             <div className="table-container">
               <table>
-                <thead><tr><th>Policy Name</th><th>Leave Type</th><th>Allowed Days</th><th>Target Scope</th><th>Created At</th></tr></thead>
+                <thead><tr><th>Policy Name</th><th>Leave Type</th><th>Total Days</th><th>Target Scope</th><th>Created At</th></tr></thead>
                 <tbody>
                   {loading ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>Loading policies…</td></tr>
                     : policies.length === 0 ? <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No policies defined. Fill out the form to create your first policy.</td></tr>
-                    : policies.map(p => (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{p.name}</td>
-                        <td><span className="badge badge--hr" style={{ textTransform: "capitalize" }}>{p.leave_type} Leave</span></td>
-                        <td style={{ fontWeight: 700 }}>{p.total_days} Days</td>
-                        <td>
-                          {p.scope === "all" ? (
-                            <span className="badge badge--published">Company Wide</span>
-                          ) : p.scope === "individual" ? (
-                            <span className="badge badge--urgent">Individual</span>
-                          ) : (
-                            <span className="badge badge--it">Department</span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: "0.875rem", color: "var(--neutral-500)" }}>{new Date(p.created_at).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
+                      : policies.map(p => (
+                        <tr key={p.id}>
+                          <td style={{ fontWeight: 600, color: "var(--neutral-800)" }}>{p.name}</td>
+                          <td><span className="badge badge--hr" style={{ textTransform: "capitalize" }}>{p.leave_type} Leave</span></td>
+                          <td style={{ fontWeight: 700 }}>{p.total_days} Days</td>
+                          <td>
+                            {p.scope === "all" ? (
+                              <span className="badge badge--published">Company Wide</span>
+                            ) : (
+                              <span className="badge badge--urgent">Individual</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: "0.875rem", color: "var(--neutral-500)" }}>{new Date(p.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
                 </tbody>
               </table>
             </div>

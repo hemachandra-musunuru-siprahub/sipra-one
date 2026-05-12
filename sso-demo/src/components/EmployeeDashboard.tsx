@@ -94,19 +94,10 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
   };
 
   return (
-    <DashboardLayout internalUser={internalUser} role="Employee">
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Employee"}>
 
       {/* ── Page Header ── */}
       <div style={{ marginBottom: "20px" }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: "8px",
-          fontSize: "12px", color: "var(--neutral-400)",
-          marginBottom: "6px", fontWeight: 500,
-        }}>
-          <span>Home</span>
-          <span style={{ color: "var(--neutral-300)" }}>/</span>
-          <span style={{ color: "var(--neutral-600)" }}>Dashboard</span>
-        </div>
         <h1 style={{
           fontSize: "1.375rem", fontWeight: 700,
           color: "var(--neutral-900)", letterSpacing: "-0.02em",
@@ -117,7 +108,7 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
 
       {/* ── Compact Hero Banner ── */}
       <div style={{
-        background: "linear-gradient(120deg, #047857 0%, #10B981 100%)",
+        background: "linear-gradient(120deg, var(--primary-700) 0%, var(--primary-500) 100%)",
         borderRadius: "12px",
         padding: "16px 24px",
         marginBottom: "20px",
@@ -139,9 +130,6 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
           borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none",
         }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.65)", fontWeight: 500, marginBottom: "2px" }}>
-            Employee Portal
-          </div>
           <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
             Welcome back, {internalUser?.name?.split(" ")[0] || "there"} 👋
           </h2>
@@ -149,9 +137,6 @@ export const EmployeeDashboard = ({ internalUser }: Props) => {
         <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
           <div style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.55)", marginBottom: "2px", fontWeight: 500 }}>
             {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-          </div>
-          <div style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>
-            {annualBalance ? `${annualBalance.remaining_days} leave days remaining` : "Check your leave balance"}
           </div>
         </div>
       </div>

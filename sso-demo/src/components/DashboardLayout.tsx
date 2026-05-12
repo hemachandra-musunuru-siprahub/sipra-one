@@ -7,6 +7,7 @@ import {
   Search,
   LogOut,
   Shield,
+  ShieldCheck,
   Briefcase,
   UserCheck,
   Megaphone,
@@ -215,10 +216,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         <div className="sidebar__brand">
           <Link to="/" className="sidebar__logo-link">
             <div className="sidebar__logo-icon">
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <rect width="22" height="22" rx="6" fill="var(--primary-500)" />
-                <path d="M5 11h12M11 5v12" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
+              <ShieldCheck size={24} strokeWidth={1.5} style={{ color: "var(--primary-500)" }} />
             </div>
             <span className="sidebar__logo-text">SipraHub</span>
           </Link>
@@ -296,7 +294,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           <div className="topbar__user">
             <div className="topbar__user-text">
               <span className="topbar__user-name">{userName}</span>
-              <span className="topbar__user-email">{userEmail}</span>
+              <span className="topbar__user-role">{currentRole}</span>
             </div>
             <div className="topbar__avatar" style={{ background: roleAccent }}>
               {initials}

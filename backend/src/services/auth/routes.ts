@@ -48,7 +48,7 @@ const fetchGraphData = async (accessToken: string) => {
   const [profileResult, managerResult] = await Promise.allSettled([
     axios.get("https://graph.microsoft.com/v1.0/me", {
       headers,
-      params: { $select: "id,mail,userPrincipalName,displayName" },
+      params: { $select: "id,mail,userPrincipalName,displayName,department" },
     }),
     axios.get("https://graph.microsoft.com/v1.0/me/manager", {
       headers,
@@ -163,6 +163,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
   const entra_oid = profile.id;
   const email = profile.mail || profile.userPrincipalName;
   const name = profile.displayName;
+  const department = profile.department || null;
   const finalManagerOid = managerEntraOid && managerEntraOid.trim() !== "" ? managerEntraOid : null;
 
   console.log("[SYNC] 3. Upserting user (role always synced from Entra)...");
@@ -173,26 +174,28 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       name,
       role,
       manager_entra_oid,
+      department,
       last_login
     )
-    VALUES ($1, $2, $3, $4, NULLIF($5, ''), NOW())
+    VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, NOW())
     ON CONFLICT (entra_oid)
     DO UPDATE SET
       email = EXCLUDED.email,
       name  = EXCLUDED.name,
       role  = EXCLUDED.role,
+      department = EXCLUDED.department,
       manager_entra_oid = CASE
         WHEN EXCLUDED.manager_entra_oid IS NOT NULL
         THEN EXCLUDED.manager_entra_oid
         ELSE users.manager_entra_oid
       END,
       last_login = NOW()
-    RETURNING id, entra_oid, email, name, role, manager_entra_oid, is_active, created_at, last_login;
+    RETURNING id, entra_oid, email, name, role, department, manager_entra_oid, is_active, created_at, last_login;
   `;
 
   let user;
   try {
-    const { rows } = await query(upsertQuery, [entra_oid, email, name, syncedRole, finalManagerOid]);
+    const { rows } = await query(upsertQuery, [entra_oid, email, name, syncedRole, finalManagerOid, department]);
     user = rows[0];
     console.log(`[SYNC] user.role from DB: ${user.role}`);
   } catch (e: any) {

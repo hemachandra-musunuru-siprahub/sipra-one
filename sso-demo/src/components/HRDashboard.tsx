@@ -3,7 +3,7 @@ import { DashboardLayout } from "./DashboardLayout";
 import { useNavigate } from "react-router-dom";
 import { Users, Calendar, FileText, Megaphone, ArrowRight } from "lucide-react";
 import { getAllLeave } from "../api/leave";
-import { getDocuments } from "../api/documents";
+import { getDocuments, getAllDocuments } from "../api/documents";
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import { getAnnouncements } from "../api/announcements";
 import type { LeaveRequest, HrDocument, Announcement } from "../api/types";
@@ -20,17 +20,25 @@ export const HRDashboard = ({ internalUser }: Props) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getAllLeave(), getDocuments(), getAnnouncements(1, 5)])
+    setLoading(true);
+    Promise.all([
+      getAllLeave().catch(() => ({ requests: [] })),
+      getAllDocuments().catch(() => ({ documents: [] })),
+      getAnnouncements(1, 20).catch(() => ({ announcements: [] }))
+    ])
       .then(([leaveData, docsData, annData]) => {
-        setLeaveRequests(leaveData.requests);
-        setDocuments(docsData.documents);
-        setAnnouncements(annData.announcements);
+        setLeaveRequests(leaveData?.requests || []);
+        setDocuments(docsData?.documents || []);
+        setAnnouncements(annData?.announcements || []);
       })
-      .catch(console.error)
+      .catch(err => {
+        console.error("HRDashboard: failed to fetch metrics", err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const pendingLeave = leaveRequests.filter(r => r.status === "pending");
+  const totalDocs = documents.length;
   const companyDocs = documents.filter(d => d.scope === "company");
 
   const stats = [
@@ -43,9 +51,9 @@ export const HRDashboard = ({ internalUser }: Props) => {
       bg: "#FFFBEB",
     },
     {
-      label: "Company Docs",
-      value: loading ? "—" : `${companyDocs.length}`,
-      sub: "Active policies",
+      label: "Total Documents",
+      value: loading ? "—" : `${totalDocs}`,
+      sub: `${companyDocs.length} company-wide`,
       icon: <FileText size={16} />,
       color: "#3B82F6",
       bg: "#EFF6FF",
@@ -78,19 +86,10 @@ export const HRDashboard = ({ internalUser }: Props) => {
   ];
 
   return (
-    <DashboardLayout internalUser={internalUser} role="HR">
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "HR"}>
 
       {/* ── Page Header ── */}
       <div style={{ marginBottom: "20px" }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: "8px",
-          fontSize: "12px", color: "var(--neutral-400)",
-          marginBottom: "6px", fontWeight: 500,
-        }}>
-          <span>Home</span>
-          <span style={{ color: "var(--neutral-300)" }}>/</span>
-          <span style={{ color: "var(--neutral-600)" }}>Dashboard</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 style={{
             fontSize: "1.375rem", fontWeight: 700,
@@ -126,9 +125,6 @@ export const HRDashboard = ({ internalUser }: Props) => {
           borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none",
         }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.65)", fontWeight: 500, marginBottom: "2px" }}>
-            HR Dashboard
-          </div>
           <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
             Welcome back, {internalUser?.name?.split(" ")[0] || "there"} 👋
           </h2>
@@ -136,11 +132,6 @@ export const HRDashboard = ({ internalUser }: Props) => {
         <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
           <div style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.55)", marginBottom: "2px", fontWeight: 500 }}>
             {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-          </div>
-          <div style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>
-            {pendingLeave.length > 0
-              ? `${pendingLeave.length} leave request${pendingLeave.length > 1 ? "s" : ""} pending`
-              : "No pending leave requests ✓"}
           </div>
         </div>
       </div>
@@ -196,217 +187,217 @@ export const HRDashboard = ({ internalUser }: Props) => {
       {/* ── Content Grid ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: "16px" }}>
 
-              {/* Pending Leave Table */}
-              <div style={{
-                background: "var(--neutral-0)",
-                border: "1px solid var(--neutral-200)",
-                borderRadius: "10px",
-                boxShadow: "var(--shadow-sm)",
-                overflow: "hidden",
-              }}>
-                <div style={{
-                  padding: "12px 16px",
-                  borderBottom: "1px solid var(--neutral-100)",
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
+        {/* Pending Leave Table */}
+        <div style={{
+          background: "var(--neutral-0)",
+          border: "1px solid var(--neutral-200)",
+          borderRadius: "10px",
+          boxShadow: "var(--shadow-sm)",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            padding: "12px 16px",
+            borderBottom: "1px solid var(--neutral-100)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
+                Pending Leave Requests
+              </h3>
+              {!loading && pendingLeave.length > 0 && (
+                <span style={{
+                  background: "#FFFBEB", color: "#B45309",
+                  fontSize: "0.6875rem", fontWeight: 700,
+                  padding: "2px 7px", borderRadius: "20px",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
-                      Pending Leave Requests
-                    </h3>
-                    {!loading && pendingLeave.length > 0 && (
+                  {pendingLeave.length}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => navigate("/hr/leave-requests")}
+              style={{
+                display: "flex", alignItems: "center", gap: "4px",
+                fontSize: "0.75rem", fontWeight: 600, color: "var(--primary-500)",
+                background: "none", border: "none", cursor: "pointer",
+              }}
+            >
+              View all <ArrowRight size={11} />
+            </button>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <thead>
+                <tr>
+                  {["Employee", "Type", "Dates", "Days", "Status"].map(h => (
+                    <th key={h} style={{
+                      background: "var(--neutral-50)",
+                      padding: "8px 12px",
+                      fontSize: "0.6875rem", fontWeight: 600,
+                      color: "var(--neutral-400)",
+                      textTransform: "uppercase", letterSpacing: "0.06em",
+                      borderBottom: "1px solid var(--neutral-200)",
+                      whiteSpace: "nowrap",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "var(--neutral-400)", fontSize: "0.875rem" }}>Loading…</td></tr>
+                ) : pendingLeave.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "var(--neutral-400)", fontSize: "0.875rem" }}>No pending requests 🎉</td></tr>
+                ) : pendingLeave.slice(0, 6).map((req) => (
+                  <tr key={req.id} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
+                    <td style={{ padding: "9px 12px", fontSize: "0.8125rem", color: "var(--neutral-700)", fontWeight: 500 }}>
+                      {req.employee_name || <span style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "var(--neutral-400)" }}>{req.employee_oid.slice(0, 8)}…</span>}
+                    </td>
+                    <td style={{ padding: "9px 12px" }}>
+                      <span style={{
+                        background: "var(--primary-50)", color: "var(--primary-700)",
+                        padding: "2px 8px", borderRadius: "20px",
+                        fontSize: "0.6875rem", fontWeight: 600, textTransform: "capitalize",
+                      }}>
+                        {req.leave_type}
+                      </span>
+                    </td>
+                    <td style={{ padding: "9px 12px", fontSize: "0.8125rem", color: "var(--neutral-500)", whiteSpace: "nowrap" }}>
+                      {formatLeaveDates(req.start_date, req.end_date)}
+                    </td>
+                    <td style={{ padding: "9px 12px", fontSize: "0.8125rem", color: "var(--neutral-600)", fontWeight: 500 }}>
+                      {req.total_days}d
+                    </td>
+                    <td style={{ padding: "9px 12px" }}>
                       <span style={{
                         background: "#FFFBEB", color: "#B45309",
-                        fontSize: "0.6875rem", fontWeight: 700,
-                        padding: "2px 7px", borderRadius: "20px",
+                        padding: "2px 8px", borderRadius: "20px",
+                        fontSize: "0.6875rem", fontWeight: 600, textTransform: "capitalize",
                       }}>
-                        {pendingLeave.length}
+                        {req.status}
                       </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => navigate("/hr/leave-requests")}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "4px",
-                      fontSize: "0.75rem", fontWeight: 600, color: "var(--primary-500)",
-                      background: "none", border: "none", cursor: "pointer",
-                    }}
-                  >
-                    View all <ArrowRight size={11} />
-                  </button>
-                </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                    <thead>
-                      <tr>
-                        {["Employee", "Type", "Dates", "Days", "Status"].map(h => (
-                          <th key={h} style={{
-                            background: "var(--neutral-50)",
-                            padding: "8px 12px",
-                            fontSize: "0.6875rem", fontWeight: 600,
-                            color: "var(--neutral-400)",
-                            textTransform: "uppercase", letterSpacing: "0.06em",
-                            borderBottom: "1px solid var(--neutral-200)",
-                            whiteSpace: "nowrap",
-                          }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? (
-                        <tr><td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "var(--neutral-400)", fontSize: "0.875rem" }}>Loading…</td></tr>
-                      ) : pendingLeave.length === 0 ? (
-                        <tr><td colSpan={5} style={{ padding: "20px", textAlign: "center", color: "var(--neutral-400)", fontSize: "0.875rem" }}>No pending requests 🎉</td></tr>
-                      ) : pendingLeave.slice(0, 6).map((req) => (
-                        <tr key={req.id} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
-                          <td style={{ padding: "9px 12px", fontSize: "0.8125rem", color: "var(--neutral-700)", fontWeight: 500 }}>
-                            {req.employee_name || <span style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "var(--neutral-400)" }}>{req.employee_oid.slice(0, 8)}…</span>}
-                          </td>
-                          <td style={{ padding: "9px 12px" }}>
-                            <span style={{
-                              background: "var(--primary-50)", color: "var(--primary-700)",
-                              padding: "2px 8px", borderRadius: "20px",
-                              fontSize: "0.6875rem", fontWeight: 600, textTransform: "capitalize",
-                            }}>
-                              {req.leave_type}
-                            </span>
-                          </td>
-                          <td style={{ padding: "9px 12px", fontSize: "0.8125rem", color: "var(--neutral-500)", whiteSpace: "nowrap" }}>
-                            {formatLeaveDates(req.start_date, req.end_date)}
-                          </td>
-                          <td style={{ padding: "9px 12px", fontSize: "0.8125rem", color: "var(--neutral-600)", fontWeight: 500 }}>
-                            {req.total_days}d
-                          </td>
-                          <td style={{ padding: "9px 12px" }}>
-                            <span style={{
-                              background: "#FFFBEB", color: "#B45309",
-                              padding: "2px 8px", borderRadius: "20px",
-                              fontSize: "0.6875rem", fontWeight: 600, textTransform: "capitalize",
-                            }}>
-                              {req.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-              {/* Quick Links sidebar panel */}
-              <div style={{
-                background: "var(--neutral-0)",
-                border: "1px solid var(--neutral-200)",
-                borderRadius: "10px",
-                boxShadow: "var(--shadow-sm)",
-                overflow: "hidden",
-              }}>
-                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--neutral-100)" }}>
-                  <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
-                    HR Modules
-                  </h3>
-                </div>
-                <div style={{ padding: "10px" }}>
-                  {quickLinks.map((link, i) => (
-                    <button
-                      key={i}
-                      onClick={() => navigate(link.path)}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        width: "100%", padding: "9px 10px",
-                        borderRadius: "7px",
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        textAlign: "left",
-                        transition: "background 150ms",
-                        marginBottom: "2px",
-                      }}
-                      onMouseOver={e => (e.currentTarget.style.background = "var(--neutral-50)")}
-                      onMouseOut={e => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--neutral-700)" }}>
-                        {link.label}
-                      </span>
-                      <ArrowRight size={12} style={{ color: "var(--neutral-300)", flexShrink: 0 }} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+        {/* Quick Links sidebar panel */}
+        <div style={{
+          background: "var(--neutral-0)",
+          border: "1px solid var(--neutral-200)",
+          borderRadius: "10px",
+          boxShadow: "var(--shadow-sm)",
+          overflow: "hidden",
+        }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--neutral-100)" }}>
+            <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
+              HR Modules
+            </h3>
+          </div>
+          <div style={{ padding: "10px" }}>
+            {quickLinks.map((link, i) => (
+              <button
+                key={i}
+                onClick={() => navigate(link.path)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  width: "100%", padding: "9px 10px",
+                  borderRadius: "7px",
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background 150ms",
+                  marginBottom: "2px",
+                }}
+                onMouseOver={e => (e.currentTarget.style.background = "var(--neutral-50)")}
+                onMouseOut={e => (e.currentTarget.style.background = "transparent")}
+              >
+                <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--neutral-700)" }}>
+                  {link.label}
+                </span>
+                <ArrowRight size={12} style={{ color: "var(--neutral-300)", flexShrink: 0 }} />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            {/* ── Company Documents ── */}
-            <div style={{
-              marginTop: "16px",
-              background: "var(--neutral-0)",
-              border: "1px solid var(--neutral-200)",
-              borderRadius: "10px",
-              boxShadow: "var(--shadow-sm)",
-              overflow: "hidden",
+      {/* ── Company Documents ── */}
+      <div style={{
+        marginTop: "16px",
+        background: "var(--neutral-0)",
+        border: "1px solid var(--neutral-200)",
+        borderRadius: "10px",
+        boxShadow: "var(--shadow-sm)",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          padding: "12px 16px",
+          borderBottom: "1px solid var(--neutral-100)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
+            Company Documents
+          </h3>
+          <button
+            onClick={() => navigate("/hr/documents")}
+            style={{
+              display: "flex", alignItems: "center", gap: "4px",
+              fontSize: "0.75rem", fontWeight: 600, color: "var(--primary-500)",
+              background: "none", border: "none", cursor: "pointer",
+            }}
+          >
+            View all <ArrowRight size={11} />
+          </button>
+        </div>
+        <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {loading ? (
+            <p style={{ color: "var(--neutral-400)", fontSize: "0.875rem", padding: "10px 0" }}>Loading…</p>
+          ) : documents.length === 0 ? (
+            <p style={{ color: "var(--neutral-400)", fontSize: "0.875rem", padding: "10px 0" }}>
+              No documents yet. Add one from the HR Documents page.
+            </p>
+          ) : documents.slice(0, 4).map((doc) => (
+            <div key={doc.id} style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "9px 10px",
+              border: "1px solid var(--neutral-100)",
+              borderRadius: "7px",
             }}>
-              <div style={{
-                padding: "12px 16px",
-                borderBottom: "1px solid var(--neutral-100)",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-              }}>
-                <h3 style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--neutral-800)", margin: 0 }}>
-                  Company Documents
-                </h3>
-                <button
-                  onClick={() => navigate("/hr/documents")}
+              <div>
+                <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)" }}>{doc.title}</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--neutral-400)" }}>{doc.document_type}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{
+                  background: doc.scope === "company" ? "#ECFDF5" : "var(--neutral-100)",
+                  color: doc.scope === "company" ? "#047857" : "var(--neutral-500)",
+                  padding: "2px 8px", borderRadius: "20px",
+                  fontSize: "0.6875rem", fontWeight: 600,
+                }}>
+                  {doc.scope}
+                </span>
+                <a
+                  href={doc.onedrive_url}
+                  target="_blank"
+                  rel="noreferrer"
                   style={{
-                    display: "flex", alignItems: "center", gap: "4px",
-                    fontSize: "0.75rem", fontWeight: 600, color: "var(--primary-500)",
-                    background: "none", border: "none", cursor: "pointer",
+                    fontSize: "0.75rem", fontWeight: 600,
+                    color: "var(--primary-500)",
+                    textDecoration: "none",
                   }}
                 >
-                  View all <ArrowRight size={11} />
-                </button>
-              </div>
-              <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                {loading ? (
-                  <p style={{ color: "var(--neutral-400)", fontSize: "0.875rem", padding: "10px 0" }}>Loading…</p>
-                ) : documents.length === 0 ? (
-                  <p style={{ color: "var(--neutral-400)", fontSize: "0.875rem", padding: "10px 0" }}>
-                    No documents yet. Add one from the HR Documents page.
-                  </p>
-                ) : documents.slice(0, 4).map((doc) => (
-                  <div key={doc.id} style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    padding: "9px 10px",
-                    border: "1px solid var(--neutral-100)",
-                    borderRadius: "7px",
-                  }}>
-                    <div>
-                      <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)" }}>{doc.title}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--neutral-400)" }}>{doc.document_type}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{
-                        background: doc.scope === "company" ? "#ECFDF5" : "var(--neutral-100)",
-                        color: doc.scope === "company" ? "#047857" : "var(--neutral-500)",
-                        padding: "2px 8px", borderRadius: "20px",
-                        fontSize: "0.6875rem", fontWeight: 600,
-                      }}>
-                        {doc.scope}
-                      </span>
-                      <a
-                        href={doc.onedrive_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          fontSize: "0.75rem", fontWeight: 600,
-                          color: "var(--primary-500)",
-                          textDecoration: "none",
-                        }}
-                      >
-                        Open
-                      </a>
-                    </div>
-                  </div>
-                ))}
+                  Open
+                </a>
               </div>
             </div>
+          ))}
+        </div>
+      </div>
 
-          </DashboardLayout>
-          );
+    </DashboardLayout>
+  );
 };

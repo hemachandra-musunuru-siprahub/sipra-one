@@ -13,14 +13,18 @@ const router = Router();
 
 // ─── GET / — Employee/manager/HR sees scoped documents ────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
+  console.log(`[DOCS] Fetching documents for user: ${req.user!.name} (${req.user!.entra_oid}), role: ${req.user!.role}`);
   const docs = await repo.listDocuments(req.user!.entra_oid);
+  console.log(`[DOCS] Found ${docs.length} documents for user ${req.user!.entra_oid}`);
   res.json({ documents: docs });
 });
 
 // ─── GET /all — HR/Admin sees everything they've shared ───────────────────────
 router.get("/all", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
+    console.log(`[DOCS] Admin fetch all documents by: ${req.user!.name} (${req.user!.entra_oid})`);
     const docs = await repo.listAllDocuments();
+    console.log(`[DOCS] Total documents in system: ${docs.length}`);
     res.json({ documents: docs });
   }
 );

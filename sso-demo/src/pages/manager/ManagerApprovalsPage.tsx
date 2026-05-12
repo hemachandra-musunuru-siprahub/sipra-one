@@ -157,19 +157,13 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
     { key: "pending", label: "Pending", count: pendingCount },
     { key: "approved", label: "Approved", count: approvedCount },
     { key: "rejected", label: "Rejected", count: rejectedCount },
-    { key: "all", label: "All", count: leaveRequests.length },
   ];
 
   return (
-    <DashboardLayout internalUser={internalUser} role="Manager">
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Manager"}>
 
       {/* ── Page Header ──────────────────────────────────────── */}
       <header className="page-header" style={{ marginBottom: "var(--space-4)" }}>
-        <div className="breadcrumb" style={{ fontSize: "0.7rem", marginBottom: 4 }}>
-          <span>Manager</span>
-          <ChevronRight size={12} className="breadcrumb__separator" />
-          <span className="breadcrumb__current" style={{ color: "var(--neutral-900)", fontWeight: 600 }}>Leave Approvals</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <h1 className="page-title" style={{ fontSize: "1.25rem", margin: 0 }}>Leave Approvals</h1>

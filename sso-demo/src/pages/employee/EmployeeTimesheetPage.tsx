@@ -235,11 +235,6 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
     <DashboardLayout internalUser={internalUser} role={displayRole}>
       {/* -- Header -- */}
       <header className="page-header" style={{ marginBottom: "20px" }}>
-        <div className="breadcrumb">
-          <span>Home</span>
-          <span className="breadcrumb__separator">/</span>
-          <span>Timesheets</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Work Logs</h1>
           

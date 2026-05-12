@@ -7,7 +7,7 @@ import {
   Check
 } from "lucide-react";
 import { 
-  getDocuments, createDocument, deleteDocument,
+  getDocuments, getAllDocuments, createDocument, deleteDocument,
   browseOneDrive, searchOneDrive, shareDocument, createShareLink
 } from "../../api/documents";
 import { getUsers } from "../../api/users";
@@ -43,13 +43,18 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [shareDocType, setShareDocType] = useState("Shared Document");
   const [shareDesc, setShareDesc] = useState("");
 
+  const layoutRole: UserRole = normalizeRole(role || internalUser?.role || "employee");
+  const isPrivileged = isHR || layoutRole === "Admin" || layoutRole === "HR";
+
   const fetchDocs = useCallback(() => {
     setLoading(true);
-    getDocuments()
+    const fetchPromise = isPrivileged ? getAllDocuments() : getDocuments();
+    
+    fetchPromise
       .then(d => setDocuments(d.documents))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [isPrivileged]);
 
   useEffect(() => {
     fetchDocs();
@@ -173,14 +178,10 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
-  const layoutRole: UserRole = normalizeRole(role || internalUser?.role || "employee");
 
   return (
-    <DashboardLayout internalUser={internalUser} role={layoutRole}>
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Employee"}>
       <header className="page-header">
-        <div className="breadcrumb">
-          <span style={{ textTransform: "capitalize" }}>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Documents</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">HR Documents</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
@@ -188,7 +189,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
               <SearchIcon size={16} className="search-icon" />
               <input className="input" style={{ width: 220, paddingLeft: 36 }} placeholder="Search documents…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            {isHR && (
+            {isPrivileged && (
               <>
                 <button className="btn btn--secondary" onClick={openOneDriveFlow}><HardDrive size={16} /> Share from OneDrive</button>
                 <button className="btn btn--primary" onClick={() => setShowForm(v => !v)}><Plus size={16} /> Add Record</button>
@@ -198,7 +199,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
         </div>
       </header>
 
-      {isHR && showForm && (
+      {isPrivileged && showForm && (
         <div className="card animate-fade-in" style={{ marginBottom: "var(--space-6)" }}>
           <div className="card__header"><h3 className="card__title">Add Document Record</h3></div>
           <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
@@ -225,57 +226,113 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
         </div>
       )}
 
-      <div className={isHR ? "" : "content-grid"} style={isHR ? {} : { gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+      <div className={isPrivileged ? "main-content-wrapper" : "content-grid"} style={isPrivileged ? { minWidth: 0 } : { gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
         {loading ? (
           <div className="card" style={{ gridColumn: "1 / -1" }}><div className="card__body" style={{ textAlign: "center", padding: "var(--space-12)" }}><Loader2 size={32} className="animate-spin" style={{ margin: "0 auto var(--space-4)", color: "var(--neutral-400)" }} /><p style={{ color: "var(--neutral-500)" }}>Loading documents…</p></div></div>
         ) : filtered.length === 0 ? (
-          <div className="card" style={{ gridColumn: "1 / -1" }}><div className="card__body" style={{ textAlign: "center", padding: "var(--space-12)", color: "var(--neutral-500)" }}>No documents found matching your search.</div></div>
-        ) : isHR ? (
-          <div className="card" style={{ overflow: "hidden" }}>
-            <div className="table-container">
-              <table className="table">
+          <div className="card" style={{ gridColumn: "1 / -1" }}>
+            <div className="card__body" style={{ 
+              textAlign: "center", 
+              padding: "var(--space-16)", 
+              color: "var(--neutral-500)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "var(--space-4)"
+            }}>
+              <div style={{ 
+                width: 64, 
+                height: 64, 
+                borderRadius: "50%", 
+                background: "var(--neutral-100)", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                color: "var(--neutral-400)",
+                marginBottom: "var(--space-2)"
+              }}>
+                <FileText size={32} />
+              </div>
+              <div style={{ maxWidth: 400 }}>
+                <h3 style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--neutral-900)", margin: "0 0 var(--space-2)" }}>
+                  No Documents Available
+                </h3>
+                <p style={{ fontSize: "0.875rem", color: "var(--neutral-500)", lineHeight: 1.5 }}>
+                  {search 
+                    ? `We couldn't find any documents matching "${search}". Try a different search term or clear the filter.`
+                    : "There are no company-wide or individually shared documents available for your account at this time."}
+                </p>
+                {search && (
+                  <button 
+                    className="btn btn--secondary btn--sm" 
+                    style={{ marginTop: "var(--space-4)" }}
+                    onClick={() => setSearch("")}
+                  >
+                    Clear Search
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : isPrivileged ? (
+          <div className="card documents-card" style={{ overflow: "hidden", minWidth: 0 }}>
+            <div className="table-container responsive-table">
+              <table className="table" style={{ tableLayout: "fixed", width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr>
-                    <th>File Name</th>
-                    <th>Type</th>
-                    <th>Shared With</th>
-                    <th>Date</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
+                  <tr style={{ background: "var(--neutral-50)" }}>
+                    <th style={{ width: "35%", paddingLeft: "var(--space-5)" }}>File Name</th>
+                    <th style={{ width: "15%" }}>Type</th>
+                    <th style={{ width: "25%" }}>Shared With</th>
+                    <th style={{ width: "12%" }}>Date</th>
+                    <th style={{ width: "13%", textAlign: "right", paddingRight: "var(--space-5)" }}>Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody style={{ verticalAlign: "middle" }}>
                   {filtered.map(doc => {
                     return (
-                      <tr key={doc.id}>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                            <FileText size={18} style={{ color: "var(--primary-500)" }} />
-                            <div>
-                              <div style={{ fontWeight: 600, color: "var(--neutral-900)" }}>{doc.title}</div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{doc.scope}</div>
+                      <tr key={doc.id} className="table-row-hover">
+                        <td style={{ paddingLeft: "var(--space-5)", overflow: "hidden" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", minWidth: 0 }}>
+                            <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: "8px", background: "var(--primary-50)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary-600)" }}>
+                              <FileText size={18} />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: 600, color: "var(--neutral-900)", fontSize: "0.875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.title}>
+                                {doc.title}
+                              </div>
+                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "capitalize" }}>{doc.scope} Access</div>
                             </div>
                           </div>
                         </td>
-                        <td><span className="badge badge--neutral">{doc.document_type}</span></td>
                         <td>
+                          <span className="badge badge--neutral" style={{ fontSize: "0.6875rem", fontWeight: 600 }}>{doc.document_type}</span>
+                        </td>
+                        <td style={{ overflow: "hidden" }}>
                           {doc.scope === "company" ? (
-                            <span style={{ fontSize: "0.8125rem", color: "var(--success-600)", fontWeight: 500 }}>All Employees</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--success-500)" }} />
+                              <span style={{ fontSize: "0.8125rem", color: "var(--success-700)", fontWeight: 600 }}>Organizational</span>
+                            </div>
                           ) : (
-                            <div>
-                              <div style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{doc.assigned_to_name || "Unknown"}</div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{doc.assigned_to_email || doc.assigned_to_oid}</div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_name || "Unknown"}>
+                                {doc.assigned_to_name || "Unknown"}
+                              </div>
+                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_email || doc.assigned_to_oid}>
+                                {doc.assigned_to_email || (doc.assigned_to_oid ? `ID: ${doc.assigned_to_oid.slice(0, 8)}...` : "—")}
+                              </div>
                             </div>
                           )}
                         </td>
-                        <td style={{ fontSize: "0.8125rem", color: "var(--neutral-600)" }}>
-                          {new Date(doc.created_at).toLocaleDateString()}
+                        <td style={{ fontSize: "0.8125rem", color: "var(--neutral-600)", fontWeight: 500 }}>
+                          {new Date(doc.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
-                        <td style={{ textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "flex-end" }}>
-                            <a href={doc.onedrive_url} target="_blank" rel="noreferrer" className="btn btn--ghost btn--sm">
+                        <td style={{ textAlign: "right", paddingRight: "var(--space-5)" }}>
+                          <div style={{ display: "flex", gap: "var(--space-1)", justifyContent: "flex-end" }}>
+                            <a href={doc.onedrive_url} target="_blank" rel="noreferrer" className="btn btn--ghost btn--sm" title="View Source" style={{ width: 32, height: 32, padding: 0 }}>
                               <ExternalLink size={14} />
                             </a>
-                            <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-500)" }} onClick={() => handleDelete(doc.id)}>
+                            <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-500)", width: 32, height: 32, padding: 0 }} onClick={() => handleDelete(doc.id)} title="Delete Record">
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -482,6 +539,37 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
         .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--neutral-400); pointer-events: none; }
         .document-icon-wrapper { width: 40px; height: 40px; background: var(--primary-50); color: var(--primary-600); border-radius: var(--rounded-lg); display: flex; alignItems: center; justify-content: center; flex-shrink: 0; }
         
+        .main-content-wrapper { 
+          width: 100%; 
+          overflow-x: hidden; 
+          display: flex; 
+          flex-direction: column;
+        }
+
+        .responsive-table {
+          width: 100%;
+          overflow-x: auto;
+          scrollbar-width: thin;
+          scrollbar-color: var(--neutral-200) transparent;
+        }
+
+        .responsive-table::-webkit-scrollbar { height: 6px; }
+        .responsive-table::-webkit-scrollbar-track { background: transparent; }
+        .responsive-table::-webkit-scrollbar-thumb { background-color: var(--neutral-200); border-radius: 10px; }
+
+        .table-row-hover { 
+          transition: background-color 0.2s ease;
+        }
+        .table-row-hover:hover { 
+          background-color: var(--neutral-50); 
+        }
+
+        .table td {
+          padding-top: var(--space-4);
+          padding-bottom: var(--space-4);
+          border-bottom: 1px solid var(--neutral-100);
+        }
+
         /* Modal Styles */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .modal-container { background: white; border-radius: var(--rounded-2xl); box-shadow: var(--shadow-2xl); overflow: hidden; display: flex; flex-direction: column; }

@@ -1,7 +1,7 @@
 import { useState, useRef, useId } from "react";
 import type React from "react";
 import type { DragEvent } from "react";
-import { Pin, X, UploadCloud, Check } from "lucide-react";
+import { Pin, X, UploadCloud, Check, ImageIcon } from "lucide-react";
 import { api } from "../api/client";
 
 import type { Announcement } from "../api/types";
@@ -90,13 +90,10 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
       created_by_oid: initialData?.created_by_oid || null
     };
 
-    console.log(`[API] Submitting ${initialData?.id ? "Update" : "Publication"} with status=${submitStatus}:`, payload);
-    
     try {
       let finalImageUrl = payload.image_url;
 
       if (imageFile) {
-        console.log("[API] Processing image upload (Base64)...");
         finalImageUrl = await fileToBase64(imageFile);
       }
 
@@ -112,121 +109,121 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
       }
       onSuccess();
     } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const error = err as any;
       const errorMsg = error.response?.data?.message || error.message || "An unexpected error occurred";
-      const details = error.response?.data?.details;
-      console.error("[API] Publish Error:", { message: errorMsg, details });
-      alert(`Failed to publish: ${errorMsg}${details ? "\n\nDetails: " + JSON.stringify(details) : ""}`);
+      console.error("[API] Publish Error:", errorMsg);
+      alert(`Failed to publish: ${errorMsg}`);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto w-full max-w-2xl shadow-xl">
-      <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
+    <div className="bg-white rounded-xl shadow-2xl flex flex-col w-full max-w-xl overflow-hidden animate-fade-in" style={{ maxHeight: '85vh' }}>
+      {/* ── Sticky Header ── */}
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">{initialData ? "Edit Announcement" : "Create Announcement"}</h2>
-          <p className="text-sm text-gray-500 mt-1">{initialData ? "Update the details below." : "Share an update with the company."}</p>
+          <h2 className="text-base font-bold text-gray-900">{initialData ? "Edit Announcement" : "New Announcement"}</h2>
+          <p className="text-[11px] text-gray-400 mt-0.5 uppercase tracking-wider font-semibold">Share an update with the company</p>
         </div>
         <button 
           onClick={onCancel}
-          className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-all"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
       </div>
       
-      <form className="flex flex-col gap-6">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={titleId} className="text-sm font-semibold text-gray-700">
-            Title <span className="text-red-500">*</span>
-          </label>
-          <input 
-            id={titleId}
-            type="text" 
-            placeholder="E.g., Q3 Company All-Hands Meeting" 
-            required
-            className="w-full px-4 py-3 text-lg font-medium border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all duration-200 text-gray-900 placeholder:text-gray-400"
-            value={title} 
-            onChange={e => setTitle(e.target.value)} 
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={bodyId} className="text-sm font-semibold text-gray-700">
-            Description <span className="text-red-500">*</span>
-          </label>
-          <textarea 
-            id={bodyId}
-            rows={5} 
-            placeholder="What do people need to know?..." 
-            required
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all duration-200 resize-y text-gray-900 placeholder:text-gray-400 leading-relaxed"
-            value={body} 
-            onChange={e => setBody(e.target.value)} 
-          />
-        </div>
-
-
-        <div className="flex items-center justify-between py-2 border-b border-gray-100 mb-2">
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <Pin size={16} className="text-gray-500" />
-              Pin to Top
-            </span>
-            <span className="text-xs text-gray-500">Keep this announcement at the top of the feed</span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isPinned}
-            onClick={() => setIsPinned(!isPinned)}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ${
-              isPinned ? 'bg-red-600' : 'bg-gray-200'
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                isPinned ? 'translate-x-5' : 'translate-x-0'
-              }`}
+      {/* ── Scrollable Body ── */}
+      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+        <form id="announcement-form" className="flex flex-col gap-4">
+          {/* Title Field */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={titleId} className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">
+              Headline <span className="text-red-500">*</span>
+            </label>
+            <input 
+              id={titleId}
+              type="text" 
+              placeholder="E.g., Q3 Company All-Hands Meeting" 
+              autoFocus
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none transition-all placeholder:text-gray-300 font-medium"
+              value={title} 
+              onChange={e => setTitle(e.target.value)} 
             />
-          </button>
-        </div>
+          </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-gray-700">Feature Image <span className="text-gray-400 font-normal">(Optional)</span></span>
-          <div 
-            className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 cursor-pointer ${
-              isDragging ? "border-red-500 bg-red-50" : "border-gray-200 hover:border-red-400 bg-gray-50/50 hover:bg-gray-50"
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => !imagePreview && fileInputRef.current?.click()}
-          >
+          {/* Body Field */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={bodyId} className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">
+              Message Content <span className="text-red-500">*</span>
+            </label>
+            <textarea 
+              id={bodyId}
+              rows={6} 
+              placeholder="What do people need to know?..." 
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none transition-all resize-none placeholder:text-gray-300 leading-relaxed min-h-[120px]"
+              value={body} 
+              onChange={e => setBody(e.target.value)} 
+            />
+          </div>
+
+          {/* Compact Toggle Row */}
+          <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-2">
+              <Pin size={14} className="text-gray-400" />
+              <span className="text-xs font-semibold text-gray-700">Pin to Feed Top</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPinned(!isPinned)}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                isPinned ? 'bg-red-600' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${isPinned ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
+          {/* Compact Upload Section */}
+          <div className="flex flex-col gap-1.5 mt-1">
+            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Featured Image</label>
+            
             {imagePreview ? (
-              <div className="relative inline-block w-full" onClick={(e) => e.stopPropagation()}>
-                <img src={imagePreview} alt="Preview" className="w-full max-h-64 object-cover rounded-lg shadow-sm border border-gray-200" />
-                <button 
-                  type="button"
-                  onClick={removeImage}
-                  className="absolute top-2 right-2 bg-gray-900/70 backdrop-blur-sm text-white rounded-full w-8 h-8 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors duration-200"
-                >
-                  <X size={16} strokeWidth={2.5} />
-                </button>
+              <div className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-video max-h-40">
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-1.5 bg-white text-gray-900 rounded-md shadow-sm hover:bg-gray-50 transition-colors"
+                  >
+                    <UploadCloud size={16} />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={removeImage}
+                    className="p-1.5 bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center pointer-events-none py-4">
-                <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3">
-                  <UploadCloud size={24} className="text-red-500" />
+              <div 
+                className={`border border-dashed rounded-lg p-4 transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                  isDragging ? "border-red-500 bg-red-50" : "border-gray-200 hover:border-gray-400 bg-gray-50 hover:bg-white"
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="flex items-center gap-2 text-gray-400">
+                  <ImageIcon size={20} />
+                  <span className="text-xs font-medium">Click to upload or drag & drop</span>
                 </div>
-                <p className="text-sm font-medium text-gray-900 mb-1">
-                  Click to upload or drag and drop
-                </p>
-                <p className="text-xs text-gray-500">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                <p className="text-[10px] text-gray-400">Recommended: 1200x630 (max. 5MB)</p>
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -237,34 +234,38 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
               </div>
             )}
           </div>
-        </div>
+        </form>
+      </div>
 
-        <div className="flex items-center justify-end gap-3 pt-6 mt-2 border-t border-gray-100">
+      {/* ── Sticky Footer ── */}
+      <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between shrink-0">
+        <button 
+          type="button" 
+          className="text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+          onClick={onCancel}
+        >
+          Discard
+        </button>
+        <div className="flex items-center gap-2">
           <button 
             type="button" 
-            className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors focus:outline-none"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button 
-            type="button" 
-            className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50"
+            className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-all shadow-xs disabled:opacity-50"
             onClick={(e) => handleSubmit(e, "draft")}
             disabled={submitting || !title || !body}
           >
-            {submitting ? "Saving..." : "Save Draft"}
+            {submitting ? "..." : "Save Draft"}
           </button>
           <button 
             type="submit" 
-            className="px-6 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 flex items-center gap-2"
+            form="announcement-form"
+            className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 rounded-md hover:bg-red-700 transition-all shadow-sm focus:ring-2 focus:ring-red-500 focus:ring-offset-1 disabled:opacity-50"
             onClick={(e) => handleSubmit(e, "published")}
             disabled={submitting || !title || !body}
           >
-            {submitting ? (initialData ? "Saving..." : "Publishing...") : (initialData ? "Save Changes" : "Publish Announcement")}
+            {submitting ? "Saving..." : (initialData ? "Save Changes" : "Publish Now")}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

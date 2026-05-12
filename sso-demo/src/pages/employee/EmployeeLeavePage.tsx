@@ -210,11 +210,6 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         paddingBottom: "var(--space-4)"
       }}>
         <div>
-          <div className="breadcrumb" style={{ marginBottom: "var(--space-1)", fontSize: "0.75rem" }}>
-            <span>Dashboard</span>
-            <ChevronRight size={12} className="breadcrumb__separator" />
-            <span className="breadcrumb__current" style={{ fontWeight: 600, color: "var(--neutral-800)" }}>My Leave</span>
-          </div>
           <h1 className="page-title" style={{ fontSize: "1.5rem", margin: 0 }}>My Leave</h1>
         </div>
         <button className="btn btn--primary" onClick={() => setShowForm(true)} style={{ height: "32px", fontSize: "0.8125rem", padding: "0 var(--space-3)" }}>

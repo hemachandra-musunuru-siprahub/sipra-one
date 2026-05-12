@@ -143,15 +143,10 @@ export const HRTimeSheetsPage = ({ internalUser }: Props) => {
   const hasActiveSearch = searchInput.trim() !== "" || selectedEmployee !== "all";
 
   return (
-    <DashboardLayout internalUser={internalUser} role="HR">
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "HR"}>
 
       {/* ── Page Header ── */}
       <header className="page-header">
-        <div className="breadcrumb">
-          <span>HR</span>
-          <span className="breadcrumb__separator">/</span>
-          <span>Timesheets</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Employee Timesheets</h1>
           <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>

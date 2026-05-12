@@ -144,9 +144,6 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
   return (
     <DashboardLayout internalUser={internalUser} role="Manager">
       <header className="page-header">
-        <div className="breadcrumb">
-          <span>Manager</span><span className="breadcrumb__separator">/</span><span>Team Timesheets</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Team Timesheets</h1>
           <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>

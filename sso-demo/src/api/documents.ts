@@ -4,6 +4,9 @@ import type { HrDocument } from "./types";
 export const getDocuments = () =>
   api.get<{ documents: HrDocument[] }>("/api/hr-documents");
 
+export const getAllDocuments = () =>
+  api.get<{ documents: HrDocument[] }>("/api/hr-documents/all");
+
 export const getDocumentById = (id: string) =>
   api.get<{ document: HrDocument }>(`/api/hr-documents/${id}`);
 

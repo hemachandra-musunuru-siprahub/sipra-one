@@ -268,11 +268,8 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
   });
 
   return (
-    <DashboardLayout internalUser={internalUser} role={layoutRole}>
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Employee"}>
       <header className="page-header">
-        <div className="breadcrumb">
-          <span>{layoutRole}</span><span className="breadcrumb__separator">/</span><span>Performance</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Performance Management</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
@@ -300,7 +297,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             borderBottom: activeTab === "goals" ? "2px solid var(--primary-600)" : "none"
           }}
         >
-          {currentRole === "employee" ? "My Goals" : currentRole === "manager" ? "Employee Goals" : "All Goals"}
+          {currentRole === "employee" ? "My Goals" : currentRole === "manager" ? "Employee Goals" : "Goals"}
         </button>
         <button 
           onClick={() => setActiveTab("reviews")}
@@ -310,7 +307,7 @@ export const PerformancePage = ({ internalUser, role }: Props) => {
             borderBottom: activeTab === "reviews" ? "2px solid var(--primary-600)" : "none"
           }}
         >
-          {currentRole === "employee" ? "My Reviews" : currentRole === "manager" ? "Employee Review" : "All Reviews"}
+          {currentRole === "employee" ? "My Reviews" : currentRole === "manager" ? "Employee Review" : "Reviews"}
         </button>
       </div>
 

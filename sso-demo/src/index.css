@@ -528,14 +528,14 @@ h6 {
   white-space: nowrap;
 }
 
-.topbar__user-email {
+.topbar__user-role {
   font-size: 0.75rem;
-  color: var(--neutral-500);
+  color: var(--primary-500);
   display: block;
   white-space: nowrap;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .topbar__avatar {

@@ -17,7 +17,7 @@ export const getFeed = async (page = 1, limit = 20, userOid?: string, latest = f
        SELECT announcement_id, reaction_type, COUNT(*) AS cnt
        FROM announcement_reactions GROUP BY announcement_id, reaction_type
      ) r ON r.announcement_id = a.id
-     WHERE a.status = $3
+     WHERE (a.status = $3 OR (a.status IS NULL AND $3 = 'published'))
      GROUP BY a.id
      ORDER BY ${orderBy}
      LIMIT $1 OFFSET $2`,

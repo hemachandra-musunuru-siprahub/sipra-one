@@ -317,9 +317,6 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
   return (
     <DashboardLayout internalUser={internalUser} role="Admin">
       <header className="page-header">
-        <div className="breadcrumb">
-          <span>Admin</span><span className="breadcrumb__separator">/</span><span>User Management</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">User Management</h1>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>

@@ -95,23 +95,10 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
   };
 
   return (
-    <DashboardLayout internalUser={internalUser} role="Manager">
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Manager"}>
 
       {/* ── Page Header ── */}
       <div style={{ marginBottom: "20px" }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          fontSize: "12px",
-          color: "var(--neutral-400)",
-          marginBottom: "6px",
-          fontWeight: 500,
-        }}>
-          <span>Home</span>
-          <span style={{ color: "var(--neutral-300)" }}>/</span>
-          <span style={{ color: "var(--neutral-600)" }}>Dashboard</span>
-        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 style={{
             fontSize: "1.375rem",
@@ -125,121 +112,115 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
         </div>
       </div>
 
-  {/* ── Compact Hero Banner ── */ }
-  < div style = {{
-  background: "linear-gradient(120deg, var(--primary-700) 0%, var(--primary-500) 100%)",
-    borderRadius: "12px",
-      padding: "16px 24px",
+      {/* ── Compact Hero Banner ── */}
+      < div style={{
+        background: "linear-gradient(120deg, var(--primary-700) 0%, var(--primary-500) 100%)",
+        borderRadius: "12px",
+        padding: "16px 24px",
         marginBottom: "20px",
-          display: "flex",
-            alignItems: "center",
-              justifyContent: "space-between",
-                position: "relative",
-                  overflow: "hidden",
-                    minHeight: "72px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        position: "relative",
+        overflow: "hidden",
+        minHeight: "72px",
       }}>
-  {/* Subtle decorative circles */ }
-  < div style = {{
-  position: "absolute", top: "-30px", right: "-30px",
-    width: "120px", height: "120px",
-      borderRadius: "50%", background: "rgba(255,255,255,0.07)", pointerEvents: "none",
+        {/* Subtle decorative circles */}
+        < div style={{
+          position: "absolute", top: "-30px", right: "-30px",
+          width: "120px", height: "120px",
+          borderRadius: "50%", background: "rgba(255,255,255,0.07)", pointerEvents: "none",
         }} />
-  < div style = {{
-  position: "absolute", bottom: "-20px", right: "80px",
-    width: "70px", height: "70px",
-      borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none",
+        < div style={{
+          position: "absolute", bottom: "-20px", right: "80px",
+          width: "70px", height: "70px",
+          borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none",
         }} />
-  < div style = {{ position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.65)", fontWeight: 500, marginBottom: "2px" }}>
-            Manager Dashboard
-          </div>
+        < div style={{ position: "relative", zIndex: 1 }}>
           <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
             Welcome back, {internalUser?.name?.split(" ")[0] || "there"} 👋
           </h2>
         </div >
-  <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
-    <div style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.55)", marginBottom: "2px", fontWeight: 500 }}>
-      {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-    </div>
-    <div style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>
-      {pendingLeave.length > 0 ? `${pendingLeave.length} approval${pendingLeave.length > 1 ? "s" : ""} pending` : "All caught up ✓"}
-    </div>
-  </div>
+        <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
+          <div style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.55)", marginBottom: "2px", fontWeight: 500 }}>
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
+        </div>
       </div >
 
-  {/* ── KPI Cards ── */ }
-  < div style = {{
-  display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-      gap: "12px",
+      {/* ── KPI Cards ── */}
+      < div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: "12px",
         marginBottom: "20px",
       }}>
-{
-  stats.map((s, i) => (
-    <div
-      key={i}
-      style={{
-        background: "var(--neutral-0)",
-        border: "1px solid var(--neutral-200)",
-        borderRadius: "10px",
-        padding: "14px 16px",
-        boxShadow: "var(--shadow-sm)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{
-          fontSize: "0.75rem",
-          fontWeight: 600,
-          color: "var(--neutral-500)",
-          letterSpacing: "0.01em",
-        }}>
-          {s.label}
-        </span>
-        <div style={{
-          width: "26px", height: "26px",
-          borderRadius: "6px",
-          background: s.bg,
-          color: s.color,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
-        }}>
-          {s.icon}
-        </div>
-      </div>
-      <div style={{
-        fontSize: "1.75rem",
-        fontWeight: 700,
-        color: "var(--neutral-900)",
-        lineHeight: 1,
-        letterSpacing: "-0.03em",
-      }}>
-        {s.value}
-      </div>
-      <div style={{ fontSize: "0.6875rem", color: "var(--neutral-400)", fontWeight: 500 }}>
-        {s.sub}
-      </div>
-    </div>
-  ))
-}
+        {
+          stats.map((s, i) => (
+            <div
+              key={i}
+              style={{
+                background: "var(--neutral-0)",
+                border: "1px solid var(--neutral-200)",
+                borderRadius: "10px",
+                padding: "14px 16px",
+                boxShadow: "var(--shadow-sm)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "var(--neutral-500)",
+                  letterSpacing: "0.01em",
+                }}>
+                  {s.label}
+                </span>
+                <div style={{
+                  width: "26px", height: "26px",
+                  borderRadius: "6px",
+                  background: s.bg,
+                  color: s.color,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  {s.icon}
+                </div>
+              </div>
+              <div style={{
+                fontSize: "1.75rem",
+                fontWeight: 700,
+                color: "var(--neutral-900)",
+                lineHeight: 1,
+                letterSpacing: "-0.03em",
+              }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "0.6875rem", color: "var(--neutral-400)", fontWeight: 500 }}>
+                {s.sub}
+              </div>
+            </div>
+          ))
+        }
       </div >
 
-  {/* ── Featured Announcements ── */ }
-  < div style = {{ marginBottom: "20px" }}>
-    <TopAnnouncementsCarousel />
+      {/* ── Featured Announcements ── */}
+      < div style={{ marginBottom: "20px" }}>
+        <TopAnnouncementsCarousel />
       </div >
 
-  {/* ── Tables ── */ }
-  < div style = {{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {/* ── Tables ── */}
+      < div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-    {/* Pending Leave Requests */ }
-    < div style = {{
-  background: "var(--neutral-0)",
-    border: "1px solid var(--neutral-200)",
-      borderRadius: "10px",
-        boxShadow: "var(--shadow-sm)",
+        {/* Pending Leave Requests */}
+        < div style={{
+          background: "var(--neutral-0)",
+          border: "1px solid var(--neutral-200)",
+          borderRadius: "10px",
+          boxShadow: "var(--shadow-sm)",
           overflow: "hidden",
         }}>
           <div style={{
@@ -361,12 +342,12 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
           </div>
         </div >
 
-  {/* Timesheet Review */ }
-  < div style = {{
-  background: "var(--neutral-0)",
-    border: "1px solid var(--neutral-200)",
-      borderRadius: "10px",
-        boxShadow: "var(--shadow-sm)",
+        {/* Timesheet Review */}
+        < div style={{
+          background: "var(--neutral-0)",
+          border: "1px solid var(--neutral-200)",
+          borderRadius: "10px",
+          boxShadow: "var(--shadow-sm)",
           overflow: "hidden",
         }}>
           <div style={{
@@ -480,86 +461,86 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
         </div >
       </div >
 
-  {/* ── Reject Modal ── */ }
-{
-  rejectingId && (
-    <div style={{
-      position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.45)",
-      zIndex: 200,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      backdropFilter: "blur(2px)",
-    }}>
-      <div style={{
-        background: "white",
-        borderRadius: "12px",
-        width: 400,
-        padding: "24px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--neutral-900)", margin: 0 }}>
-            Rejection Reason
-          </h3>
-          <button
-            onClick={() => { setRejectingId(null); setRejectReason(""); }}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--neutral-400)", padding: "4px",
-              borderRadius: "4px", display: "flex",
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-        <textarea
-          rows={3}
-          placeholder="Enter a reason for rejection *"
-          value={rejectReason}
-          onChange={e => setRejectReason(e.target.value)}
-          style={{
-            width: "100%", resize: "vertical",
-            border: "1px solid var(--neutral-200)",
-            borderRadius: "8px", padding: "10px 12px",
-            fontSize: "0.875rem", fontFamily: "inherit",
-            color: "var(--neutral-700)",
-            outline: "none",
-            marginBottom: "16px",
-            boxSizing: "border-box",
-          }}
-        />
-        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-          <button
-            onClick={() => { setRejectingId(null); setRejectReason(""); }}
-            style={{
-              height: "34px", padding: "0 14px",
-              background: "var(--neutral-0)",
-              border: "1px solid var(--neutral-200)",
-              borderRadius: "6px", cursor: "pointer",
-              fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-600)",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => handleReject(rejectingId)}
-            disabled={!rejectReason.trim()}
-            style={{
-              height: "34px", padding: "0 14px",
-              background: !rejectReason.trim() ? "var(--neutral-200)" : "var(--primary-500)",
-              border: "none", borderRadius: "6px", cursor: rejectReason.trim() ? "pointer" : "not-allowed",
-              fontSize: "0.8125rem", fontWeight: 600,
-              color: !rejectReason.trim() ? "var(--neutral-400)" : "white",
-              transition: "all 150ms",
-            }}
-          >
-            Confirm Rejection
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+      {/* ── Reject Modal ── */}
+      {
+        rejectingId && (
+          <div style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 200,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(2px)",
+          }}>
+            <div style={{
+              background: "white",
+              borderRadius: "12px",
+              width: 400,
+              padding: "24px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--neutral-900)", margin: 0 }}>
+                  Rejection Reason
+                </h3>
+                <button
+                  onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "var(--neutral-400)", padding: "4px",
+                    borderRadius: "4px", display: "flex",
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <textarea
+                rows={3}
+                placeholder="Enter a reason for rejection *"
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                style={{
+                  width: "100%", resize: "vertical",
+                  border: "1px solid var(--neutral-200)",
+                  borderRadius: "8px", padding: "10px 12px",
+                  fontSize: "0.875rem", fontFamily: "inherit",
+                  color: "var(--neutral-700)",
+                  outline: "none",
+                  marginBottom: "16px",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                  style={{
+                    height: "34px", padding: "0 14px",
+                    background: "var(--neutral-0)",
+                    border: "1px solid var(--neutral-200)",
+                    borderRadius: "6px", cursor: "pointer",
+                    fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-600)",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleReject(rejectingId)}
+                  disabled={!rejectReason.trim()}
+                  style={{
+                    height: "34px", padding: "0 14px",
+                    background: !rejectReason.trim() ? "var(--neutral-200)" : "var(--primary-500)",
+                    border: "none", borderRadius: "6px", cursor: rejectReason.trim() ? "pointer" : "not-allowed",
+                    fontSize: "0.8125rem", fontWeight: 600,
+                    color: !rejectReason.trim() ? "var(--neutral-400)" : "white",
+                    transition: "all 150ms",
+                  }}
+                >
+                  Confirm Rejection
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
     </DashboardLayout >
   );
 };
