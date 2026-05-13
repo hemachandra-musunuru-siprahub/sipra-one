@@ -443,7 +443,7 @@ router.post("/:id/submit", requireAuth,
 
 // ─── PATCH /api/timesheets/:id/status — manager review/reject ────────────────
 const UpdateStatusSchema = z.object({
-  status:         z.enum(["reviewed", "draft"]),
+  status:         z.enum(["reviewed", "draft", "rejected"]),
   managerComment: z.string().optional(),
 });
 

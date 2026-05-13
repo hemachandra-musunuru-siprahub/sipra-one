@@ -24,7 +24,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", documentType: "", scope: "company" as "company" | "individual", onedriveUrl: "", assignedToOid: "" });
+  const [form, setForm] = useState({ title: "", description: "", documentType: "", scope: "company" as "company" | "individual", onedriveUrl: "", assignedEmployeeId: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -39,6 +39,9 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [odError, setOdError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<any | null>(null);
   const [allEmployees, setAllEmployees] = useState<User[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [selectedEmpOids, setSelectedEmpOids] = useState<string[]>([]);
   const [shareDocType, setShareDocType] = useState("Shared Document");
   const [shareDesc, setShareDesc] = useState("");
@@ -159,12 +162,13 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const handleCreate = async () => {
     setError(null);
     if (!form.title || !form.documentType || !form.onedriveUrl) { setError("Title, type and URL are required."); return; }
-    if (form.scope === "individual" && !form.assignedToOid) { setError("Assigned To OID is required for individual documents."); return; }
+    if (form.scope === "individual" && !form.assignedEmployeeId) { setError("Assign Employee is required for individual documents."); return; }
     setSubmitting(true);
     try {
-      const { document } = await createDocument({ ...form, assignedToOid: form.assignedToOid || undefined });
+      const { document } = await createDocument({ ...form, assignedToOid: form.assignedEmployeeId || undefined });
       setDocuments(prev => [document, ...prev]);
-      setForm({ title: "", description: "", documentType: "", scope: "company", onedriveUrl: "", assignedToOid: "" });
+      setForm({ title: "", description: "", documentType: "", scope: "company", onedriveUrl: "", assignedEmployeeId: "" });
+      setEmployeeSearch("");
       setShowForm(false);
     } catch (e: any) { setError(e.message); }
     finally { setSubmitting(false); }
@@ -200,7 +204,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
       </header>
 
       {isPrivileged && showForm && (
-        <div className="card animate-fade-in" style={{ marginBottom: "var(--space-6)" }}>
+        <div className="card animate-fade-in" style={{ marginBottom: "var(--space-4)" }}>
           <div className="card__header"><h3 className="card__title">Add Document Record</h3></div>
           <div className="card__body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
             <div className="form-field"><label className="form-label">Title *</label><input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
@@ -214,7 +218,103 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
               </select>
             </div>
             {form.scope === "individual" && (
-              <div className="form-field"><label className="form-label">Assigned To (OID) *</label><input className="input" placeholder="Employee Entra OID" value={form.assignedToOid} onChange={e => setForm(f => ({ ...f, assignedToOid: e.target.value }))} /></div>
+              <div className="form-field" style={{ position: "relative" }}>
+                <label className="form-label">Assign Employee *</label>
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <SearchIcon size={16} style={{ position: "absolute", left: 12, color: "var(--neutral-400)", pointerEvents: "none", zIndex: 10 }} />
+                  <input 
+                    className="input employee-search-input" 
+                    style={{ paddingLeft: 36, paddingRight: form.assignedEmployeeId ? 64 : 36, width: "100%", transition: "all 0.2s ease" }}
+                    placeholder="Search employee name..." 
+                    value={employeeSearch}
+                    onFocus={() => {
+                      setShowEmpDropdown(true);
+                      if (allEmployees.length === 0) {
+                        setEmployeesLoading(true);
+                        getUsers().then(res => setAllEmployees(res.users || [])).catch(console.error).finally(() => setEmployeesLoading(false));
+                      }
+                    }}
+                    onBlur={() => setTimeout(() => setShowEmpDropdown(false), 200)}
+                    onChange={e => {
+                      setEmployeeSearch(e.target.value);
+                      setShowEmpDropdown(true);
+                      if (form.assignedEmployeeId) setForm(f => ({ ...f, assignedEmployeeId: "" }));
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === "Escape") setShowEmpDropdown(false);
+                      if (e.key === "ArrowDown" && !showEmpDropdown) setShowEmpDropdown(true);
+                    }}
+                  />
+                  <div style={{ position: "absolute", right: 12, display: "flex", alignItems: "center", gap: 4, zIndex: 10 }}>
+                    {form.assignedEmployeeId && (
+                       <button
+                         type="button"
+                         className="btn btn--ghost btn--sm"
+                         style={{ padding: 4, height: 24, minWidth: 24, color: "var(--neutral-500)", background: "var(--neutral-100)" }}
+                         onClick={() => {
+                           setForm(f => ({ ...f, assignedEmployeeId: "" }));
+                           setEmployeeSearch("");
+                           setShowEmpDropdown(true);
+                         }}
+                         title="Clear selection"
+                       >
+                         <X size={14} />
+                       </button>
+                    )}
+                    <ChevronLeft size={16} style={{ color: "var(--neutral-400)", transform: showEmpDropdown ? "rotate(90deg)" : "rotate(270deg)", transition: "transform 0.2s ease", pointerEvents: "none" }} />
+                  </div>
+                </div>
+                
+                {showEmpDropdown && (
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+                    background: "white", border: "1px solid var(--neutral-200)",
+                    borderRadius: "var(--rounded-md)", marginTop: 4,
+                    boxShadow: "var(--shadow-lg)", maxHeight: 200, overflowY: "auto"
+                  }}>
+                    {employeesLoading ? (
+                      <div style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--neutral-500)", fontSize: "0.875rem" }}>
+                        <Loader2 size={16} className="animate-spin" style={{ display: "inline-block", marginRight: 8, verticalAlign: "middle" }} />
+                        Loading employees...
+                      </div>
+                    ) : (
+                      (() => {
+                        const filteredEmps = allEmployees.filter(emp => emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) || emp.email.toLowerCase().includes(employeeSearch.toLowerCase()));
+                        if (filteredEmps.length === 0) {
+                          return <div style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--neutral-500)", fontSize: "0.875rem" }}>No employees found</div>;
+                        }
+                        return filteredEmps.map(emp => (
+                          <div 
+                            key={emp.entra_oid}
+                            style={{
+                              padding: "var(--space-2) var(--space-3)", cursor: "pointer",
+                              borderBottom: "1px solid var(--neutral-100)", display: "flex", alignItems: "center", gap: "var(--space-2)",
+                              background: form.assignedEmployeeId === emp.entra_oid ? "var(--primary-50)" : "transparent"
+                            }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setForm(f => ({ ...f, assignedEmployeeId: emp.entra_oid }));
+                              setEmployeeSearch(emp.name);
+                              setShowEmpDropdown(false);
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = "var(--neutral-50)"}
+                            onMouseLeave={e => e.currentTarget.style.background = form.assignedEmployeeId === emp.entra_oid ? "var(--primary-50)" : "transparent"}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: form.assignedEmployeeId === emp.entra_oid ? "white" : "var(--neutral-100)", border: form.assignedEmployeeId === emp.entra_oid ? "1px solid var(--primary-200)" : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8125rem", fontWeight: 700, color: form.assignedEmployeeId === emp.entra_oid ? "var(--primary-700)" : "var(--neutral-600)", flexShrink: 0 }}>
+                              {emp.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--neutral-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp.name}</div>
+                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp.email}</div>
+                            </div>
+                            {form.assignedEmployeeId === emp.entra_oid && <Check size={16} color="var(--primary-600)" />}
+                          </div>
+                        ));
+                      })()
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             <div className="form-field" style={{ gridColumn: "span 2" }}><label className="form-label">Description</label><textarea className="input" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} /></div>
           </div>
@@ -279,12 +379,12 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
             <div className="table-container responsive-table">
               <table className="table" style={{ tableLayout: "fixed", width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "var(--neutral-50)" }}>
-                    <th style={{ width: "35%", paddingLeft: "var(--space-5)" }}>File Name</th>
-                    <th style={{ width: "15%" }}>Type</th>
-                    <th style={{ width: "25%" }}>Shared With</th>
-                    <th style={{ width: "12%" }}>Date</th>
-                    <th style={{ width: "13%", textAlign: "right", paddingRight: "var(--space-5)" }}>Actions</th>
+                  <tr style={{ background: "var(--neutral-50)", borderBottom: "1px solid var(--neutral-200)" }}>
+                    <th style={{ width: "35%", padding: "var(--space-3) 0", paddingLeft: "var(--space-5)", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>File Name</th>
+                    <th style={{ width: "15%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Type</th>
+                    <th style={{ width: "25%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Shared With</th>
+                    <th style={{ width: "12%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Date</th>
+                    <th style={{ width: "13%", padding: "var(--space-3) 0", paddingRight: "var(--space-5)", textAlign: "right", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody style={{ verticalAlign: "middle" }}>

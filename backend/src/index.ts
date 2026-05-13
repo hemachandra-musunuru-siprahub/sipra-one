@@ -132,8 +132,8 @@ const bootstrap = async () => {
     logger.info(`   WebSocket: Socket.IO initialized`);
     console.log("=".repeat(50) + "\n");
 
-  } catch (error) {
-    logger.error("❌ Critical Failure during backend startup:", error);
+  } catch (error: any) {
+    logger.error(error, "❌ Critical Failure during backend startup");
     process.exit(1);
   }
 };

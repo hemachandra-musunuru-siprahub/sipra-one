@@ -49,7 +49,7 @@ export const deleteEntry = (timesheetId: string, entryId: string) =>
 export const submitTimesheet = (timesheetId: string) =>
   api.post<{ timesheet: Timesheet }>(`/api/timesheets/${timesheetId}/submit`, {});
 
-export const reviewTimesheet = (timesheetId: string, status: "reviewed" | "draft", managerComment?: string) =>
+export const reviewTimesheet = (timesheetId: string, status: "reviewed" | "draft" | "rejected", managerComment?: string) =>
   api.patch<{ timesheet: Timesheet }>(`/api/timesheets/${timesheetId}/status`, { status, managerComment });
 
 /** Manager Excel export — uses authenticated session cookie, triggers file download */

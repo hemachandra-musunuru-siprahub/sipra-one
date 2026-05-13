@@ -15,6 +15,7 @@ import {
   Database, Globe, PieChart, HardDrive
 } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import type { UserRole } from "./lib/roleHelper";
 
 // Pages
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
@@ -46,7 +47,7 @@ interface InternalUser {
   entra_oid?: string;
   name?: string;
   email?: string;
-  role?: string;              // Canonical role from the DB: "Admin" | "HR" | "Manager" | "Employee"
+  role?: UserRole;              // Canonical role from the DB: "Admin" | "HR" | "Manager" | "Employee"
   is_active?: boolean;
   manager_entra_oid?: string;
 }

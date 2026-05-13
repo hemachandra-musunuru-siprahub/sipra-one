@@ -179,8 +179,8 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
       <div className="card">
         {/* ── Filter bar ─────────────────────────────────────────────────────── */}
         <div className="card__header" style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-4)", alignItems: "flex-start" }}>
-          <h3 className="card__title" style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            <Calendar size={18} /> Team Timesheet Records
+          <h3 className="card__title" style={{ marginRight: "auto" }}>
+            Team Timesheet Records
           </h3>
 
           <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", flexWrap: "wrap" }}>

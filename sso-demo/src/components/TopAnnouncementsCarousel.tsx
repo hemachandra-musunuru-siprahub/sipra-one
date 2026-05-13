@@ -231,12 +231,6 @@ export const TopAnnouncementsCarousel = () => {
           </div>
           <div>
             <h2 className="text-lg font-bold text-gray-900">Featured Updates</h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                {total} Handpicked News
-              </span>
-            </div>
           </div>
         </div>
 
