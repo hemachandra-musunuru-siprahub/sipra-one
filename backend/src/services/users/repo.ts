@@ -86,7 +86,7 @@ export const getDirectReportOids = async (managerOid: string): Promise<string[]>
 
 export const getDirectReportsFull = async (managerOid: string) => {
   const { rows } = await query(
-    `SELECT id, entra_oid, name, email FROM users WHERE manager_entra_oid = $1 AND is_active = true ORDER BY name ASC`,
+    `SELECT id, entra_oid, name, email, role, is_active, last_login FROM users WHERE manager_entra_oid = $1 AND is_active = true ORDER BY name ASC`,
     [managerOid]
   );
   return rows;

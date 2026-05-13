@@ -279,35 +279,43 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                       </div>
                     ) : (
                       (() => {
-                        const filteredEmps = allEmployees.filter(emp => emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) || emp.email.toLowerCase().includes(employeeSearch.toLowerCase()));
+                        const normalizedEmployees = allEmployees.map(emp => ({
+                          id: emp.entra_oid,
+                          name: emp.name,
+                          role: emp.role || "Employee",
+                          designation: emp.designation || "Software Engineer"
+                        }));
+                        const filteredEmps = normalizedEmployees.filter(emp => emp.name.toLowerCase().includes(employeeSearch.toLowerCase()));
                         if (filteredEmps.length === 0) {
                           return <div style={{ padding: "var(--space-3)", textAlign: "center", color: "var(--neutral-500)", fontSize: "0.875rem" }}>No employees found</div>;
                         }
                         return filteredEmps.map(emp => (
                           <div 
-                            key={emp.entra_oid}
+                            key={emp.id}
                             style={{
                               padding: "var(--space-2) var(--space-3)", cursor: "pointer",
                               borderBottom: "1px solid var(--neutral-100)", display: "flex", alignItems: "center", gap: "var(--space-2)",
-                              background: form.assignedEmployeeId === emp.entra_oid ? "var(--primary-50)" : "transparent"
+                              background: form.assignedEmployeeId === emp.id ? "var(--primary-50)" : "transparent"
                             }}
                             onMouseDown={(e) => {
                               e.preventDefault();
-                              setForm(f => ({ ...f, assignedEmployeeId: emp.entra_oid }));
+                              setForm(f => ({ ...f, assignedEmployeeId: emp.id }));
                               setEmployeeSearch(emp.name);
                               setShowEmpDropdown(false);
                             }}
                             onMouseEnter={e => e.currentTarget.style.background = "var(--neutral-50)"}
-                            onMouseLeave={e => e.currentTarget.style.background = form.assignedEmployeeId === emp.entra_oid ? "var(--primary-50)" : "transparent"}
+                            onMouseLeave={e => e.currentTarget.style.background = form.assignedEmployeeId === emp.id ? "var(--primary-50)" : "transparent"}
                           >
-                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: form.assignedEmployeeId === emp.entra_oid ? "white" : "var(--neutral-100)", border: form.assignedEmployeeId === emp.entra_oid ? "1px solid var(--primary-200)" : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8125rem", fontWeight: 700, color: form.assignedEmployeeId === emp.entra_oid ? "var(--primary-700)" : "var(--neutral-600)", flexShrink: 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: form.assignedEmployeeId === emp.id ? "white" : "var(--neutral-100)", border: form.assignedEmployeeId === emp.id ? "1px solid var(--primary-200)" : "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8125rem", fontWeight: 700, color: form.assignedEmployeeId === emp.id ? "var(--primary-700)" : "var(--neutral-600)", flexShrink: 0 }}>
                               {emp.name.charAt(0).toUpperCase()}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--neutral-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp.name}</div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp.email}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                                <div style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--neutral-900)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emp.name}</div>
+                                <span className="badge badge--neutral" style={{ fontSize: "0.625rem", padding: "2px 6px" }}>{emp.role}</span>
+                              </div>
                             </div>
-                            {form.assignedEmployeeId === emp.entra_oid && <Check size={16} color="var(--primary-600)" />}
+                            {form.assignedEmployeeId === emp.id && <Check size={16} color="var(--primary-600)" />}
                           </div>
                         ));
                       })()
@@ -417,9 +425,6 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_name || "Unknown"}>
                                 {doc.assigned_to_name || "Unknown"}
-                              </div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_email || doc.assigned_to_oid}>
-                                {doc.assigned_to_email || (doc.assigned_to_oid ? `ID: ${doc.assigned_to_oid.slice(0, 8)}...` : "—")}
                               </div>
                             </div>
                           )}
@@ -587,16 +592,24 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                   <div className="employee-selector-grid">
                     {allEmployees.map(emp => {
                       const isSelected = selectedEmpOids.includes(emp.entra_oid);
+                      const normalizedEmp = {
+                        id: emp.entra_oid,
+                        name: emp.name,
+                        role: emp.role || "Employee",
+                        designation: emp.designation || "Software Engineer"
+                      };
                       return (
                         <div 
-                          key={emp.entra_oid} 
+                          key={normalizedEmp.id} 
                           className={`employee-select-card ${isSelected ? "selected" : ""}`}
-                          onClick={() => toggleEmp(emp.entra_oid)}
+                          onClick={() => toggleEmp(normalizedEmp.id)}
                         >
-                          <div className="emp-avatar">{emp.name[0]}</div>
+                          <div className="emp-avatar">{normalizedEmp.name[0]}</div>
                           <div className="emp-info">
-                            <div className="emp-name" title={emp.name}>{emp.name}</div>
-                            <div className="emp-email" title={emp.email}>{emp.email}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "2px" }}>
+                              <div className="emp-name" title={normalizedEmp.name} style={{ marginBottom: 0 }}>{normalizedEmp.name}</div>
+                              <span className="badge badge--neutral" style={{ fontSize: "0.625rem", padding: "2px 6px" }}>{normalizedEmp.role}</span>
+                            </div>
                           </div>
                           <div className="emp-check">
                             {isSelected ? (
@@ -744,7 +757,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
           text-overflow: ellipsis; 
           margin-bottom: 2px;
         }
-        .emp-email { 
+        .emp-role-desc { 
           font-size: 0.75rem; 
           color: var(--neutral-500); 
           white-space: nowrap; 

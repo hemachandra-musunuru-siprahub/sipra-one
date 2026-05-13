@@ -25,6 +25,7 @@ import { AnnouncementsPage } from "./pages/shared/AnnouncementsPage";
 import { DocumentsPage } from "./pages/shared/DocumentsPage";
 import { ManagerApprovalsPage } from "./pages/manager/ManagerApprovalsPage";
 import { ManagerTimesheetsPage } from "./pages/manager/ManagerTimesheetsPage";
+import { ManagerEmployeesPage } from "./pages/manager/ManagerEmployeesPage";
 import { HREmployeesPage } from "./pages/hr/HREmployeesPage";
 import { HRLeavePage } from "./pages/hr/HRLeavePage";
 import { HRTimeSheetsPage } from "./pages/hr/HRTimeSheetsPage";
@@ -398,6 +399,7 @@ const AppContent = () => {
                   {/* Manager */}
                   <Route path="/manager/dashboard" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerDashboard internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/manager/leave-approvals" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerApprovalsPage internalUser={internalUser} /></RoleGuard>} />
+                  <Route path="/manager/employees" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerEmployeesPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/manager/timesheets" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerTimesheetsPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/manager/documents" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><DocumentsPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
                   <Route path="/manager/announcements" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><AnnouncementsPage internalUser={internalUser} role="Manager" /></RoleGuard>} />

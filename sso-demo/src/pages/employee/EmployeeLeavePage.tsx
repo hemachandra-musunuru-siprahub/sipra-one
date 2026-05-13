@@ -254,18 +254,20 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
       <div className="card" style={{ border: "1px solid var(--neutral-100)", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
         <div className="card__header" style={{ padding: "var(--space-3) var(--space-6)", background: "var(--neutral-0)" }}>
           <h3 className="card__title" style={{ fontSize: "0.875rem", color: "var(--neutral-500)" }}>Leave History</h3>
-          <div className="tab-nav" style={{ border: "none", padding: 0, gap: "var(--space-1)" }}>
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                className={`tab-nav__item ${activeTab === t.key ? "tab-nav__item--active" : ""}`}
-                onClick={() => setActiveTab(t.key)}
-                style={{ fontSize: "0.75rem", padding: "6px 12px", borderRadius: "var(--rounded-md)" }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {displayRole === "Employee" && (
+            <div className="tab-nav" style={{ border: "none", padding: 0, gap: "var(--space-1)" }}>
+              {tabs.map(t => (
+                <button
+                  key={t.key}
+                  className={`tab-nav__item ${activeTab === t.key ? "tab-nav__item--active" : ""}`}
+                  onClick={() => setActiveTab(t.key)}
+                  style={{ fontSize: "0.75rem", padding: "6px 12px", borderRadius: "var(--rounded-md)" }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="table-container">

@@ -3,6 +3,8 @@ export interface User {
   entra_oid: string;
   email: string;
   name: string;
+  role?: string;
+  designation?: string;
   manager_entra_oid: string | null;
   is_active: boolean;
   created_at: string;
