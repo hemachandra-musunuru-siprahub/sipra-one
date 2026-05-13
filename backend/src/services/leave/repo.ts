@@ -42,34 +42,88 @@ export const getTeamRequests = async (directReportOids: string[]) => {
   return rows;
 };
 
-// ─── Get all leave requests (HR/Admin only — no filter) ───────────────────────
-export const getAllRequests = async () => {
-  const { rows } = await query(
-    `SELECT DISTINCT lr.*,
+// ─── Get all leave requests (HR/Admin/Manager — with filters) ──────────────────
+export const getAllRequests = async (filters: { month?: string, status?: string, search?: string } = {}) => {
+  let queryStr = `
+     SELECT DISTINCT lr.*,
             emp.name AS employee_name,
             mgr.name AS manager_name
      FROM leave_requests lr
      LEFT JOIN users emp ON emp.entra_oid = lr.employee_oid
      LEFT JOIN users mgr ON mgr.entra_oid = lr.manager_oid
-     ORDER BY lr.created_at DESC`
-  );
+     WHERE 1=1
+  `;
+  const params: any[] = [];
+  let paramIdx = 1;
+
+  if (filters.status && filters.status !== 'all') {
+    queryStr += ` AND lr.status = $${paramIdx++}`;
+    params.push(filters.status);
+  }
+
+  if (filters.search) {
+    queryStr += ` AND (emp.name ILIKE $${paramIdx} OR emp.email ILIKE $${paramIdx} OR mgr.name ILIKE $${paramIdx})`;
+    params.push(`%${filters.search}%`);
+    paramIdx++;
+  }
+
+  if (filters.month) {
+    const [year, mon] = filters.month.split("-").map(Number);
+    const startDate = `${filters.month}-01`;
+    const endDate = mon === 12 
+      ? `${year + 1}-01-01` 
+      : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
+    
+    queryStr += ` AND lr.start_date < $${paramIdx++} AND lr.end_date >= $${paramIdx++}`;
+    params.push(endDate, startDate);
+  }
+
+  queryStr += ` ORDER BY lr.created_at DESC`;
+
+  const { rows } = await query(queryStr, params);
   return rows;
 };
 
 // ─── Get leave requests where the caller is the approving manager ──────────────
 // Filters server-side: WHERE manager_oid = <logged-in OID>
-export const getManagerRequests = async (managerOid: string) => {
-  const { rows } = await query(
-    `SELECT DISTINCT lr.*,
+export const getManagerRequests = async (managerOid: string, filters: { month?: string, status?: string, search?: string } = {}) => {
+  let queryStr = `
+     SELECT DISTINCT lr.*,
             emp.name AS employee_name,
             mgr.name AS manager_name
      FROM leave_requests lr
      LEFT JOIN users emp ON emp.entra_oid = lr.employee_oid
      LEFT JOIN users mgr ON mgr.entra_oid = lr.manager_oid
      WHERE lr.manager_oid = $1
-     ORDER BY lr.created_at DESC`,
-    [managerOid]
-  );
+  `;
+  const params: any[] = [managerOid];
+  let paramIdx = 2;
+
+  if (filters.status && filters.status !== 'all') {
+    queryStr += ` AND lr.status = $${paramIdx++}`;
+    params.push(filters.status);
+  }
+
+  if (filters.search) {
+    queryStr += ` AND (emp.name ILIKE $${paramIdx} OR emp.email ILIKE $${paramIdx})`;
+    params.push(`%${filters.search}%`);
+    paramIdx++;
+  }
+
+  if (filters.month) {
+    const [year, mon] = filters.month.split("-").map(Number);
+    const startDate = `${filters.month}-01`;
+    const endDate = mon === 12 
+      ? `${year + 1}-01-01` 
+      : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
+    
+    queryStr += ` AND lr.start_date < $${paramIdx++} AND lr.end_date >= $${paramIdx++}`;
+    params.push(endDate, startDate);
+  }
+
+  queryStr += ` ORDER BY lr.created_at DESC`;
+
+  const { rows } = await query(queryStr, params);
   return rows;
 };
 

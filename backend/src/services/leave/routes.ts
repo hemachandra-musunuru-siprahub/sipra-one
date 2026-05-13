@@ -112,14 +112,16 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
 router.get("/all", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES, ...MANAGER_ROLES]),
   async (req: AuthRequest, res: Response) => {
     const roles = [req.user!.role];
+    const { month, status, search } = req.query as { month?: string, status?: string, search?: string };
+    const filters = { month, status, search };
 
     if (isHR(roles) || isAdmin(roles)) {
       // HR and Admin see every request in the system
-      const requests = await repo.getAllRequests();
+      const requests = await repo.getAllRequests(filters);
       res.json({ requests });
     } else if (isManager(roles)) {
       // Managers see only the requests assigned to them as approver
-      const requests = await repo.getManagerRequests(req.user!.entra_oid);
+      const requests = await repo.getManagerRequests(req.user!.entra_oid, filters);
       res.json({ requests });
     } else {
       throw forbidden("Only HR, Admin, or Manager roles can access this endpoint");

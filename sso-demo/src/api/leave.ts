@@ -12,8 +12,13 @@ export const getTeamLeave = () =>
  * Manager: returns only requests where manager_oid = caller's OID.
  * Filtering is server-side; no params needed.
  */
-export const getAllLeave = () =>
-  api.get<{ requests: LeaveRequest[] }>("/api/leave-requests/all");
+export const getAllLeave = (month?: string, status?: string, search?: string) => {
+  const params = new URLSearchParams();
+  if (month) params.append("month", month);
+  if (status) params.append("status", status);
+  if (search) params.append("search", search);
+  return api.get<{ requests: LeaveRequest[] }>(`/api/leave-requests/all?${params.toString()}`);
+};
 
 /**
  * Explicit manager-scoped endpoint: requests where manager_oid = caller.

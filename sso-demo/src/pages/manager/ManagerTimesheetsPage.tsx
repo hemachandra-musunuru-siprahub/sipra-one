@@ -30,9 +30,10 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
   const [isExporting, setIsExporting] = useState(false);
 
   // ── Month filter — default to current month ───────────────────────────────────
-  const [selectedMonth, setSelectedMonth] = useState(
-    () => new Date().toISOString().slice(0, 7)  // YYYY-MM
-  );
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   // ─── Fetch team members once ─────────────────────────────────────────────────
   useEffect(() => {
@@ -78,14 +79,15 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
     // If a specific employee is selected via dropdown/suggestion, use employeeId filter.
     // If using free-text search only, pass search param and use all employees.
     getTeamTimesheets(
-      employeeFilter !== "all" ? employeeFilter : undefined,
-      statusFilter   !== "all" ? statusFilter   : undefined,
-      employeeFilter === "all" ? searchTerm      : undefined
+      employeeFilter   !== "all" ? employeeFilter   : undefined,
+      statusFilter     !== "all" ? statusFilter     : undefined,
+      employeeFilter   === "all" ? searchTerm       : undefined,
+      selectedMonth
     )
       .then(data => setTimesheets(data.timesheets))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [employeeFilter, statusFilter, searchTerm]);
+  }, [employeeFilter, statusFilter, searchTerm, selectedMonth]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
   const handleSelectSuggestion = (member: User) => {
@@ -129,6 +131,7 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      console.log("[EXPORT] Exporting for month:", selectedMonth);
       await exportManagerTimesheets(employeeFilter, selectedMonth);
     } catch (e: any) {
       console.error("Export failed:", e);
@@ -137,6 +140,14 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
       setIsExporting(false);
     }
   };
+
+
+  console.log("ManagerTimesheetsPage state", { 
+    employeeFilter, 
+    statusFilter, 
+    searchTerm,
+    selectedMonth 
+  });
 
   const submittedCount = timesheets.filter(t => t.status === "submitted").length;
   const hasActiveSearch = searchInput.trim() !== "" || employeeFilter !== "all";
@@ -282,6 +293,7 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                 ))}
               </select>
             </div>
+
 
             {/* ── Status filter ─────────────────────────────────────────── */}
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>

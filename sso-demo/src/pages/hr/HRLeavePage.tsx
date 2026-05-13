@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { Search, CheckCircle, HelpCircle } from "lucide-react";
@@ -39,7 +39,12 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
 
   // Requests Tab State
   const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   // Policies Tab State (Form)
   const [policyName, setPolicyName] = useState("");
@@ -50,19 +55,49 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const val = `${year}-${month}`;
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      options.push({ val, label });
+    }
+    return options;
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(search);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([getAllLeave(), getPolicies(), getUsers()])
-      .then(([leaveData, policyData, userData]) => {
+    // Fetch leave requests with current filters
+    getAllLeave(selectedMonth, filter, searchTerm)
+      .then(leaveData => {
         setRequests(leaveData.requests || []);
-        setPolicies(policyData.policies || []);
-        setUsers(userData.users || []);
       })
       .catch(e => {
         console.error(e);
         setErrorMsg(e.message || "Failed to load leave data");
       })
       .finally(() => setLoading(false));
+  }, [selectedMonth, filter, searchTerm]);
+
+  useEffect(() => {
+    // Other data that doesn't need re-fetching on every filter change
+    Promise.all([getPolicies(), getUsers()])
+      .then(([policyData, userData]) => {
+        setPolicies(policyData.policies || []);
+        setUsers(userData.users || []);
+      })
+      .catch(e => console.error(e));
   }, []);
 
   const handleCreatePolicy = async (e: React.FormEvent) => {
@@ -107,16 +142,9 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
   };
 
   /**
-   * UI-only convenience filter applied to the server-returned (role-scoped) dataset.
-   * The backend has already applied role-based scoping; this is purely for searching
-   * within the results the server returned.
+   * Data is now server-side filtered.
    */
-  const filteredRequests = requests.filter(r => {
-    const matchesSearch = (r.employee_name || "").toLowerCase().includes(search.toLowerCase())
-      || (r.manager_name || "").toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = filter === "all" ? true : r.status === filter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredRequests = requests;
 
   const roles = internalUser?.roles || [];
   const isAdminRole = roles.includes("Admin") || roles.includes("SipraHub-SystemAdmin");
@@ -162,13 +190,32 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
                 <Search size={16} color="var(--neutral-400)" />
                 <input className="topbar__search-input" placeholder="Search by name…" value={search} onChange={e => setSearch(e.target.value)} />
               </div>
-              <select className="input" style={{ width: 150 }} value={filter} onChange={e => setFilter(e.target.value)}>
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--neutral-500)", textTransform: "uppercase" }}>Month:</span>
+                <select 
+                  className="input" 
+                  style={{ width: 160, height: 38, fontSize: "0.875rem" }} 
+                  value={selectedMonth} 
+                  onChange={e => setSelectedMonth(e.target.value)}
+                >
+                  <option value="">All Time</option>
+                  {monthOptions.map(opt => (
+                    <option key={opt.val} value={opt.val}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--neutral-500)", textTransform: "uppercase" }}>Status:</span>
+                <select className="input" style={{ width: 140, height: 38, fontSize: "0.875rem" }} value={filter} onChange={e => setFilter(e.target.value)}>
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
             </div>
           </div>
           <div className="table-container">

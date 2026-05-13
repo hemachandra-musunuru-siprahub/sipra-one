@@ -38,6 +38,7 @@ router.get("/team", requireAuth,
       const employeeId = req.query.employeeId as string;
       const status     = (req.query.status as string)?.toLowerCase();
       const search     = (req.query.search  as string)?.trim() || undefined;
+      const month      = (req.query.month   as string) || undefined;
 
       const directReports = await getDirectReportOids(req.user!.entra_oid);
 
@@ -49,8 +50,8 @@ router.get("/team", requireAuth,
         targetOids = [employeeId];
       }
 
-      console.log("team timesheet query filters", { targetOids, status, search });
-      const timesheets = await repo.getTeamTimesheets(targetOids, status, search);
+      console.log("team timesheet query filters", { targetOids, status, search, month });
+      const timesheets = await repo.getTeamTimesheets(targetOids, status, search, month);
       res.json({ timesheets });
     } catch (err: any) {
       // Re-throw HttpErrors (forbidden, etc.) so the global handler picks them up.

@@ -22,11 +22,12 @@ export const getMyTimesheet = (week?: string) =>
 export const getTimesheetDetail = (id: string) =>
   api.get<{ timesheet: Timesheet }>(`/api/timesheets/${id}`);
 
-export const getTeamTimesheets = (employeeId?: string, status?: string, search?: string) => {
+export const getTeamTimesheets = (employeeId?: string, status?: string, search?: string, month?: string) => {
   const params = new URLSearchParams();
   if (employeeId && employeeId !== "all") params.append("employeeId", employeeId);
   if (status     && status     !== "all") params.append("status",     status);
   if (search     && search.trim())        params.append("search",     search.trim());
+  if (month      && month      !== "all") params.append("month",      month);
   const qs = params.toString();
   return api.get<{ timesheets: Timesheet[] }>(`/api/timesheets/team${qs ? `?${qs}` : ""}`);
 };

@@ -127,7 +127,8 @@ export const updateStatus = async (timesheetId: string, status: "draft" | "revie
 export const getTeamTimesheets = async (
   directReportOids: string[],
   status?: string,
-  search?: string         // optional name/email ILIKE search
+  search?: string,         // optional name/email ILIKE search
+  month?: string           // optional YYYY-MM
 ) => {
   if (directReportOids.length === 0) return [];
 
@@ -156,6 +157,19 @@ export const getTeamTimesheets = async (
     queryStr += ` AND (u.name ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx})`;
     params.push(`%${search.trim()}%`);
     paramIdx++;
+  }
+
+  if (month) {
+    const [year, mon] = month.split("-").map(Number);
+    const startDate = `${month}-01`;
+    const endDate   = mon === 12 
+      ? `${year + 1}-01-01` 
+      : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
+    
+    console.log(`[REPO] Filtering team timesheets by month: ${month} (${startDate} to ${endDate})`);
+    
+    queryStr += ` AND tw.week_start_date >= $${paramIdx++} AND tw.week_start_date < $${paramIdx++}`;
+    params.push(startDate, endDate);
   }
 
   queryStr += `
