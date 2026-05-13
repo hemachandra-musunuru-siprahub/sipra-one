@@ -1,15 +1,30 @@
 import { query, pool } from "../../db";
 
-// ─── Get own leave requests ───────────────────────────────────────────────────
-export const getOwnRequests = async (employeeOid: string) => {
-  const { rows } = await query(
-    `SELECT lr.*, m.name AS manager_name
+// ─── Get own leave requests (with filters) ────────────────────────────────────
+export const getOwnRequests = async (employeeOid: string, filters: { month?: string } = {}) => {
+  let queryStr = `
+     SELECT lr.*, m.name AS manager_name
      FROM leave_requests lr
      LEFT JOIN users m ON m.entra_oid = lr.manager_oid
      WHERE lr.employee_oid = $1
-     ORDER BY lr.created_at DESC`,
-    [employeeOid]
-  );
+  `;
+  const params: any[] = [employeeOid];
+  let paramIdx = 2;
+
+  if (filters.month) {
+    const [year, mon] = filters.month.split("-").map(Number);
+    const startDate = `${filters.month}-01`;
+    const endDate = mon === 12 
+      ? `${year + 1}-01-01` 
+      : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
+    
+    queryStr += ` AND lr.start_date < $${paramIdx++} AND lr.end_date >= $${paramIdx++}`;
+    params.push(endDate, startDate);
+  }
+
+  queryStr += ` ORDER BY lr.created_at DESC`;
+
+  const { rows } = await query(queryStr, params);
   return rows;
 };
 

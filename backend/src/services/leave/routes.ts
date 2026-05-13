@@ -96,7 +96,8 @@ const calcWorkingDays = (start: string, end: string): number => {
 };
 
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
-  const requests = await repo.getOwnRequests(req.user!.entra_oid);
+  const { month } = req.query as { month?: string };
+  const requests = await repo.getOwnRequests(req.user!.entra_oid, { month });
   res.json({ requests });
 });
 

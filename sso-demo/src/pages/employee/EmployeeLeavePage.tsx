@@ -93,6 +93,10 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   const [detailRequest, setDetailRequest] = useState<LeaveRequest | null>(null);
   const [detailMode, setDetailMode] = useState<"reason" | "rejection" | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
 
   /* ─── Toast helpers ── */
   const addToast = useCallback((type: ToastType, title: string, message?: string) => {
@@ -102,9 +106,23 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   }, []);
   const removeToast = (id: number) => setToasts(t => t.filter(x => x.id !== id));
 
+  const monthOptions = React.useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const val = `${year}-${month}`;
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      options.push({ val, label });
+    }
+    return options;
+  }, []);
+
   /* ─── Load data ── */
   const fetchData = useCallback(() => {
-    Promise.all([getMyLeave(), getLeaveBalances()])
+    Promise.all([getMyLeave(selectedMonth), getLeaveBalances()])
       .then(([lData, bData]) => {
         setRequests(lData.requests || []);
         setBalances(bData.balances || []);
@@ -114,7 +132,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         addToast("error", "Failed to load leave data", "Please refresh the page.");
       })
       .finally(() => setLoading(false));
-  }, [addToast]);
+  }, [addToast, selectedMonth]);
 
   useEffect(() => {
     fetchData();
@@ -212,9 +230,25 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         <div>
           <h1 className="page-title" style={{ fontSize: "1.5rem", margin: 0 }}>My Leave</h1>
         </div>
-        <button className="btn btn--primary" onClick={() => setShowForm(true)} style={{ height: "32px", fontSize: "0.8125rem", padding: "0 var(--space-3)" }}>
-          <Plus size={16} /> Apply for Leave
-        </button>
+        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--neutral-500)", textTransform: "uppercase" }}>Month:</span>
+            <select 
+              className="input" 
+              style={{ width: 160, height: "32px", fontSize: "0.8125rem" }} 
+              value={selectedMonth} 
+              onChange={e => setSelectedMonth(e.target.value)}
+            >
+              <option value="">All Time</option>
+              {monthOptions.map(opt => (
+                <option key={opt.val} value={opt.val}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <button className="btn btn--primary" onClick={() => setShowForm(true)} style={{ height: "32px", fontSize: "0.8125rem", padding: "0 var(--space-3)" }}>
+            <Plus size={16} /> Apply for Leave
+          </button>
+        </div>
       </header>
 
       {/* ── KPI Grid ────────────────────────────────────────── */}

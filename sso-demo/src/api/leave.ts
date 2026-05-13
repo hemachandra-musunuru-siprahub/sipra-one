@@ -1,8 +1,10 @@
 import { api } from "./client";
 import type { LeaveRequest, LeaveBalance } from "./types";
 
-export const getMyLeave = () =>
-  api.get<{ requests: LeaveRequest[] }>("/api/leave-requests");
+export const getMyLeave = (month?: string) => {
+  const url = month ? `/api/leave-requests?month=${month}` : "/api/leave-requests";
+  return api.get<{ requests: LeaveRequest[] }>(url);
+};
 
 export const getTeamLeave = () =>
   api.get<{ requests: LeaveRequest[] }>("/api/leave-requests/team");
