@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "./DashboardLayout";
-import { Users, CheckSquare, Clock, CheckCircle, X } from "lucide-react";
+import { 
+  X 
+} from "lucide-react";
 
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
 import { getTeamLeave, actionLeave } from "../api/leave";
 import { getTeamTimesheets, reviewTimesheet } from "../api/timesheets";
-import { getTeamMembers } from "../api/users";
-import type { LeaveRequest, Timesheet, User } from "../api/types";
+import type { LeaveRequest, Timesheet } from "../api/types";
 import { formatDate, formatLeaveDates } from "../utils/dateFormatter";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,17 +16,15 @@ interface Props { internalUser: any; }
 export const ManagerDashboard = ({ internalUser }: Props) => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
-  const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
-    Promise.all([getTeamLeave(), getTeamTimesheets(), getTeamMembers()])
-      .then(([leaveData, tsData, membersData]) => {
+    Promise.all([getTeamLeave(), getTeamTimesheets()])
+      .then(([leaveData, tsData]) => {
         setLeaveRequests(leaveData.requests);
         setTimesheets(tsData.timesheets);
-        setTeamMembers(membersData);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -33,42 +32,8 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
 
   const pendingLeave = leaveRequests.filter(r => r.status === "pending");
   const submittedTs = timesheets.filter(t => t.status === "submitted");
-  const reviewedTs = timesheets.filter(t => t.status === "reviewed");
 
-  const stats = [
-    {
-      label: "Pending Approvals",
-      value: loading ? "—" : `${pendingLeave.length}`,
-      sub: "Leave requests",
-      icon: <CheckSquare size={16} />,
-      color: "#CE2124",
-      bg: "#FFF0F0",
-    },
-    {
-      label: "Timesheets",
-      value: loading ? "—" : `${submittedTs.length}`,
-      sub: "Awaiting review",
-      icon: <Clock size={16} />,
-      color: "#3B82F6",
-      bg: "#EFF6FF",
-    },
-    {
-      label: "Reviewed",
-      value: loading ? "—" : `${reviewedTs.length}`,
-      sub: "This period",
-      icon: <CheckCircle size={16} />,
-      color: "#10B981",
-      bg: "#ECFDF5",
-    },
-    {
-      label: "Team Members",
-      value: loading ? "—" : `${teamMembers.length}`,
-      sub: "Direct reports",
-      icon: <Users size={16} />,
-      color: "#8B5CF6",
-      bg: "#F5F3FF",
-    },
-  ];
+
 
   const handleApprove = async (id: string) => {
     try {
@@ -148,69 +113,14 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
         </div>
       </div >
 
-      {/* ── KPI Cards ── */}
-      < div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: "12px",
-        marginBottom: "20px",
-      }}>
-        {
-          stats.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                background: "var(--neutral-0)",
-                border: "1px solid var(--neutral-200)",
-                borderRadius: "10px",
-                padding: "14px 16px",
-                boxShadow: "var(--shadow-sm)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "var(--neutral-500)",
-                  letterSpacing: "0.01em",
-                }}>
-                  {s.label}
-                </span>
-                <div style={{
-                  width: "26px", height: "26px",
-                  borderRadius: "6px",
-                  background: s.bg,
-                  color: s.color,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  {s.icon}
-                </div>
-              </div>
-              <div style={{
-                fontSize: "1.75rem",
-                fontWeight: 700,
-                color: "var(--neutral-900)",
-                lineHeight: 1,
-                letterSpacing: "-0.03em",
-              }}>
-                {s.value}
-              </div>
-              <div style={{ fontSize: "0.6875rem", color: "var(--neutral-400)", fontWeight: 500 }}>
-                {s.sub}
-              </div>
-            </div>
-          ))
-        }
-      </div >
+
 
       {/* ── Featured Announcements ── */}
-      < div style={{ marginBottom: "20px" }}>
+      <div style={{ marginBottom: "20px" }}>
         <TopAnnouncementsCarousel />
-      </div >
+      </div>
+
+
 
       {/* ── Tables ── */}
       < div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>

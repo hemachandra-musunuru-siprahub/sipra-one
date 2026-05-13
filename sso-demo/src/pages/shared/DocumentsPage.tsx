@@ -332,11 +332,51 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
             <button className="btn btn--secondary" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
         </div>
-      )}
-
-      <div className={isPrivileged ? "main-content-wrapper" : "content-grid"} style={isPrivileged ? { minWidth: 0 } : { gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+      )}      <div className="main-content-wrapper" style={{ minWidth: 0 }}>
         {loading ? (
-          <div className="card" style={{ gridColumn: "1 / -1" }}><div className="card__body" style={{ textAlign: "center", padding: "var(--space-12)" }}><Loader2 size={32} className="animate-spin" style={{ margin: "0 auto var(--space-4)", color: "var(--neutral-400)" }} /><p style={{ color: "var(--neutral-500)" }}>Loading documents…</p></div></div>
+          <div className="card documents-card" style={{ overflow: "hidden", minWidth: 0 }}>
+            <div className="table-container responsive-table">
+              <table className="table" style={{ tableLayout: "fixed", width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--neutral-50)", borderBottom: "1px solid var(--neutral-200)" }}>
+                    <th style={{ width: "35%", padding: "var(--space-3) 0", paddingLeft: "var(--space-5)", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>File Name</th>
+                    <th style={{ width: "15%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Type</th>
+                    <th style={{ width: "25%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>
+                      {isPrivileged ? "Shared With" : "Shared By"}
+                    </th>
+                    <th style={{ width: "12%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Date</th>
+                    <th style={{ width: "13%", padding: "var(--space-3) 0", paddingRight: "var(--space-5)", textAlign: "right", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1, 2, 3].map(i => (
+                    <tr key={i} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
+                      <td style={{ paddingLeft: "var(--space-5)", padding: "16px var(--space-5)" }}>
+                        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--neutral-100)" }} className="skeleton-pulse" />
+                          <div>
+                            <div style={{ width: 120, height: 14, borderRadius: 4, background: "var(--neutral-100)", marginBottom: 6 }} className="skeleton-pulse" />
+                            <div style={{ width: 80, height: 10, borderRadius: 4, background: "var(--neutral-50)" }} className="skeleton-pulse" />
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "16px 0" }}><div style={{ width: 60, height: 20, borderRadius: 12, background: "var(--neutral-100)" }} className="skeleton-pulse" /></td>
+                      <td style={{ padding: "16px 0" }}>
+                        <div style={{ width: 100, height: 14, borderRadius: 4, background: "var(--neutral-100)", marginBottom: 6 }} className="skeleton-pulse" />
+                        <div style={{ width: 140, height: 10, borderRadius: 4, background: "var(--neutral-50)" }} className="skeleton-pulse" />
+                      </td>
+                      <td style={{ padding: "16px 0" }}><div style={{ width: 70, height: 14, borderRadius: 4, background: "var(--neutral-100)" }} className="skeleton-pulse" /></td>
+                      <td style={{ padding: "16px var(--space-5) 16px 0", textAlign: "right" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                           <div style={{ width: 32, height: 32, borderRadius: 6, background: "var(--neutral-100)" }} className="skeleton-pulse" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="card" style={{ gridColumn: "1 / -1" }}>
             <div className="card__body" style={{ 
@@ -363,7 +403,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
               </div>
               <div style={{ maxWidth: 400 }}>
                 <h3 style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--neutral-900)", margin: "0 0 var(--space-2)" }}>
-                  No Documents Available
+                  {search ? "No documents found" : "No documents shared yet"}
                 </h3>
                 <p style={{ fontSize: "0.875rem", color: "var(--neutral-500)", lineHeight: 1.5 }}>
                   {search 
@@ -382,7 +422,7 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
               </div>
             </div>
           </div>
-        ) : isPrivileged ? (
+        ) : (
           <div className="card documents-card" style={{ overflow: "hidden", minWidth: 0 }}>
             <div className="table-container responsive-table">
               <table className="table" style={{ tableLayout: "fixed", width: "100%", borderCollapse: "collapse" }}>
@@ -390,7 +430,9 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                   <tr style={{ background: "var(--neutral-50)", borderBottom: "1px solid var(--neutral-200)" }}>
                     <th style={{ width: "35%", padding: "var(--space-3) 0", paddingLeft: "var(--space-5)", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>File Name</th>
                     <th style={{ width: "15%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Type</th>
-                    <th style={{ width: "25%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Shared With</th>
+                    <th style={{ width: "25%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>
+                      {isPrivileged ? "Shared With" : "Shared By"}
+                    </th>
                     <th style={{ width: "12%", padding: "var(--space-3) 0", textAlign: "left", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Date</th>
                     <th style={{ width: "13%", padding: "var(--space-3) 0", paddingRight: "var(--space-5)", textAlign: "right", fontWeight: 600, color: "var(--neutral-600)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.02em" }}>Actions</th>
                   </tr>
@@ -399,8 +441,8 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                   {filtered.map(doc => {
                     return (
                       <tr key={doc.id} className="table-row-hover">
-                        <td style={{ paddingLeft: "var(--space-5)", overflow: "hidden" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", minWidth: 0 }}>
+                        <td data-label="File Name" style={{ paddingLeft: "var(--space-5)", overflow: "hidden" }}>
+                          <div className="flex-row-mobile-wrap" style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", minWidth: 0 }}>
                             <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: "8px", background: "var(--primary-50)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary-600)" }}>
                               <FileText size={18} />
                             </div>
@@ -408,38 +450,60 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
                               <div style={{ fontWeight: 600, color: "var(--neutral-900)", fontSize: "0.875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.title}>
                                 {doc.title}
                               </div>
-                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "capitalize" }}>{doc.scope} Access</div>
+                              <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "capitalize" }}>
+                                {doc.scope === "company" ? "Shared Document" : "Individual Access"}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td>
-                          <span className="badge badge--neutral" style={{ fontSize: "0.6875rem", fontWeight: 600 }}>{doc.document_type}</span>
+                        <td data-label="Type">
+                          <span className="badge badge--neutral" style={{ fontSize: "0.6875rem", fontWeight: 600, textTransform: "capitalize" }}>{doc.document_type}</span>
                         </td>
-                        <td style={{ overflow: "hidden" }}>
-                          {doc.scope === "company" ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--success-500)" }} />
-                              <span style={{ fontSize: "0.8125rem", color: "var(--success-700)", fontWeight: 600 }}>Organizational</span>
-                            </div>
+                        <td data-label={isPrivileged ? "Shared With" : "Shared By"} style={{ overflow: "hidden" }}>
+                          {isPrivileged ? (
+                            doc.scope === "company" ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--success-500)" }} />
+                                <span style={{ fontSize: "0.8125rem", color: "var(--success-700)", fontWeight: 600 }}>Organizational</span>
+                              </div>
+                            ) : (
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_name || "Unknown"}>
+                                  {doc.assigned_to_name || "Unknown"}
+                                </div>
+                                {doc.assigned_to_email && (
+                                  <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_email}>
+                                    {doc.assigned_to_email}
+                                  </div>
+                                )}
+                              </div>
+                            )
                           ) : (
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.assigned_to_name || "Unknown"}>
-                                {doc.assigned_to_name || "Unknown"}
+                              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--neutral-800)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.shared_by_name || "HR Admin"}>
+                                {doc.shared_by_name || "HR Admin"}
                               </div>
+                              {doc.shared_by_email && (
+                                <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={doc.shared_by_email}>
+                                  {doc.shared_by_email}
+                                </div>
+                              )}
                             </div>
                           )}
                         </td>
-                        <td style={{ fontSize: "0.8125rem", color: "var(--neutral-600)", fontWeight: 500 }}>
-                          {new Date(doc.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        <td data-label="Date" style={{ fontSize: "0.8125rem", color: "var(--neutral-600)", fontWeight: 500 }}>
+                          {new Date(doc.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
-                        <td style={{ textAlign: "right", paddingRight: "var(--space-5)" }}>
-                          <div style={{ display: "flex", gap: "var(--space-1)", justifyContent: "flex-end" }}>
-                            <a href={doc.onedrive_url} target="_blank" rel="noreferrer" className="btn btn--ghost btn--sm" title="View Source" style={{ width: 32, height: 32, padding: 0 }}>
+                        <td data-label="Actions" style={{ textAlign: "right", paddingRight: "var(--space-5)" }}>
+                          <div className="action-buttons-wrap" style={{ display: "flex", gap: "var(--space-1)", justifyContent: "flex-end" }}>
+                            <a href={doc.onedrive_url} target="_blank" rel="noreferrer" className="btn btn--ghost btn--sm" title="Open in OneDrive" style={{ width: 32, height: 32, padding: 0, color: "var(--primary-600)" }}>
                               <ExternalLink size={14} />
                             </a>
-                            <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-500)", width: 32, height: 32, padding: 0 }} onClick={() => handleDelete(doc.id)} title="Delete Record">
-                              <Trash2 size={14} />
-                            </button>
+                            {isPrivileged && (
+                              <button className="btn btn--ghost btn--sm" style={{ color: "var(--error-500)", width: 32, height: 32, padding: 0 }} onClick={() => handleDelete(doc.id)} title="Delete Record">
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -449,38 +513,6 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
               </table>
             </div>
           </div>
-        ) : (
-          filtered.map(doc => (
-            <div className="card card--interactive" key={doc.id}>
-              <div className="card__header" style={{ alignItems: "flex-start" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
-                    <span className={`badge ${doc.scope === "company" ? "badge--published" : "badge--hr"}`}>{doc.scope}</span>
-                    <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{doc.document_type}</span>
-                  </div>
-                  <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--neutral-900)", margin: 0, lineHeight: 1.4 }}>{doc.title}</h3>
-                </div>
-                <div className="document-icon-wrapper">
-                  <FileText size={20} />
-                </div>
-              </div>
-              <div className="card__body">
-                {doc.description ? (
-                  <p style={{ fontSize: "0.875rem", color: "var(--neutral-600)", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{doc.description}</p>
-                ) : <p style={{ fontSize: "0.875rem", color: "var(--neutral-400)", fontStyle: "italic" }}>No description provided.</p>}
-                
-                <div style={{ marginTop: "var(--space-4)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--neutral-100)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{new Date(doc.created_at).toLocaleDateString()}</span>
-                  {doc.assigned_to_oid && <span style={{ fontSize: "0.75rem", color: "var(--primary-600)", fontWeight: 500 }}>Individual Access</span>}
-                </div>
-              </div>
-              <div className="card__footer" style={{ display: "flex", gap: "var(--space-2)", background: "var(--neutral-50)" }}>
-                <a href={doc.onedrive_url} target="_blank" rel="noreferrer" className="btn btn--primary btn--sm" style={{ flex: 1 }}>
-                  <ExternalLink size={14} /> Open Document
-                </a>
-              </div>
-            </div>
-          ))
         )}
       </div>
 
@@ -785,6 +817,57 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+          .responsive-table table, .responsive-table thead, .responsive-table tbody, .responsive-table th, .responsive-table td, .responsive-table tr {
+            display: block;
+          }
+          .responsive-table thead tr {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+          }
+          .responsive-table tr {
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--rounded-lg);
+            margin-bottom: var(--space-4);
+            background: var(--neutral-0);
+            box-shadow: var(--shadow-sm);
+          }
+          .responsive-table td {
+            border: none;
+            border-bottom: 1px solid var(--neutral-100);
+            position: relative;
+            padding-left: 40% !important;
+            text-align: left !important;
+            padding-top: var(--space-3) !important;
+            padding-bottom: var(--space-3) !important;
+            padding-right: var(--space-4) !important;
+            display: flex;
+            align-items: center;
+          }
+          .responsive-table td:last-child {
+            border-bottom: none;
+          }
+          .responsive-table td::before {
+            content: attr(data-label);
+            position: absolute;
+            left: var(--space-4);
+            width: 35%;
+            padding-right: 10px;
+            white-space: nowrap;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--neutral-500);
+            text-transform: uppercase;
+          }
+          .flex-row-mobile-wrap {
+             align-items: flex-start !important;
+          }
+          .action-buttons-wrap {
+             justify-content: flex-start !important;
+          }
+        }
       `}</style>
     </DashboardLayout>
   );

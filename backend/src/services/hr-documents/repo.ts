@@ -6,6 +6,7 @@ export const listDocuments = async (callerOid: string) => {
     `SELECT d.*, 
             d.visibility_scope AS scope,
             sharer.name AS shared_by_name,
+            sharer.email AS shared_by_email,
             emp.name    AS assigned_to_name,
             emp.email   AS assigned_to_email
      FROM hr_documents d
@@ -29,7 +30,8 @@ export const listAllDocuments = async () => {
             d.visibility_scope AS scope,
             emp.name  AS assigned_to_name,
             emp.email AS assigned_to_email,
-            sharer.name AS shared_by_name
+            sharer.name AS shared_by_name,
+            sharer.email AS shared_by_email
      FROM hr_documents d
      LEFT JOIN users emp    ON emp.entra_oid    = d.assigned_to_oid
      LEFT JOIN users sharer ON sharer.entra_oid = d.created_by_oid

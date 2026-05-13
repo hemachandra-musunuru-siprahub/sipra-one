@@ -11,7 +11,7 @@ import { EmployeeDashboard } from "./components/EmployeeDashboard";
 import { AccessDenied } from "./components/AccessDenied";
 import { DashboardLayout } from "./components/DashboardLayout";
 import {
-  Shield, Activity, Server, Users,
+  Shield, Users,
   Database, Globe, PieChart, HardDrive
 } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -105,7 +105,6 @@ function RootRedirect({ internalUser }: { internalUser: InternalUser | null }) {
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null }) => {
   const navigate = useNavigate();
-  const [dbStatus, setDbStatus] = useState<string>("Checking…");
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -119,10 +118,6 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
   };
 
   useEffect(() => {
-    fetch(`${API}/health`, { credentials: "include" })
-      .then(r => r.json())
-      .then(d => setDbStatus(d.db === "connected" ? "Connected" : "Error"))
-      .catch(() => setDbStatus("Error"));
     loadData();
   }, []);
 
@@ -199,13 +194,6 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
     </div>
   );
 
-  const stats = [
-    { label: "Active Users", value: users.filter(u => u.is_active).length || "…", trend: "Live", icon: <Users size={20} />, color: "#3B82F6" },
-    { label: "Database", value: dbStatus, trend: "Health", icon: <Server size={20} />, color: "#10B981" },
-    { label: "Sync Status", value: "Active", trend: "Real-time", icon: <Activity size={20} />, color: "#F59E0B" },
-    { label: "Security Health", value: "Verified", trend: "Entra ID", icon: <Shield size={18} />, color: "#CE2124" },
-  ];
-
   return (
     <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Admin"}>
       <header className="page-header">
@@ -218,25 +206,31 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
         </div>
       </header>
 
-      <section className="welcome-card" style={{ height: "140px", padding: "var(--space-6) var(--space-10)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "var(--space-6)" }}>
-        <div className="welcome-card__content" style={{ textAlign: "center", width: "100%" }}>
-          <h1 className="welcome-card__title" style={{ fontSize: "2.5rem", fontWeight: 700, margin: 0, color: "white" }}>
+      <div style={{
+        background: "linear-gradient(120deg, var(--primary-700) 0%, var(--primary-500) 100%)",
+        borderRadius: "12px",
+        padding: "16px 24px",
+        marginBottom: "var(--space-6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        position: "relative",
+        overflow: "hidden",
+        minHeight: "72px",
+      }}>
+        <div style={{ position: "absolute", top: "-30px", right: "-30px", width: "120px", height: "120px", borderRadius: "50%", background: "rgba(255,255,255,0.07)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: "-20px", right: "80px", width: "70px", height: "70px", borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none" }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "white", margin: 0 }}>
             Welcome back, {internalUser?.name?.split(" ")[0] || "there"}!
-          </h1>
+          </h2>
         </div>
-      </section>
-
-      <section className="stats-grid">
-        {stats.map((stat, idx) => (
-          <div className="stat-card" key={idx}>
-            <div className="stat-card__header">
-              <div className="stat-card__icon" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>{stat.icon}</div>
-              <span className="stat-card__trend" style={{ color: stat.color }}>{stat.trend}</span>
-            </div>
-            <div><div className="stat-card__label">{stat.label}</div><div className="stat-card__value">{stat.value}</div></div>
+        <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
+          <div style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.55)", fontWeight: 500 }}>
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
           </div>
-        ))}
-      </section>
+        </div>
+      </div>
 
       <div className="content-grid" style={{ gridTemplateColumns: "1fr" }}>
         <div className="card">

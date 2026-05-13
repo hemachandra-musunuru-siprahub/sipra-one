@@ -186,7 +186,7 @@ export const HRLeavePage = ({ internalUser, defaultTab = "requests" }: Props) =>
             </h3>
             <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center" }}>
               {/* Search filters within the server-scoped result set */}
-              <div className="topbar__search" style={{ border: "1px solid var(--neutral-200)", borderRadius: "var(--rounded-md)", padding: "0 var(--space-3)" }}>
+              <div className="topbar__search">
                 <Search size={16} color="var(--neutral-400)" />
                 <input className="topbar__search-input" placeholder="Search by name…" value={search} onChange={e => setSearch(e.target.value)} />
               </div>

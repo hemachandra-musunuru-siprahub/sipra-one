@@ -47,7 +47,7 @@ export const HREmployeesPage = ({ internalUser }: Props) => {
         <div className="card__header">
           <h3 className="card__title">Employees</h3>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
-            <div className="topbar__search" style={{ border: "1px solid var(--neutral-200)", borderRadius: "var(--rounded-md)", padding: "0 var(--space-3)" }}>
+            <div className="topbar__search">
               <Search size={16} color="var(--neutral-400)" />
               <input className="topbar__search-input" placeholder="Search employees…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>

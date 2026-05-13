@@ -103,6 +103,8 @@ export interface HrDocument {
   assigned_to_oid: string | null;
   assigned_to_name?: string;
   assigned_to_email?: string;
+  shared_by_name?: string;
+  shared_by_email?: string;
   created_by_oid: string;
   created_at: string;
   updated_at: string;
