@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { AppLogo } from "./common/AppLogo";
 import {
   LayoutDashboard,
   Users,
@@ -79,10 +80,10 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
   const handleLogout = () => {
     // Clear local auth state instantly
     sessionStorage.clear();
-    
+
     // Disconnect socket on logout
     socket.disconnect();
-    
+
     localStorage.removeItem("sipra_session");
     sessionStorage.clear();
     // Fire backend logout in parallel — don't block on it
@@ -211,13 +212,10 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
       <aside className="sidebar">
 
         {/* Logo / Brand */}
-        <div className="sidebar__brand">
-          <Link to="/" className="sidebar__logo-link">
-            <div className="sidebar__logo-icon">
-              <ShieldCheck size={24} strokeWidth={1.5} style={{ color: "var(--primary-500)" }} />
-            </div>
-            <span className="sidebar__logo-text">SipraHub</span>
-          </Link>
+        <div className="sidebar__brand px-6">
+          <div className="sidebar__logo-link flex items-center gap-3 overflow-visible flex-shrink-0">
+            <AppLogo variant="sidebar" />
+          </div>
         </div>
 
 
@@ -259,6 +257,9 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
 
       {/* ── Topbar ── */}
       <header className="topbar">
+        <div className="topbar__mobile-logo flex items-center gap-3 overflow-visible flex-shrink-0 px-6">
+          <AppLogo variant="mobile" />
+        </div>
         <div ref={searchRef} className="topbar__search relative">
           <Search size={16} />
           <input
@@ -280,14 +281,16 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           />
         </div>
         <div className="topbar__actions">
-          <NotificationBell
-            notifications={notifications}
-            unreadCount={unreadCount}
-            isLoading={notifLoading}
-            role={currentRole}
-            onMarkRead={markRead}
-            onMarkAllRead={markAllRead}
-          />
+          {currentRole !== "Admin" && (
+            <NotificationBell
+              notifications={notifications}
+              unreadCount={unreadCount}
+              isLoading={notifLoading}
+              role={currentRole}
+              onMarkRead={markRead}
+              onMarkAllRead={markAllRead}
+            />
+          )}
 
           <div className="topbar__user">
             <div className="topbar__user-text">

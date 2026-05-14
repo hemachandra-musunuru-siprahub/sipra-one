@@ -105,24 +105,26 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
 
       // ── Fan-out notification to all active users (fire-and-forget) ─────
       try {
-        const { rows } = await query(`SELECT entra_oid FROM users WHERE is_active = true`);
-        let recipientOids: string[] = rows.map((r: any) => r.entra_oid);
-        
-        // Filter out the HR user who created it
-        recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
+        if (item.status === "published" || item.status === "pinned") {
+          const { rows } = await query(`SELECT entra_oid FROM users WHERE is_active = true`);
+          let recipientOids: string[] = rows.map((r: any) => r.entra_oid);
+          
+          // Filter out the HR user who created it
+          recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
 
-        if (recipientOids.length > 0) {
-          const notifTitle = type === "IMPORTANT" ? `🚨 ${title}` : `📢 ${title}`;
-          const notifMsg = `New announcement: ${body.slice(0, 120)}${body.length > 120 ? "..." : ""}`;
-          const notifications = await notifRepo.createNotifications(
-            recipientOids, "announcement", notifTitle, notifMsg, "announcement", item.id
-          );
-          notifications.forEach(n => emitNotification(n.recipient_oid, n));
-          const io = getSocketServer();
-          if (io) {
-            for (const oid of recipientOids) {
-              const count = await notifRepo.unreadCount(oid);
-              io.to(`user:${oid}`).emit("unread_count", { count });
+          if (recipientOids.length > 0) {
+            const notifTitle = type === "IMPORTANT" ? `🚨 ${title}` : `📢 ${title}`;
+            const notifMsg = `New announcement: ${body.slice(0, 120)}${body.length > 120 ? "..." : ""}`;
+            const notifications = await notifRepo.createNotifications(
+              recipientOids, "announcement", notifTitle, notifMsg, "announcement", item.id
+            );
+            notifications.forEach(n => emitNotification(n.recipient_oid, n));
+            const io = getSocketServer();
+            if (io) {
+              for (const oid of recipientOids) {
+                const count = await notifRepo.unreadCount(oid);
+                io.to(`user:${oid}`).emit("unread_count", { count });
+              }
             }
           }
         }
@@ -184,9 +186,41 @@ router.patch("/:id", requireAuth, requireRole([...HR_ROLES]),
         }
       }
 
+      const oldItem = await repo.findById(req.params.id);
+      if (!oldItem) throw notFound("Announcement not found");
+
       const item = await repo.updateAnnouncement(req.params.id, fields);
       if (!item) throw notFound("Announcement not found");
       res.json({ announcement: item });
+
+      // ── Fan-out notification if transitioning from draft to published ─────
+      try {
+        if (oldItem.status === "draft" && (item.status === "published" || item.status === "pinned")) {
+          const { rows } = await query(`SELECT entra_oid FROM users WHERE is_active = true`);
+          let recipientOids: string[] = rows.map((r: any) => r.entra_oid);
+          
+          // Filter out the HR user who updated it
+          recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
+
+          if (recipientOids.length > 0) {
+            const notifTitle = item.priority === "high" ? `🚨 ${item.title}` : `📢 ${item.title}`;
+            const notifMsg = `New announcement: ${item.body.slice(0, 120)}${item.body.length > 120 ? "..." : ""}`;
+            const notifications = await notifRepo.createNotifications(
+              recipientOids, "announcement", notifTitle, notifMsg, "announcement", item.id
+            );
+            notifications.forEach(n => emitNotification(n.recipient_oid, n));
+            const io = getSocketServer();
+            if (io) {
+              for (const oid of recipientOids) {
+                const count = await notifRepo.unreadCount(oid);
+                io.to(`user:${oid}`).emit("unread_count", { count });
+              }
+            }
+          }
+        }
+      } catch (nErr) {
+        console.error("[NOTIF] Failed to send announcement notification on update:", nErr);
+      }
     } catch (err: any) {
       if (err.status === 404) throw err; // Let global error handler catch 404s
       logger.error({ err }, "Error updating announcement");
