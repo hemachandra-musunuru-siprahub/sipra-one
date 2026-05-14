@@ -85,7 +85,7 @@
 
   /* Layout */
   --sidebar-width: 200px;
-  --topbar-height: 52px;
+  --topbar-height: 64px;
   --transition: 200ms ease-in-out;
 }
 
@@ -122,6 +122,11 @@ h6 {
   display: flex;
   min-height: 100vh;
   width: 100%;
+}
+
+/* Legacy Logo classes removed - handled by AppLogo.tsx */
+.topbar__mobile-logo {
+  display: none;
 }
 
 /* ─── Sidebar — Compact Icon + Label Style ──────────────────────── */
@@ -1911,6 +1916,12 @@ tbody td:last-child {
   .topbar {
     left: 0;
     padding: 0 var(--space-4);
+  }
+
+  .topbar__mobile-logo {
+    display: flex;
+    align-items: center;
+    margin-right: auto;
   }
 
   .main-content {

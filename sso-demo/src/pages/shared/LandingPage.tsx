@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
+import { AppLogo } from "../../components/common/AppLogo";
 
 /* ── Inline globe animation (no external dep) ─────────────────────── */
 const GlobeStyles = () => (
@@ -47,18 +48,6 @@ function AnimatedGlobe() {
   );
 }
 
-/* ── Feature pill ─────────────────────────────────────────────────── */
-function Pill({ text }: { text: string }) {
-  return (
-    <div
-      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
-      style={{ background: "#FFF0F0", color: "#CE2124", border: "1px solid #FFADB0" }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full bg-[#CE2124]" />
-      {text}
-    </div>
-  );
-}
 
 /* ── Stat card ────────────────────────────────────────────────────── */
 function StatCard({ value, label }: { value: string; label: string }) {
@@ -128,9 +117,8 @@ export const LandingPage: React.FC = () => {
         className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-6"
         style={{ background: "#FFFFFF", borderBottom: "1px solid #E4DCDC" }}
       >
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={20} strokeWidth={1.5} style={{ color: "#CE2124" }} />
-          <span className="text-[17px] font-medium" style={{ color: "#282020" }}>SipraHub</span>
+        <div className="flex items-center">
+          <AppLogo variant="navbar" className="h-10 mix-blend-multiply" />
         </div>
         <button
           onClick={goToLogin}
@@ -155,9 +143,6 @@ export const LandingPage: React.FC = () => {
 
           {/* Left: copy */}
           <div className="flex flex-col gap-6">
-            <div className="land-fade land-fade-1">
-              <Pill text="SipraHub" />
-            </div>
             <div className="land-fade land-fade-2">
               <h1 className="text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight" style={{ color: "#282020" }}>
                 The intelligent<br />
@@ -196,12 +181,10 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── Features ────────────────────────────────────────────────── */}
-      <section id="features" className="py-24 px-6">
+      <section id="features" className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <Pill text="Platform" />
-            <h2 className="mt-4 text-4xl font-bold tracking-tight" style={{ color: "#282020" }}>
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold tracking-tight" style={{ color: "#282020" }}>
               Everything your team needs
             </h2>
             <p className="mt-3 text-lg max-w-xl mx-auto" style={{ color: "#574F4F" }}>
@@ -212,32 +195,32 @@ export const LandingPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>,
                 title: "Zero-trust security",
                 desc: "Microsoft Entra ID SSO with server-authoritative sessions. Every request is verified.",
               },
               {
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
                 title: "Employee directory",
                 desc: "Search, filter, and connect with colleagues across every department instantly.",
               },
               {
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>,
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14,2 14,8 20,8" /></svg>,
                 title: "Document library",
                 desc: "Policies, handbooks, and compliance docs — versioned and fully searchable.",
               },
               {
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>,
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0" /></svg>,
                 title: "News & announcements",
                 desc: "Department-specific news, pinned announcements, and urgent alerts in real time.",
               },
               {
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
                 title: "Leave management",
                 desc: "Apply, approve, and track leave requests with a full audit trail per role.",
               },
               {
-                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+                icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
                 title: "Timesheet tracking",
                 desc: "Weekly timesheets with manager review workflows and HR-level visibility.",
               },
@@ -254,12 +237,10 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* ── Security section ─────────────────────────────────────────── */}
-      <section className="py-24 px-6" style={{ background: "#FFFFFF", borderTop: "1px solid #E4DCDC", borderBottom: "1px solid #E4DCDC" }}>
+      <section className="py-16 px-6" style={{ background: "#FFFFFF", borderTop: "1px solid #E4DCDC", borderBottom: "1px solid #E4DCDC" }}>
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
-            <Pill text="Zero-trust security" />
-            <h2 className="mt-4 text-4xl font-bold tracking-tight" style={{ color: "#282020" }}>
+            <h2 className="text-4xl font-bold tracking-tight" style={{ color: "#282020" }}>
               Security you can trust
             </h2>
             <p className="mt-3 text-lg leading-relaxed" style={{ color: "#574F4F" }}>
@@ -305,11 +286,9 @@ export const LandingPage: React.FC = () => {
       </section>
 
 
-      {/* ── CTA ─────────────────────────────────────────────────────── */}
-      <section className="py-24 px-6 text-center">
+      <section className="py-16 px-6 text-center">
         <div className="max-w-2xl mx-auto">
-          <Pill text="Get started" />
-          <h2 className="mt-4 text-4xl font-bold tracking-tight" style={{ color: "#282020" }}>
+          <h2 className="text-4xl font-bold tracking-tight" style={{ color: "#282020" }}>
             Your workspace<br />
             <span style={{ color: "#CE2124" }}>starts here</span>
           </h2>
@@ -331,9 +310,13 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="px-6 py-8 text-center text-xs" style={{ borderTop: "1px solid #E4DCDC", color: "#9E9494" }}>
-        © {new Date().getFullYear()} Sipra Industries. All rights reserved.
+      <footer className="px-6 py-12 text-center flex flex-col items-center gap-4" style={{ borderTop: "1px solid #E4DCDC", color: "#9E9494" }}>
+        <AppLogo variant="navbar" className="h-10 opacity-60 grayscale mix-blend-multiply" />
+        <p className="text-xs">
+          © {new Date().getFullYear()} Sipra Industries. All rights reserved.
+        </p>
       </footer>
     </div>
   );
 };
+

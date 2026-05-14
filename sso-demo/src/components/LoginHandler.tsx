@@ -2,6 +2,7 @@ import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { useEffect, useRef, useState } from "react";
 import { loginRequest } from "../authConfig";
 import { InteractionStatus } from "@azure/msal-browser";
+import { AppLogo } from "./common/AppLogo";
 
 const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
@@ -213,16 +214,8 @@ export const LoginHandler = ({
           }
         `}</style>
         <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: "1.125rem",
-              color: "var(--neutral-800, #282020)",
-              letterSpacing: "-0.01em",
-              marginBottom: 4,
-            }}
-          >
-            SipraHub
+          <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}>
+            <AppLogo variant="landing" />
           </div>
           <div style={{ fontSize: "0.875rem", color: "var(--neutral-500, #736A6A)" }}>
             {isSyncing ? "Signing you in…" : "Verifying session…"}

@@ -5,11 +5,11 @@ import type { Notification } from "../api/notifications";
 
 // ── Type icon mapping ─────────────────────────────────────────────────────────
 const TYPE_META: Record<string, { icon: React.ReactNode; color: string }> = {
-  leave_request:  { icon: <Calendar size={14} />, color: "#3b82f6" },
+  leave_request: { icon: <Calendar size={14} />, color: "#3b82f6" },
   leave_approved: { icon: <CheckCircle2 size={14} />, color: "#10b981" },
   leave_rejected: { icon: <AlertCircle size={14} />, color: "#ef4444" },
-  announcement:   { icon: <Megaphone size={14} />, color: "#f59e0b" },
-  hr_document:    { icon: <FileText size={14} />, color: "#8b5cf6" },
+  announcement: { icon: <Megaphone size={14} />, color: "#f59e0b" },
+  hr_document: { icon: <FileText size={14} />, color: "#8b5cf6" },
 };
 
 function relativeTime(dateStr: string): string {
@@ -76,7 +76,7 @@ export function NotificationBell({
       onMarkRead(notif.id);
     }
     setIsOpen(false);
-    
+
     let path = "/";
     const r = role.toLowerCase();
 
@@ -255,13 +255,13 @@ export function NotificationBell({
                   color: "#94a3b8",
                 }}
               >
-                <div style={{ 
-                  width: "36px", 
-                  height: "36px", 
-                  background: "#f8fafc", 
-                  borderRadius: "50%", 
-                  display: "flex", 
-                  alignItems: "center", 
+                <div style={{
+                  width: "36px",
+                  height: "36px",
+                  background: "#f8fafc",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
                   justifyContent: "center",
                   margin: "0 auto 10px"
                 }}>

@@ -5,7 +5,10 @@ import { validate } from "../../middleware/validate";
 import { notFound, forbidden, badRequest, conflict, unprocessable } from "../../lib/errors";
 import { isAdmin, isManager, isHR, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAccess } from "../../lib/roles";
 import * as repo from "./repo";
-import { getDirectReportOids } from "../users/repo";
+import { getDirectReportOids, getUserByOid } from "../users/repo";
+import * as notifRepo from "../notifications/repo";
+import { emitNotification, getSocketServer } from "../../lib/socketServer";
+import { query } from "../../db";
 
 const router = Router();
 
@@ -36,9 +39,9 @@ router.get("/team", requireAuth,
       if (!canAccess(role, isManager)) throw forbidden("Managers only");
 
       const employeeId = req.query.employeeId as string;
-      const status     = (req.query.status as string)?.toLowerCase();
-      const search     = (req.query.search  as string)?.trim() || undefined;
-      const month      = (req.query.month   as string) || undefined;
+      const status = (req.query.status as string)?.toLowerCase();
+      const search = (req.query.search as string)?.trim() || undefined;
+      const month = (req.query.month as string) || undefined;
 
       const directReports = await getDirectReportOids(req.user!.entra_oid);
 
@@ -75,14 +78,14 @@ router.get("/manager-export", requireAuth,
       }
 
       // ── Parse query params ────────────────────────────────────────────────
-      const employeeId  = req.query.employeeId  as string | undefined;
-      const monthParam  = req.query.month        as string | undefined; // YYYY-MM
-      const month       = monthParam || new Date().toISOString().slice(0, 7);
+      const employeeId = req.query.employeeId as string | undefined;
+      const monthParam = req.query.month as string | undefined; // YYYY-MM
+      const month = monthParam || new Date().toISOString().slice(0, 7);
 
       const [year, mon] = month.split("-").map(Number);
-      const monthStart  = `${month}-01`;
-      const lastDay     = new Date(year, mon, 0).getDate();  // last day of month
-      const monthEnd    = `${month}-${String(lastDay).padStart(2, "0")}`;
+      const monthStart = `${month}-01`;
+      const lastDay = new Date(year, mon, 0).getDate();  // last day of month
+      const monthEnd = `${month}-${String(lastDay).padStart(2, "0")}`;
 
       // ── Security: get manager's direct reports ────────────────────────────
       const directReports = await getDirectReportOids(req.user!.entra_oid);
@@ -101,32 +104,32 @@ router.get("/manager-export", requireAuth,
       // ── Build Excel workbook ──────────────────────────────────────────────
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
-      workbook.creator  = "SipraHub";
-      workbook.created  = new Date();
+      workbook.creator = "SipraHub";
+      workbook.created = new Date();
 
       const sheet = workbook.addWorksheet("Reviewed Timesheets");
 
       // Header row
       sheet.columns = [
-        { header: "Employee Name",    key: "employee_name",    width: 24 },
-        { header: "Week Starting",    key: "week_start_date",  width: 14 },
-        { header: "Date",             key: "work_date",        width: 12 },
-        { header: "Project",          key: "project_name",     width: 24 },
-        { header: "Task / Desc",      key: "task_description", width: 36 },
-        { header: "Hours",            key: "entry_hours",      width: 8  },
-        { header: "Total Week Hrs",   key: "total_hours",      width: 14 },
-        { header: "Status",           key: "status",           width: 10 },
-        { header: "Reviewed By",      key: "reviewed_by_name", width: 22 },
-        { header: "Reviewed At",      key: "reviewed_at",      width: 22 },
-        { header: "Manager Comments", key: "manager_comment",  width: 36 },
+        { header: "Employee Name", key: "employee_name", width: 24 },
+        { header: "Week Starting", key: "week_start_date", width: 14 },
+        { header: "Date", key: "work_date", width: 12 },
+        { header: "Project", key: "project_name", width: 24 },
+        { header: "Task / Desc", key: "task_description", width: 36 },
+        { header: "Hours", key: "entry_hours", width: 8 },
+        { header: "Total Week Hrs", key: "total_hours", width: 14 },
+        { header: "Status", key: "status", width: 10 },
+        { header: "Reviewed By", key: "reviewed_by_name", width: 22 },
+        { header: "Reviewed At", key: "reviewed_at", width: 22 },
+        { header: "Manager Comments", key: "manager_comment", width: 36 },
       ];
 
       // Style header row
       const headerRow = sheet.getRow(1);
-      headerRow.font      = { bold: true, color: { argb: "FFFFFFFF" } };
-      headerRow.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCE2124" } };
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCE2124" } };
       headerRow.alignment = { vertical: "middle", horizontal: "center" };
-      headerRow.height    = 20;
+      headerRow.height = 20;
 
       const formatDate = (val: any): string => {
         if (!val) return "";
@@ -137,17 +140,17 @@ router.get("/manager-export", requireAuth,
       // Data rows
       rows.forEach((r: any) => {
         const row = sheet.addRow({
-          employee_name:    r.employee_name,
-          week_start_date:  formatDate(r.week_start_date),
-          work_date:        formatDate(r.work_date),
-          project_name:     r.project_name   || "",
+          employee_name: r.employee_name,
+          week_start_date: formatDate(r.week_start_date),
+          work_date: formatDate(r.work_date),
+          project_name: r.project_name || "",
           task_description: r.task_description || "",
-          entry_hours:      r.entry_hours     != null ? Number(r.entry_hours)   : "",
-          total_hours:      r.total_hours     != null ? Number(r.total_hours)   : "",
-          status:           r.status,
+          entry_hours: r.entry_hours != null ? Number(r.entry_hours) : "",
+          total_hours: r.total_hours != null ? Number(r.total_hours) : "",
+          status: r.status,
           reviewed_by_name: r.reviewed_by_name || "",
-          reviewed_at:      formatDate(r.reviewed_at),
-          manager_comment:  r.manager_comment  || "",
+          reviewed_at: formatDate(r.reviewed_at),
+          manager_comment: r.manager_comment || "",
         });
         // Zebra stripe
         if (row.number % 2 === 0) {
@@ -159,10 +162,10 @@ router.get("/manager-export", requireAuth,
       sheet.autoFilter = { from: "A1", to: "K1" };
 
       // ── Send response ─────────────────────────────────────────────────────
-      const empLabel    = employeeOidFilter
+      const empLabel = employeeOidFilter
         ? (rows[0]?.employee_name || "employee").replace(/\s+/g, "-")
         : "all-employees";
-      const filename    = `${empLabel}-reviewed-timesheets-${month}.xlsx`;
+      const filename = `${empLabel}-reviewed-timesheets-${month}.xlsx`;
 
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -183,8 +186,8 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
     try {
       const employeeOid = (req.query.employeeOid as string) || undefined;
-      const status      = (req.query.status as string) || undefined;
-      const month       = (req.query.month as string)  || undefined;
+      const status = (req.query.status as string) || undefined;
+      const month = (req.query.month as string) || undefined;
 
       console.log("HR Export requested with filters:", { employeeOid, status, month });
 
@@ -193,34 +196,34 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
       // ── Build Excel workbook ──────────────────────────────────────────────
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
-      workbook.creator  = "SipraHub";
-      workbook.created  = new Date();
+      workbook.creator = "SipraHub";
+      workbook.created = new Date();
 
       const sheet = workbook.addWorksheet("Organization Timesheets");
 
       // Header row
       sheet.columns = [
-        { header: "Employee Name",    key: "employee_name",    width: 24 },
-        { header: "Employee Email",   key: "employee_email",   width: 28 },
-        { header: "Week Starting",    key: "week_start_date",  width: 14 },
-        { header: "Date",             key: "work_date",        width: 12 },
-        { header: "Project",          key: "project_name",     width: 24 },
-        { header: "Task / Desc",      key: "task_description", width: 36 },
-        { header: "Hours",            key: "entry_hours",      width: 8  },
-        { header: "Total Week Hrs",   key: "total_hours",      width: 14 },
-        { header: "Status",           key: "status",           width: 10 },
-        { header: "Submitted At",     key: "submitted_at",     width: 22 },
-        { header: "Reviewed By",      key: "reviewed_by_name", width: 22 },
-        { header: "Reviewed At",      key: "reviewed_at",      width: 22 },
-        { header: "Manager Comments", key: "manager_comment",  width: 36 },
+        { header: "Employee Name", key: "employee_name", width: 24 },
+        { header: "Employee Email", key: "employee_email", width: 28 },
+        { header: "Week Starting", key: "week_start_date", width: 14 },
+        { header: "Date", key: "work_date", width: 12 },
+        { header: "Project", key: "project_name", width: 24 },
+        { header: "Task / Desc", key: "task_description", width: 36 },
+        { header: "Hours", key: "entry_hours", width: 8 },
+        { header: "Total Week Hrs", key: "total_hours", width: 14 },
+        { header: "Status", key: "status", width: 10 },
+        { header: "Submitted At", key: "submitted_at", width: 22 },
+        { header: "Reviewed By", key: "reviewed_by_name", width: 22 },
+        { header: "Reviewed At", key: "reviewed_at", width: 22 },
+        { header: "Manager Comments", key: "manager_comment", width: 36 },
       ];
 
       // Style header row
       const headerRow = sheet.getRow(1);
-      headerRow.font      = { bold: true, color: { argb: "FFFFFFFF" } };
-      headerRow.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCE2124" } };
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCE2124" } };
       headerRow.alignment = { vertical: "middle", horizontal: "center" };
-      headerRow.height    = 20;
+      headerRow.height = 20;
 
       const formatDate = (val: any): string => {
         if (!val) return "—";
@@ -231,19 +234,19 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
       // Data rows
       rows.forEach((r: any) => {
         const row = sheet.addRow({
-          employee_name:    r.employee_name,
-          employee_email:   r.employee_email,
-          week_start_date:  formatDate(r.week_start_date),
-          work_date:        formatDate(r.work_date),
-          project_name:     r.project_name    || "",
+          employee_name: r.employee_name,
+          employee_email: r.employee_email,
+          week_start_date: formatDate(r.week_start_date),
+          work_date: formatDate(r.work_date),
+          project_name: r.project_name || "",
           task_description: r.task_description || "",
-          entry_hours:      r.entry_hours      != null ? Number(r.entry_hours)   : "",
-          total_hours:      r.total_hours      != null ? Number(r.total_hours)   : "",
-          status:           (r.status || "").toUpperCase(),
-          submitted_at:     formatDate(r.submitted_at),
+          entry_hours: r.entry_hours != null ? Number(r.entry_hours) : "",
+          total_hours: r.total_hours != null ? Number(r.total_hours) : "",
+          status: (r.status || "").toUpperCase(),
+          submitted_at: formatDate(r.submitted_at),
           reviewed_by_name: r.reviewed_by_name || "",
-          reviewed_at:      formatDate(r.reviewed_at),
-          manager_comment:  r.manager_comment  || "",
+          reviewed_at: formatDate(r.reviewed_at),
+          manager_comment: r.manager_comment || "",
         });
         if (row.number % 2 === 0) {
           row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
@@ -254,7 +257,7 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
 
       // ── Send response ─────────────────────────────────────────────────────
       const timestamp = new Date().toISOString().slice(0, 10);
-      const filename  = `hr-timesheets-export-${month || "all"}-${timestamp}.xlsx`;
+      const filename = `hr-timesheets-export-${month || "all"}-${timestamp}.xlsx`;
 
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -275,7 +278,7 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
 router.get("/history", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const status = (req.query.status as string) || undefined;
-    const month  = (req.query.month  as string) || undefined;
+    const month = (req.query.month as string) || undefined;
     const timesheets = await repo.getMyHistory(
       req.user!.entra_oid,
       {
@@ -297,12 +300,12 @@ router.get("/hr", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
     try {
       const employeeOid = (req.query.employeeOid as string) || undefined;
-      const status      = (req.query.status as string) || undefined;
-      const month       = (req.query.month  as string) || undefined;
+      const status = (req.query.status as string) || undefined;
+      const month = (req.query.month as string) || undefined;
 
       const timesheets = await repo.getHRTimesheets({
         employeeOid: employeeOid && employeeOid !== "all" ? employeeOid : undefined,
-        status:      status      && status      !== "all" ? status      : undefined,
+        status: status && status !== "all" ? status : undefined,
         month,
       });
 
@@ -321,7 +324,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   if (!ts) throw notFound("Timesheet not found");
 
   const role = req.user!.role;
-  const isOwner    = ts.employee_oid === req.user!.entra_oid;
+  const isOwner = ts.employee_oid === req.user!.entra_oid;
   const isHrOrAdmin = canAccess(role, isHR) || canAccess(role, isAdmin);
 
   if (!isOwner && !isHrOrAdmin) {
@@ -340,10 +343,10 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
 
 // ─── POST /api/timesheets/:id/entries — add entry (employee, draft only) ──────
 const EntrySchema = z.object({
-  workDate:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
-  projectName:     z.string().min(1).max(100),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  projectName: z.string().min(1).max(100),
   taskDescription: z.string().min(1),
-  hours:           z.number().min(0.5).max(24).multipleOf(0.5),
+  hours: z.number().min(0.5).max(24).multipleOf(0.5),
 });
 
 router.post("/:id/entries", requireAuth, validate(EntrySchema),
@@ -362,10 +365,10 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
 
 // ─── PATCH /api/timesheets/:id/entries/:entryId — update entry ────────────────
 const UpdateEntrySchema = z.object({
-  workDate:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  projectName:     z.string().min(1).max(100).optional(),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  projectName: z.string().min(1).max(100).optional(),
   taskDescription: z.string().min(1).optional(),
-  hours:           z.number().min(0.5).max(24).multipleOf(0.5).optional(),
+  hours: z.number().min(0.5).max(24).multipleOf(0.5).optional(),
 });
 
 router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
@@ -386,10 +389,10 @@ router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
 
 // ─── PUT /api/timesheets/entries/:entryId — update entry (new format) ──────────
 const PutEntrySchema = z.object({
-  date:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
   project: z.string().min(1).max(100),
-  task:    z.string().min(1),
-  hours:   z.number().min(0.5).max(24).multipleOf(0.5),
+  task: z.string().min(1),
+  hours: z.number().min(0.5).max(24).multipleOf(0.5),
 });
 
 router.put("/entries/:entryId", requireAuth, validate(PutEntrySchema),
@@ -439,12 +442,39 @@ router.post("/:id/submit", requireAuth,
 
     const updated = await repo.submitTimesheet(req.params.id);
     res.json({ timesheet: updated });
+
+    // ── Notify Manager (fire-and-forget) ───────────────────────────────
+    try {
+      const employee = await getUserByOid(ts.employee_oid);
+      const managerOid = employee?.manager_entra_oid;
+
+      if (managerOid) {
+        const manager = await getUserByOid(managerOid);
+        if (manager && manager.role !== "Admin") {
+          const notifTitle = "Timesheet Submitted";
+          const notifMsg = `${req.user!.name} has submitted their timesheet for week starting ${ts.week_start_date}.`;
+          
+          const n = await notifRepo.createNotification(
+            managerOid, "timesheet_submitted", notifTitle, notifMsg, "timesheet", req.params.id
+          );
+          emitNotification(managerOid, n);
+
+          const io = getSocketServer();
+          if (io) {
+            const unread = await notifRepo.unreadCount(managerOid);
+            io.to(`user:${managerOid}`).emit("unread_count", { count: unread });
+          }
+        }
+      }
+    } catch (nErr) {
+      console.error("[NOTIF] Failed to send timesheet submission notification:", nErr);
+    }
   }
 );
 
 // ─── PATCH /api/timesheets/:id/status — manager review/reject ────────────────
 const UpdateStatusSchema = z.object({
-  status:         z.enum(["reviewed", "draft", "rejected"]),
+  status: z.enum(["reviewed", "draft", "rejected"]),
   managerComment: z.string().optional(),
 });
 
@@ -465,6 +495,31 @@ router.patch("/:id/status", requireAuth, validate(UpdateStatusSchema),
 
     const updated = await repo.updateStatus(req.params.id, req.body.status, req.user!.entra_oid, req.body.managerComment);
     res.json({ timesheet: updated });
+
+    // ── Notify Employee (fire-and-forget) ──────────────────────────────
+    try {
+      const employee = await getUserByOid(ts.employee_oid);
+      if (employee && employee.role !== "Admin") {
+        const actionLabel = req.body.status === "reviewed" ? "reviewed" : "rejected";
+        const notifTitle = `Timesheet ${actionLabel.charAt(0).toUpperCase() + actionLabel.slice(1)}`;
+        const notifMsg = req.body.status === "reviewed"
+          ? `Your timesheet for week starting ${ts.week_start_date} has been reviewed and approved.`
+          : `Your timesheet for week starting ${ts.week_start_date} has been returned to draft. Reason: ${req.body.managerComment || "No comment provided"}`;
+        
+        const n = await notifRepo.createNotification(
+          ts.employee_oid, `timesheet_${actionLabel}`, notifTitle, notifMsg, "timesheet", req.params.id
+        );
+        emitNotification(ts.employee_oid, n);
+
+        const io = getSocketServer();
+        if (io) {
+          const unread = await notifRepo.unreadCount(ts.employee_oid);
+          io.to(`user:${ts.employee_oid}`).emit("unread_count", { count: unread });
+        }
+      }
+    } catch (nErr) {
+      console.error("[NOTIF] Failed to send timesheet status notification:", nErr);
+    }
   }
 );
 

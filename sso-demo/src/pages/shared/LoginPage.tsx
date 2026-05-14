@@ -4,6 +4,7 @@ import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { loginRequest } from "../../authConfig";
 import { ShieldCheck } from "lucide-react";
+import { AppLogo } from "../../components/common/AppLogo";
 
 /* ── LoginPage ──────────────────────────────────────────────────────────────────
    Responsibilities:
@@ -82,11 +83,8 @@ export const LoginPage: React.FC = () => {
       `}</style>
 
       {/* Brand mark */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 40 }}>
-        <ShieldCheck size={28} strokeWidth={1.5} style={{ color: "#CE2124" }} />
-        <span style={{ fontSize: 22, fontWeight: 700, color: "#282020", letterSpacing: "-0.02em" }}>
-          SipraHub
-        </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 40 }}>
+        <AppLogo variant="landing" />
       </div>
 
       {/* Card */}
