@@ -1,7 +1,8 @@
 import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import type { Holiday } from "../../api/types";
 import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_BG, HOLIDAY_TYPE_LABELS, isLongWeekend } from "../../api/holidays";
-import { CalendarDays, RefreshCw, Users, Star, Zap } from "lucide-react";
+import { CalendarDays, RefreshCw, Star, Zap } from "lucide-react";
 
 interface HolidayPreviewCardProps {
   holiday: Holiday;
@@ -10,26 +11,65 @@ interface HolidayPreviewCardProps {
   onClose: () => void;
 }
 
-export const HolidayPreviewCard = ({ holiday, x, y }: HolidayPreviewCardProps) => {
+const HolidayPreviewCard = ({ holiday, x, y }: HolidayPreviewCardProps) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y, opacity: 0, transform: "scale(0.95)" });
+
   const color = HOLIDAY_TYPE_COLORS[holiday.holiday_type];
   const bg = HOLIDAY_TYPE_BG[holiday.holiday_type];
-  const startFmt = new Date(holiday.start_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-  const endFmt   = new Date(holiday.end_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  
+  const formatUTC = (dateStr: string) => {
+    const d = new Date(`${dateStr.slice(0, 10)}T12:00:00Z`);
+    return d.toLocaleDateString("en-IN", { 
+      day: "numeric", 
+      month: "short", 
+      year: "numeric",
+      timeZone: "UTC"
+    });
+  };
+
+  const startFmt = formatUTC(holiday.start_date);
+  const endFmt   = formatUTC(holiday.end_date);
   const sameDay  = holiday.start_date.slice(0, 10) === holiday.end_date.slice(0, 10);
   const longWknd = isLongWeekend(holiday);
 
-  // Clamp to viewport
-  const style: React.CSSProperties = {
-    position: "fixed",
-    left: Math.min(x, window.innerWidth - 260),
-    top: Math.min(y, window.innerHeight - 200),
-    zIndex: 9999,
-    width: 240,
-    pointerEvents: "none",
-  };
+  useEffect(() => {
+    if (!cardRef.current) return;
+
+    const card = cardRef.current;
+    const { width, height } = card.getBoundingClientRect();
+    
+    let left = x;
+    let top = y;
+
+    if (left + width > window.innerWidth - 20) {
+      left = window.innerWidth - width - 20;
+    }
+    if (left < 20) left = 20;
+
+    if (top + height > window.innerHeight - 20) {
+      top = y - height - 16;
+    }
+
+    setPos({ left, top, opacity: 1, transform: "scale(1)" });
+  }, [x, y, holiday.id]);
 
   return createPortal(
-    <div className="hc-preview" style={style}>
+    <div 
+      ref={cardRef}
+      className="hc-preview" 
+      style={{
+        position: "fixed",
+        left: pos.left,
+        top: pos.top,
+        zIndex: 99999,
+        width: 260,
+        pointerEvents: "none",
+        opacity: pos.opacity,
+        transform: pos.transform,
+        transition: "opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
       <div className="hc-preview__header" style={{ background: bg, borderLeft: `4px solid ${color}` }}>
         <div className="hc-preview__type-badge" style={{ background: color }}>
           {HOLIDAY_TYPE_LABELS[holiday.holiday_type]}
@@ -69,3 +109,5 @@ export const HolidayPreviewCard = ({ holiday, x, y }: HolidayPreviewCardProps) =
     document.body
   );
 };
+
+export default HolidayPreviewCard;

@@ -5,7 +5,7 @@ import {
   HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_BG, HOLIDAY_TYPE_LABELS,
   getDatesInRange, isLongWeekend,
 } from "../../api/holidays";
-import { HolidayPreviewCard } from "./HolidayPreviewCard";
+import HolidayPreviewCard from "./HolidayPreview.tsx";
 
 interface HolidayCalendarProps {
   holidays: Holiday[];
@@ -31,23 +31,72 @@ export const HolidayCalendar = ({
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // Build a map: dateStr → holidays[]
-  const dateMap = useMemo(() => {
-    const map: Record<string, Holiday[]> = {};
-    for (const h of holidays) {
-      for (const d of getDatesInRange(h.start_date.slice(0, 10), h.end_date.slice(0, 10))) {
-        if (!map[d]) map[d] = [];
-        map[d].push(h);
+  // Build a lane-aware map: dateStr → { holiday, lane, isStart, isEnd, isMiddle }[]
+  const processedData = useMemo(() => {
+    const sortedHolidays = [...holidays].sort((a, b) => {
+      const startA = a.start_date.slice(0, 10);
+      const startB = b.start_date.slice(0, 10);
+      if (startA !== startB) return startA.localeCompare(startB);
+      // Longer holidays first to optimize packing
+      const durA = new Date(`${a.end_date}T12:00:00Z`).getTime() - new Date(`${a.start_date}T12:00:00Z`).getTime();
+      const durB = new Date(`${b.end_date}T12:00:00Z`).getTime() - new Date(`${b.start_date}T12:00:00Z`).getTime();
+      return durB - durA;
+    });
+
+    const holidayLanes: Record<string, number> = {}; // holidayId -> lane
+    const dateLanes: Record<string, Set<number>> = {}; // date -> occupiedLanes
+
+    for (const h of sortedHolidays) {
+      const dates = getDatesInRange(h.start_date.slice(0, 10), h.end_date.slice(0, 10));
+      let lane = 0;
+      while (true) {
+        const isFree = dates.every(d => !dateLanes[d]?.has(lane));
+        if (isFree) break;
+        lane++;
       }
+      
+      holidayLanes[h.id] = lane;
+      dates.forEach(d => {
+        if (!dateLanes[d]) dateLanes[d] = new Set();
+        dateLanes[d].add(lane);
+      });
     }
-    return map;
+
+    const dateMap: Record<string, { holiday: Holiday; lane: number; type: "start" | "middle" | "end" | "single" }[]> = {};
+    for (const h of sortedHolidays) {
+      const dates = getDatesInRange(h.start_date.slice(0, 10), h.end_date.slice(0, 10));
+      const lane = holidayLanes[h.id];
+
+      dates.forEach((d, idx) => {
+        if (!dateMap[d]) dateMap[d] = [];
+        let type: "start" | "middle" | "end" | "single" = "middle";
+        if (dates.length === 1) type = "single";
+        else if (idx === 0) type = "start";
+        else if (idx === dates.length - 1) type = "end";
+
+        dateMap[d].push({ holiday: h, lane, type });
+      });
+    }
+
+    // For each date, sort by lane and add spacers if needed
+    const finalMap: Record<string, ({ holiday: Holiday; type: string } | null)[]> = {};
+    Object.entries(dateMap).forEach(([d, items]) => {
+      const maxLane = Math.max(...items.map(i => i.lane));
+      const lanes: ({ holiday: Holiday; type: string } | null)[] = new Array(maxLane + 1).fill(null);
+      items.forEach(item => {
+        lanes[item.lane] = { holiday: item.holiday, type: item.type };
+      });
+      finalMap[d] = lanes;
+    });
+
+    return finalMap;
   }, [holidays]);
 
   // Build calendar grid
   const calendarDays = useMemo(() => {
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const prevMonthDays = new Date(year, month, 0).getDate();
+    const firstDay = new Date(Date.UTC(year, month, 1, 12, 0, 0)).getUTCDay();
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0, 12, 0, 0)).getUTCDate();
+    const prevMonthDays = new Date(Date.UTC(year, month, 0, 12, 0, 0)).getUTCDate();
     const days: { date: string; isCurrentMonth: boolean }[] = [];
 
     // Prev month trailing days
@@ -117,10 +166,12 @@ export const HolidayCalendar = ({
       {/* Days grid */}
       <div className="hc-cal__grid">
         {calendarDays.map(({ date, isCurrentMonth }) => {
-          const dow = new Date(date).getDay();
+          const dayDate = new Date(`${date}T12:00:00Z`);
+          const dow = dayDate.getUTCDay();
           const isWeekend = dow === 0 || dow === 6;
           const isToday = date === today;
-          const dayHolidays = dateMap[date] || [];
+          const daySlots = processedData[date] || [];
+          const hasHolidays = daySlots.some(s => !!s);
 
           return (
             <div
@@ -130,7 +181,7 @@ export const HolidayCalendar = ({
                 !isCurrentMonth ? "hc-cal__day--other" : "",
                 isWeekend ? "hc-cal__day--weekend" : "",
                 isToday ? "hc-cal__day--today" : "",
-                dayHolidays.length > 0 ? "hc-cal__day--has-holiday" : "",
+                hasHolidays ? "hc-cal__day--has-holiday" : "",
               ].filter(Boolean).join(" ")}
               onClick={() => canEdit && isCurrentMonth && onDateClick(date)}
               title={canEdit && isCurrentMonth ? "Click to add holiday" : undefined}
@@ -141,21 +192,25 @@ export const HolidayCalendar = ({
 
               {/* Holiday pills */}
               <div className="hc-cal__events">
-                {dayHolidays.slice(0, 2).map(h => {
-                  const isFirstDay = h.start_date.slice(0, 10) === date;
-                  const isLastDay = h.end_date.slice(0, 10) === date;
+                {processedData[date]?.map((slot, laneIdx) => {
+                  if (!slot) return <div key={`spacer-${laneIdx}`} className="hc-cal__event-spacer" />;
+                  
+                  const { holiday: h, type } = slot;
                   const longWknd = isLongWeekend(h);
+                  
                   return (
                     <div
                       key={h.id}
                       className={[
                         "hc-cal__event",
-                        isFirstDay ? "hc-cal__event--start" : "",
-                        isLastDay ? "hc-cal__event--end" : "",
+                        `hc-cal__event--${type}`,
                       ].filter(Boolean).join(" ")}
                       style={{
                         background: HOLIDAY_TYPE_COLORS[h.holiday_type],
                         opacity: h.status === "draft" ? 0.6 : 1,
+                        // Ensure fixed height for all segments
+                        height: "22px",
+                        minHeight: "22px",
                       }}
                       onClick={e => { e.stopPropagation(); onHolidayClick(h); }}
                       onMouseEnter={e => {
@@ -164,18 +219,21 @@ export const HolidayCalendar = ({
                       }}
                       onMouseLeave={() => setHovered(null)}
                     >
-                      {isFirstDay && (
+                      {(type === "start" || type === "single") && (
                         <span className="hc-cal__event-label">
                           {longWknd && <span className="hc-lw-dot" title="Long weekend" />}
+                          {h.title}
+                        </span>
+                      )}
+                      {/* Show title also on 'middle' if it's the start of a week (Sunday) - Optional but nice */}
+                      {type === "middle" && dow === 0 && (
+                        <span className="hc-cal__event-label hc-cal__event-label--cont">
                           {h.title}
                         </span>
                       )}
                     </div>
                   );
                 })}
-                {dayHolidays.length > 2 && (
-                  <span className="hc-cal__more">+{dayHolidays.length - 2} more</span>
-                )}
               </div>
 
               {/* Add icon on hover for admin */}
@@ -189,19 +247,7 @@ export const HolidayCalendar = ({
         })}
       </div>
 
-      {/* Legend */}
-      <div className="hc-cal__legend">
-        {(["mandatory","optional","festival","regional","company"] as const).map(t => (
-          <span key={t} className="hc-legend-item">
-            <span className="hc-legend-dot" style={{ background: HOLIDAY_TYPE_COLORS[t] }} />
-            {HOLIDAY_TYPE_LABELS[t]}
-          </span>
-        ))}
-        <span className="hc-legend-item">
-          <span className="hc-legend-dot hc-legend-dot--draft" />
-          Draft
-        </span>
-      </div>
+
 
       {/* Preview Card */}
       {hovered && (

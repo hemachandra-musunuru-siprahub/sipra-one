@@ -149,6 +149,8 @@ export interface HolidayStats {
   total_archived: string;
   optional_count: string;
   upcoming_count: string;
+  total_days: string;
+  upcoming_days: string;
 }
 
 export interface HolidayFilters {

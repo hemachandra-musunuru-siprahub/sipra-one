@@ -112,12 +112,16 @@ export const HolidayTable = ({
           {sorted.map(h => {
             const color = HOLIDAY_TYPE_COLORS[h.holiday_type];
             const statusStyle = STATUS_STYLES[h.status];
-            const start = new Date(h.start_date);
-            const end   = new Date(h.end_date);
+            const start = new Date(`${h.start_date.slice(0, 10)}T12:00:00Z`);
+            const end   = new Date(`${h.end_date.slice(0, 10)}T12:00:00Z`);
             const diff  = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+            
+            const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) => 
+              d.toLocaleDateString("en-IN", { ...opts, timeZone: "UTC" });
+
             const dateStr = h.start_date.slice(0, 10) === h.end_date.slice(0, 10)
-              ? start.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-              : `${start.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${end.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`;
+              ? fmt(start, { day: "numeric", month: "short", year: "numeric" })
+              : `${fmt(start, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short", year: "numeric" })}`;
             const longWknd = isLongWeekend(h);
 
             return (

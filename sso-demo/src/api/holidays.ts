@@ -91,21 +91,26 @@ export const HOLIDAY_TYPE_BG: Record<string, string> = {
 /** Returns all dates (as YYYY-MM-DD strings) between start and end (inclusive) */
 export const getDatesInRange = (start: string, end: string): string[] => {
   const dates: string[] = [];
-  const cur = new Date(start);
-  const last = new Date(end);
+  // Using T12:00:00Z to ensure we are always comfortably in the middle of the day UTC
+  // regardless of local timezone interpretation of the input string.
+  const cur = new Date(`${start.slice(0, 10)}T12:00:00Z`);
+  const last = new Date(`${end.slice(0, 10)}T12:00:00Z`);
+  
   while (cur <= last) {
     dates.push(cur.toISOString().slice(0, 10));
-    cur.setDate(cur.getDate() + 1);
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return dates;
 };
 
 /** Detect if a holiday creates a long weekend (adjacent to Sat/Sun) */
 export const isLongWeekend = (holiday: Holiday): boolean => {
-  const start = new Date(holiday.start_date);
-  const end = new Date(holiday.end_date);
-  const dayBefore = new Date(start); dayBefore.setDate(dayBefore.getDate() - 1);
-  const dayAfter  = new Date(end);   dayAfter.setDate(dayAfter.getDate() + 1);
-  const isSatSun = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+  const s = new Date(`${holiday.start_date.slice(0, 10)}T12:00:00Z`);
+  const e = new Date(`${holiday.end_date.slice(0, 10)}T12:00:00Z`);
+  
+  const dayBefore = new Date(s); dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  const dayAfter  = new Date(e);   dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
+  
+  const isSatSun = (d: Date) => d.getUTCDay() === 0 || d.getUTCDay() === 6;
   return isSatSun(dayBefore) || isSatSun(dayAfter);
 };

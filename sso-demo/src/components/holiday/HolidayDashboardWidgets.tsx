@@ -9,12 +9,12 @@ interface HolidayDashboardWidgetsProps {
 export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWidgetsProps) => {
   const widgets = [
     {
-      label: "Total Holidays",
+      label: "Total Published",
       value: stats ? Number(stats.total_published) : 0,
       icon: <CalendarDays size={20} />,
       color: "#CE2124",
       bg: "rgba(206,33,36,.10)",
-      sub: `${stats ? Number(stats.total_draft) : 0} drafts pending`,
+      sub: `${stats ? Number(stats.total_days) : 0} Holiday Days`,
     },
     {
       label: "Upcoming",
@@ -22,15 +22,15 @@ export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWi
       icon: <TrendingUp size={20} />,
       color: "#3B82F6",
       bg: "rgba(59,130,246,.10)",
-      sub: "Published holidays ahead",
+      sub: `${stats ? Number(stats.upcoming_days) : 0} Days ahead`,
     },
     {
-      label: "Long Weekends",
-      value: "-",
+      label: "Total Events",
+      value: stats ? (Number(stats.total_published) + Number(stats.total_draft) + Number(stats.total_archived)) : 0,
       icon: <Zap size={20} />,
       color: "#F97316",
       bg: "rgba(249,115,22,.10)",
-      sub: "Auto-detected",
+      sub: `${stats ? Number(stats.total_draft) : 0} Drafts / ${stats ? Number(stats.total_archived) : 0} Arch`,
     },
     {
       label: "Optional Holidays",
@@ -40,6 +40,7 @@ export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWi
       bg: "rgba(139,92,246,.10)",
       sub: "Employee choice",
     },
+
   ];
 
   if (isLoading) {

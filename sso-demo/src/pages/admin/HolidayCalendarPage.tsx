@@ -1,392 +1,276 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { HolidayCalendar } from "../../components/holiday/HolidayCalendar";
-import { HolidayTable } from "../../components/holiday/HolidayTable";
-import { HolidayForm } from "../../components/holiday/HolidayForm";
-import { HolidayDashboardWidgets } from "../../components/holiday/HolidayDashboardWidgets";
-import { HolidayImportModal } from "../../components/holiday/HolidayImportModal";
-import {
-  getHolidays, createHoliday, updateHoliday, deleteHoliday,
-  duplicateHoliday, updateHolidayStatus, bulkPublish, exportHolidays,
-  HOLIDAY_TYPE_LABELS,
-} from "../../api/holidays";
-import type { Holiday, HolidayFilters, HolidayStats } from "../../api/types";
-import {
-  Plus, Upload, Download, CalendarDays, Table2,
-  ChevronLeft, ChevronRight, Search, Filter, Eye, EyeOff, Trash2,
-  RefreshCw,
+import { 
+  Calendar as CalendarIcon, Plus, 
+  Download,
+  Clock, Zap, Star, Coffee, Info
 } from "lucide-react";
+import { getHolidays, createHoliday, updateHoliday, deleteHoliday } from "../../api/holidays";
+import { HolidayCalendar } from "../../components/holiday/HolidayCalendar";
+import { HolidayForm } from "../../components/holiday/HolidayForm";
+import { HolidayImportModal } from "../../components/holiday/HolidayImportModal";
+import { HolidayDashboardWidgets } from "../../components/holiday/HolidayDashboardWidgets";
+import type { Holiday, HolidayStats } from "../../api/types";
+import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS, isLongWeekend } from "../../api/holidays";
 import toast from "react-hot-toast";
-import { socket } from "../../lib/socket";
 
 interface HolidayCalendarPageProps {
   internalUser: any;
 }
 
-const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i);
-const MONTH_NAMES = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
-];
-
-type ViewMode = "calendar" | "table";
-
 export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) => {
-  const isAdmin = internalUser?.role === "Admin";
-  const isHR    = internalUser?.role === "HR";
-  const canEdit  = isAdmin || isHR;
-  const canDelete = isAdmin;
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [stats, setStats] = useState<HolidayStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  
+  const [year, setYear] = useState(new Date().getUTCFullYear());
+  const [month, setMonth] = useState(new Date().getUTCMonth());
 
-  const today = new Date();
-  const [year, setYear]   = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [view, setView]   = useState<ViewMode>("calendar");
+  const canEdit = internalUser?.role === "Admin" || internalUser?.role === "HR";
 
-  const [holidays, setHolidays]   = useState<Holiday[]>([]);
-  const [stats, setStats]         = useState<HolidayStats | undefined>();
-  const [isLoading, setIsLoading] = useState(true);
-
-  const [filters, setFilters] = useState<HolidayFilters>({ year });
-  const [search, setSearch]   = useState("");
-
-  const [showForm, setShowForm]       = useState(false);
-  const [editHoliday, setEditHoliday] = useState<Holiday | null>(null);
-  const [defaultDate, setDefaultDate] = useState<string | undefined>();
-  const [isSaving, setIsSaving]       = useState(false);
-
-  const [showImport, setShowImport] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isBulkLoading, setIsBulkLoading] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [typeFilter, setTypeFilter]     = useState<string>("");
-
-  const fetchHolidays = useCallback(async () => {
-    setIsLoading(true);
+  const loadData = async () => {
     try {
-      const f: HolidayFilters = { year, search: search || undefined };
-      if (statusFilter) f.status = statusFilter as Holiday["status"];
-      if (typeFilter)   f.holiday_type = typeFilter as Holiday["holiday_type"];
-      const res = await getHolidays(f);
+      setLoading(true);
+      const res = await getHolidays({ year });
       setHolidays(res.holidays || []);
-      setStats(res.stats);
-    } catch {
+      if (res.stats) setStats(res.stats);
+    } catch (e) {
+      console.error("Failed to load holidays:", e);
       toast.error("Failed to load holidays");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [year, search, statusFilter, typeFilter]);
-
-  useEffect(() => { fetchHolidays(); }, [fetchHolidays]);
-
-  // Real-time holiday updates via Socket.IO
-  useEffect(() => {
-    const handler = () => fetchHolidays();
-    socket.on("holiday:updated", handler);
-    return () => { socket.off("holiday:updated", handler); };
-  }, [fetchHolidays]);
-
-  const openCreate = (date?: string) => {
-    setEditHoliday(null);
-    setDefaultDate(date);
-    setShowForm(true);
   };
 
-  const openEdit = (h: Holiday) => {
-    setEditHoliday(h);
-    setDefaultDate(undefined);
-    setShowForm(true);
+  useEffect(() => {
+    loadData();
+  }, [year]);
+
+  const filteredHolidays = holidays;
+
+  const nextHoliday = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published")
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
+  }, [holidays]);
+
+  const upcomingHolidays = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published")
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .slice(0, 5);
+  }, [holidays]);
+
+  const longWeekends = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published" && isLongWeekend(h))
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .slice(0, 3);
+  }, [holidays]);
+
+  // Simple "Bridge Day" logic: Check if a holiday falls on Tue or Thu
+  const bridgeDays = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published")
+      .filter(h => {
+        const d = new Date(`${h.start_date}T12:00:00Z`);
+        const day = d.getUTCDay(); // 2 is Tue, 4 is Thu
+        return day === 2 || day === 4;
+      })
+      .slice(0, 2);
+  }, [holidays]);
+
+  const handleEdit = (h: Holiday) => {
+    setEditingHoliday(h);
+    setIsFormOpen(true);
   };
 
   const handleSave = async (data: Partial<Holiday>) => {
-    setIsSaving(true);
     try {
-      if (editHoliday) {
-        const res = await updateHoliday(editHoliday.id, data);
-        setHolidays(prev => prev.map(h => h.id === editHoliday.id ? res.holiday : h));
-        toast.success("Holiday updated!");
+      if (editingHoliday) {
+        await updateHoliday(editingHoliday.id, data);
+        toast.success("Holiday updated successfully");
       } else {
-        const res = await createHoliday(data);
-        setHolidays(prev => [...prev, res.holiday]);
-        if (res.holiday.status === "published") {
-          toast.success("Holiday published!");
-        } else {
-          toast.success("Holiday created as draft.");
-        }
+        await createHoliday(data as any);
+        toast.success("Holiday created successfully");
       }
-      setShowForm(false);
-      fetchHolidays(); // refresh stats
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save holiday");
-    } finally {
-      setIsSaving(false);
+      setIsFormOpen(false);
+      loadData();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || "Failed to save holiday");
     }
   };
 
-  const handleDelete = async (h: Holiday) => {
-    if (!window.confirm(`Delete "${h.title}"? This action cannot be undone.`)) return;
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this holiday?")) return;
     try {
-      await deleteHoliday(h.id);
-      setHolidays(prev => prev.filter(x => x.id !== h.id));
-      toast.success("Holiday deleted.");
-      fetchHolidays();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete");
+      await deleteHoliday(id);
+      toast.success("Holiday deleted");
+      loadData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete holiday");
     }
   };
 
-  const handleDuplicate = async (h: Holiday) => {
-    try {
-      const res = await duplicateHoliday(h.id);
-      setHolidays(prev => [...prev, res.holiday]);
-      toast.success(`"${h.title}" duplicated as draft.`);
-    } catch {
-      toast.error("Failed to duplicate");
-    }
-  };
-
-  const handleStatusChange = async (h: Holiday, status: Holiday["status"]) => {
-    try {
-      const res = await updateHolidayStatus(h.id, status);
-      setHolidays(prev => prev.map(x => x.id === h.id ? res.holiday : x));
-      if (status === "published") toast.success(`"${h.title}" is now live for all employees!`);
-      else if (status === "draft") toast.success("Holiday unpublished.");
-      else toast.success("Holiday archived.");
-      fetchHolidays();
-    } catch {
-      toast.error("Failed to update status");
-    }
-  };
-
-  const handleBulkPublish = async (status: Holiday["status"]) => {
-    const ids = Array.from(selectedIds);
-    if (!ids.length) return;
-    setIsBulkLoading(true);
-    try {
-      await bulkPublish(ids, status);
-      toast.success(`${ids.length} holiday${ids.length !== 1 ? "s" : ""} ${status === "published" ? "published" : "updated"}.`);
-      setSelectedIds(new Set());
-      fetchHolidays();
-    } catch {
-      toast.error("Bulk update failed");
-    } finally {
-      setIsBulkLoading(false);
-    }
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) setSelectedIds(new Set(holidays.map(h => h.id)));
-    else setSelectedIds(new Set());
-  };
-
-  const handleSelectOne = (id: string, checked: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      checked ? next.add(id) : next.delete(id);
-      return next;
-    });
-  };
-
-  const prevMonth = () => month === 0 ? (setYear(y => y - 1), setMonth(11)) : setMonth(m => m - 1);
-  const nextMonth = () => month === 11 ? (setYear(y => y + 1), setMonth(0)) : setMonth(m => m + 1);
-
-  // Filter holidays visible in current calendar month
-  const visibleHolidays = view === "calendar"
-    ? holidays.filter(h => {
-        const s = new Date(h.start_date), e = new Date(h.end_date);
-        const mStart = new Date(year, month, 1), mEnd = new Date(year, month + 1, 0);
-        return s <= mEnd && e >= mStart;
-      })
-    : holidays;
+  const countdownDays = nextHoliday ? Math.ceil((new Date(`${nextHoliday.start_date}T12:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
 
   return (
     <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Admin"}>
-      {/* ── Page Header ── */}
-      <header className="page-header">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <h1 className="page-title">Holiday Calendar</h1>
-            <p style={{ color: "var(--neutral-500)", fontSize: "0.875rem", marginTop: 2 }}>
-              Manage company holidays, public holidays, and observances.
-            </p>
+      <div className="hc-dashboard">
+        <header className="hc-header">
+          <div className="hc-header__left">
+            <h1 className="hc-title">Holiday Calendar</h1>
+            <p className="hc-subtitle">Plan and manage organizational holidays across all regions.</p>
           </div>
-          {canEdit && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button className="btn btn--secondary btn--sm" onClick={() => setShowImport(true)}>
-                <Upload size={15} /> Import
-              </button>
-              <button
-                className="btn btn--secondary btn--sm"
-                onClick={() => exportHolidays("xlsx", { year, status: statusFilter as any, holiday_type: typeFilter as any })}
-              >
-                <Download size={15} /> Export
-              </button>
-              <button className="btn btn--primary" onClick={() => openCreate()}>
-                <Plus size={16} /> Add Holiday
-              </button>
+          <div className="hc-header__actions">
+            {canEdit && (
+              <>
+                <button className="hc-btn hc-btn--secondary" onClick={() => setIsImportOpen(true)}>
+                  <Download size={16} /> Import
+                </button>
+                <button className="hc-btn hc-btn--primary" onClick={() => { setEditingHoliday(null); setIsFormOpen(true); }}>
+                  <Plus size={16} /> Add Holiday
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        {internalUser?.role === "Admin" && stats && <HolidayDashboardWidgets stats={stats} />}
+
+        <div className="hc-main-grid">
+          <div className="hc-grid__content">
+            <div className="hc-content-card">
+
+              <HolidayCalendar 
+                holidays={filteredHolidays}
+                year={year}
+                month={month}
+                onMonthChange={(y, m) => { setYear(y); setMonth(m); }}
+                onDateClick={(d) => { if (canEdit) { setEditingHoliday(null); setIsFormOpen(true); } }}
+                onHolidayClick={handleEdit}
+                canEdit={canEdit}
+              />
             </div>
-          )}
-        </div>
-      </header>
-
-      {/* ── KPI Widgets ── */}
-      <HolidayDashboardWidgets stats={stats} isLoading={isLoading} />
-
-      {/* ── Toolbar ── */}
-      <div className="hc-toolbar">
-        {/* Year selector */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <button className="btn btn--ghost btn--sm" onClick={() => setYear(y => y - 1)}><ChevronLeft size={16} /></button>
-          <select
-            className="hc-select"
-            style={{ width: 90, fontSize: "0.875rem" }}
-            value={year}
-            onChange={e => { setYear(Number(e.target.value)); setFilters(f => ({ ...f, year: Number(e.target.value) })); }}
-          >
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <button className="btn btn--ghost btn--sm" onClick={() => setYear(y => y + 1)}><ChevronRight size={16} /></button>
-        </div>
-
-        {/* Month nav (calendar view only) */}
-        {view === "calendar" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <button className="btn btn--ghost btn--sm" onClick={prevMonth}><ChevronLeft size={15} /></button>
-            <span style={{ fontWeight: 600, fontSize: "0.875rem", minWidth: 100, textAlign: "center" }}>
-              {MONTH_NAMES[month]}
-            </span>
-            <button className="btn btn--ghost btn--sm" onClick={nextMonth}><ChevronRight size={15} /></button>
           </div>
+
+          <aside className="hc-grid__sidebar">
+            {/* Next Break Widget */}
+            {nextHoliday && (
+              <div className="hc-side-card hc-side-card--gradient">
+                <div className="hc-side-card__header">
+                  <Clock size={14} /> Next Break
+                </div>
+                <div className="hc-countdown">
+                  <span className="hc-countdown__value">{countdownDays}</span>
+                  <span className="hc-countdown__label">Days To Go</span>
+                </div>
+                <div className="hc-countdown__footer">
+                  <span className="hc-countdown__title">{nextHoliday.title}</span>
+                  <div className="hc-countdown__meta">
+                    <span>{new Date(`${nextHoliday.start_date}T12:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    <span className="hc-timeline-tag">{HOLIDAY_TYPE_LABELS[nextHoliday.holiday_type]}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Planning Insights */}
+            {(longWeekends.length > 0 || bridgeDays.length > 0) && (
+              <div className="hc-side-card">
+                <div className="hc-side-card__header">
+                  <Zap size={14} /> Planning Insights
+                </div>
+                <div className="hc-insights-list">
+                  {longWeekends.map((h, i) => (
+                    <div key={i} className="hc-insight-item">
+                      <div className="hc-insight-icon hc-insight-icon--zap"><Zap size={14} /></div>
+                      <div className="hc-insight-content">
+                        <p>Long Weekend!</p>
+                        <span>{h.title} starts on {new Date(`${h.start_date}T12:00:00Z`).toLocaleDateString('en-IN', { weekday: 'long' })}.</span>
+                      </div>
+                    </div>
+                  ))}
+                  {bridgeDays.map((h, i) => (
+                    <div key={i} className="hc-insight-item">
+                      <div className="hc-insight-icon hc-insight-icon--bridge"><Coffee size={14} /></div>
+                      <div className="hc-insight-content">
+                        <p>Bridge Leave Tip</p>
+                        <span>Take a day off before/after {h.title} for a 4-day break.</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Timeline */}
+            {upcomingHolidays.length > 0 && (
+              <div className="hc-side-card">
+                <div className="hc-side-card__header">
+                  <Star size={14} /> Upcoming Timeline
+                </div>
+                <div className="hc-timeline">
+                  {upcomingHolidays.map((h, i) => (
+                    <div key={i} className="hc-timeline-item">
+                      <div className="hc-timeline-marker"></div>
+                      <div className="hc-timeline-content">
+                        <span className="hc-timeline-date">{new Date(`${h.start_date}T12:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                        <h4 className="hc-timeline-title">{h.title}</h4>
+                        <div className="hc-timeline-meta">
+                          <span className="hc-timeline-tag" style={{ color: HOLIDAY_TYPE_COLORS[h.holiday_type], background: `${HOLIDAY_TYPE_COLORS[h.holiday_type]}15` }}>
+                            {HOLIDAY_TYPE_LABELS[h.holiday_type]}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Legend Card */}
+            <div className="hc-side-card">
+              <div className="hc-side-card__header">
+                <Info size={14} /> Legend
+              </div>
+              <div className="hc-legend-card">
+                {Object.entries(HOLIDAY_TYPE_LABELS).map(([type, label]) => (
+                  <div key={type} className="hc-legend-item">
+                    <div className={`hc-legend-dot ${type === 'draft' ? 'hc-legend-dot--draft' : ''}`} style={{ background: type === 'draft' ? 'transparent' : HOLIDAY_TYPE_COLORS[type] }}></div>
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        {/* Modals */}
+        {isFormOpen && (
+          <HolidayForm 
+            holiday={editingHoliday || undefined}
+            onSave={handleSave}
+            onClose={() => setIsFormOpen(false)}
+          />
         )}
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
-          {canEdit && (
-            <div className="hc-select-wrap" style={{ width: 130 }}>
-              <select className="hc-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="archived">Archived</option>
-              </select>
-            </div>
-          )}
-          <div className="hc-select-wrap" style={{ width: 140 }}>
-            <select className="hc-select" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-              <option value="">All Types</option>
-              {Object.entries(HOLIDAY_TYPE_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ position: "relative" }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-400)" }} />
-            <input
-              className="hc-input"
-              style={{ paddingLeft: 32, width: 200 }}
-              placeholder="Search holidays…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <button className="btn btn--ghost btn--sm" onClick={fetchHolidays} title="Refresh">
-            <RefreshCw size={15} />
-          </button>
-        </div>
-
-        {/* View toggle */}
-        <div className="hc-view-toggle">
-          <button
-            className={`hc-view-toggle__btn${view === "calendar" ? " hc-view-toggle__btn--active" : ""}`}
-            onClick={() => setView("calendar")}
-            title="Calendar view"
-          >
-            <CalendarDays size={15} />
-          </button>
-          <button
-            className={`hc-view-toggle__btn${view === "table" ? " hc-view-toggle__btn--active" : ""}`}
-            onClick={() => setView("table")}
-            title="Table view"
-          >
-            <Table2 size={15} />
-          </button>
-        </div>
+        {isImportOpen && (
+          <HolidayImportModal 
+            onSuccess={() => { setIsImportOpen(false); loadData(); }}
+            onClose={() => setIsImportOpen(false)}
+          />
+        )}
       </div>
-
-      {/* ── Bulk action bar ── */}
-      {selectedIds.size > 0 && canEdit && (
-        <div className="hc-bulk-bar">
-          <span>{selectedIds.size} selected</span>
-          <button className="btn btn--sm btn--primary" onClick={() => handleBulkPublish("published")} disabled={isBulkLoading}>
-            <Eye size={14} /> Publish All
-          </button>
-          <button className="btn btn--sm btn--secondary" onClick={() => handleBulkPublish("draft")} disabled={isBulkLoading}>
-            <EyeOff size={14} /> Unpublish All
-          </button>
-          <button className="btn btn--sm btn--secondary" style={{ color: "var(--error-500)" }} onClick={() => handleBulkPublish("archived")} disabled={isBulkLoading}>
-            <Trash2 size={14} /> Archive All
-          </button>
-          <button className="btn btn--ghost btn--sm" onClick={() => setSelectedIds(new Set())}>
-            Clear
-          </button>
-        </div>
-      )}
-
-      {/* ── Main Content ── */}
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card__body" style={{ padding: view === "calendar" ? 0 : undefined }}>
-          {isLoading ? (
-            <div className="hc-skeleton-wrap">
-              <div className="hc-skeleton" style={{ height: 480, borderRadius: 8 }} />
-            </div>
-          ) : view === "calendar" ? (
-            <HolidayCalendar
-              holidays={visibleHolidays}
-              year={year}
-              month={month}
-              onMonthChange={(y, m) => { setYear(y); setMonth(m); }}
-              onDateClick={canEdit ? openCreate : () => {}}
-              onHolidayClick={canEdit ? openEdit : () => {}}
-              canEdit={canEdit}
-            />
-          ) : (
-            <HolidayTable
-              holidays={visibleHolidays}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              selectedIds={selectedIds}
-              onSelectAll={handleSelectAll}
-              onSelectOne={handleSelectOne}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-              onDuplicate={handleDuplicate}
-              onStatusChange={handleStatusChange}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* ── Modals ── */}
-      {showForm && (
-        <HolidayForm
-          holiday={editHoliday}
-          defaultDate={defaultDate}
-          onSave={handleSave}
-          onClose={() => setShowForm(false)}
-          isLoading={isSaving}
-        />
-      )}
-
-      {showImport && (
-        <HolidayImportModal
-          onClose={() => setShowImport(false)}
-          onSuccess={imported => {
-            setHolidays(prev => [...prev, ...imported]);
-            setShowImport(false);
-            fetchHolidays();
-          }}
-        />
-      )}
     </DashboardLayout>
   );
 };

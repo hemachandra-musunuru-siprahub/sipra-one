@@ -75,7 +75,11 @@ const HolidaySchema = z.object({
   department_id:   z.string().uuid().optional().nullable(),
   location_id:     z.string().uuid().optional().nullable(),
   notify_employees: z.boolean().default(true),
-}).refine(d => new Date(d.start_date) <= new Date(d.end_date), {
+}).refine(d => {
+  const s = new Date(`${d.start_date}T12:00:00Z`);
+  const e = new Date(`${d.end_date}T12:00:00Z`);
+  return s <= e;
+}, {
   message: "end_date must be on or after start_date",
 });
 
@@ -145,7 +149,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
         COUNT(*) FILTER (WHERE status = 'draft')     AS total_draft,
         COUNT(*) FILTER (WHERE status = 'archived')  AS total_archived,
         COUNT(*) FILTER (WHERE is_optional = true AND status = 'published') AS optional_count,
-        COUNT(*) FILTER (WHERE start_date >= CURRENT_DATE AND status = 'published') AS upcoming_count
+        COUNT(*) FILTER (WHERE start_date >= CURRENT_DATE AND status = 'published') AS upcoming_count,
+        COALESCE(SUM((end_date - start_date) + 1) FILTER (WHERE status = 'published'), 0) AS total_days,
+        COALESCE(SUM((end_date - start_date) + 1) FILTER (WHERE start_date >= CURRENT_DATE AND status = 'published'), 0) AS upcoming_days
       FROM holidays
       WHERE EXTRACT(YEAR FROM start_date) = $1
     `, [currentYear]);
@@ -339,8 +345,8 @@ router.get("/export", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]),
       "Holiday Name": r.title,
       "Description": r.description || "",
       "Type": r.holiday_type,
-      "Start Date": r.start_date?.toString().slice(0, 10),
-      "End Date": r.end_date?.toString().slice(0, 10),
+      "Start Date": r.start_date,
+      "End Date": r.end_date,
       "Optional": r.is_optional ? "Yes" : "No",
       "Recurring": r.is_recurring ? "Yes" : "No",
       "Status": r.status,
@@ -385,6 +391,15 @@ router.post("/import", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]),
     const inserted: object[] = [];
     const { publish } = req.body;
 
+    const formatDate = (val: any) => {
+      if (!val) return "";
+      if (typeof val === "object" && val instanceof Date) {
+        const d = new Date(val.getTime() + (12 * 60 * 60 * 1000));
+        return d.toISOString().slice(0, 10);
+      }
+      return val.toString().trim().slice(0, 10);
+    };
+
     for (let i = 0; i < raw.length; i++) {
       const r = raw[i];
       const rowNum = i + 2;
@@ -399,8 +414,8 @@ router.post("/import", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]),
 
       if (!title) { results.push({ row: rowNum, status: "error", error: "Missing Holiday Name" }); continue; }
 
-      const startStr = typeof startDate === "object" ? (startDate as Date).toISOString().slice(0, 10) : startDate.toString().slice(0, 10);
-      const endStr = typeof endDate === "object" ? (endDate as Date).toISOString().slice(0, 10) : endDate.toString().slice(0, 10);
+      const startStr = formatDate(startDate);
+      const endStr = formatDate(endDate);
 
       if (!startStr.match(/^\d{4}-\d{2}-\d{2}$/)) { results.push({ row: rowNum, status: "error", error: "Invalid Start Date format (use YYYY-MM-DD)" }); continue; }
 
