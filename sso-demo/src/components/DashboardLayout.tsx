@@ -14,7 +14,8 @@ import {
   Megaphone,
   Building2,
   ClipboardList,
-  Target
+  Target,
+  CalendarRange
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 import { useGlobalSearch } from "../hooks/useGlobalSearch";
@@ -117,6 +118,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         label: "MANAGEMENT",
         items: [
           { label: "Users", icon: <Users size={18} />, path: "/admin/users" },
+          { label: "Holiday Calendar", icon: <CalendarRange size={18} />, path: "/admin/holidays" },
         ],
       },
     ],
@@ -134,6 +136,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
           { label: "Leave Requests", icon: <Calendar size={18} />, path: `${basePath}/leave-requests` },
           { label: "Leave Policies", icon: <ClipboardList size={18} />, path: `${basePath}/leave-policies` },
           { label: "Timesheets", icon: <Briefcase size={18} />, path: `${basePath}/timesheets` },
+          { label: "Holiday Calendar", icon: <CalendarRange size={18} />, path: `${basePath}/holidays` },
         ],
       },
       {
@@ -171,6 +174,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "Announcements", icon: <Megaphone size={18} />, path: `${basePath}/announcements` },
           { label: "Documents", icon: <FileText size={18} />, path: `${basePath}/documents` },
+          { label: "Holiday Calendar", icon: <CalendarRange size={18} />, path: "/manager/holidays" },
         ],
       },
       {
@@ -200,6 +204,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "Announcements", icon: <Megaphone size={18} />, path: `${basePath}/announcements` },
           { label: "Documents", icon: <FileText size={18} />, path: `${basePath}/documents` },
+          { label: "Holiday Calendar", icon: <CalendarRange size={18} />, path: `${basePath}/holidays` },
         ],
       },
     ],

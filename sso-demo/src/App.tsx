@@ -33,6 +33,8 @@ import { AnnouncementDetailPage } from "./pages/shared/AnnouncementDetailPage";
 import { PerformancePage } from "./pages/shared/PerformancePage";
 import { LandingPage } from "./pages/shared/LandingPage";
 import { LoginPage } from "./pages/shared/LoginPage";
+import { HolidayCalendarPage } from "./pages/admin/HolidayCalendarPage";
+import { HolidayViewPage } from "./pages/shared/HolidayViewPage";
 
 // API
 import { getAllUsers, deleteUser } from "./api/admin";
@@ -377,6 +379,7 @@ const AppContent = () => {
                   <Route path="/admin/users" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminUsersPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/admin/performance" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><PerformancePage internalUser={internalUser} role="Admin" /></RoleGuard>} />
                   <Route path="/admin/health" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminHealthPage internalUser={internalUser} /></RoleGuard>} />
+                  <Route path="/admin/holidays" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><HolidayCalendarPage internalUser={internalUser} /></RoleGuard>} />
 
                   {/* HR */}
                   <Route path="/hr/dashboard" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRDashboard internalUser={internalUser} /></RoleGuard>} />
@@ -390,6 +393,7 @@ const AppContent = () => {
                   <Route path="/hr/timesheets" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRTimeSheetsPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/hr/my-leave" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeLeavePage internalUser={internalUser} role="HR" /></RoleGuard>} />
                   <Route path="/hr/my-timesheet" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeTimesheetPage internalUser={internalUser} role="HR" /></RoleGuard>} />
+                  <Route path="/hr/holidays" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HolidayCalendarPage internalUser={internalUser} /></RoleGuard>} />
 
                   {/* Manager */}
                   <Route path="/manager/dashboard" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerDashboard internalUser={internalUser} /></RoleGuard>} />
@@ -401,6 +405,7 @@ const AppContent = () => {
                   <Route path="/manager/performance" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><PerformancePage internalUser={internalUser} role="Manager" /></RoleGuard>} />
                   <Route path="/manager/my-leave" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><EmployeeLeavePage internalUser={internalUser} role="Manager" /></RoleGuard>} />
                   <Route path="/manager/my-timesheet" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><EmployeeTimesheetPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
+                  <Route path="/manager/holidays" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><HolidayViewPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
 
                   {/* Employee */}
                   <Route path="/employee-dashboard" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeDashboard internalUser={internalUser} /></RoleGuard>} />
@@ -409,6 +414,7 @@ const AppContent = () => {
                   <Route path="/employee/announcements" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><AnnouncementsPage internalUser={internalUser} role={internalUser?.role} /></RoleGuard>} />
                   <Route path="/employee/documents" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><DocumentsPage internalUser={internalUser} role={internalUser?.role} /></RoleGuard>} />
                   <Route path="/employee/performance" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><PerformancePage internalUser={internalUser} role="Employee" /></RoleGuard>} />
+                  <Route path="/employee/holidays" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><HolidayViewPage internalUser={internalUser} role="Employee" /></RoleGuard>} />
 
                   {/* Shared */}
                   <Route path="/announcements/:id" element={<AnnouncementDetailPage internalUser={internalUser} />} />
