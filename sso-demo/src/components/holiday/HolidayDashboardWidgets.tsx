@@ -9,44 +9,60 @@ interface HolidayDashboardWidgetsProps {
 export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWidgetsProps) => {
   const widgets = [
     {
-      label: "Total Published",
+      label: "Total Holidays",
       value: stats ? Number(stats.total_published) : 0,
       icon: <CalendarDays size={20} />,
       color: "#CE2124",
       bg: "rgba(206,33,36,.10)",
-      sub: `${stats ? Number(stats.total_days) : 0} Holiday Days`,
+      sub: "Published this year",
     },
     {
-      label: "Upcoming",
-      value: stats ? Number(stats.upcoming_count) : 0,
-      icon: <TrendingUp size={20} />,
-      color: "#3B82F6",
-      bg: "rgba(59,130,246,.10)",
-      sub: `${stats ? Number(stats.upcoming_days) : 0} Days ahead`,
-    },
-    {
-      label: "Total Events",
-      value: stats ? (Number(stats.total_published) + Number(stats.total_draft) + Number(stats.total_archived)) : 0,
+      label: "Non-working Days",
+      value: stats ? Number(stats.total_days) : 0,
       icon: <Zap size={20} />,
       color: "#F97316",
       bg: "rgba(249,115,22,.10)",
-      sub: `${stats ? Number(stats.total_draft) : 0} Drafts / ${stats ? Number(stats.total_archived) : 0} Arch`,
+      sub: "Cumulative total",
     },
     {
-      label: "Optional Holidays",
+      label: "Upcoming Quarter",
+      value: stats ? Number(stats.upcoming_quarter_count) : 0,
+      icon: <TrendingUp size={20} />,
+      color: "#3B82F6",
+      bg: "rgba(59,130,246,.10)",
+      sub: "Next 90 days",
+    },
+    {
+      label: "Optional Days",
       value: stats ? Number(stats.optional_count) : 0,
       icon: <Star size={20} />,
       color: "#8B5CF6",
       bg: "rgba(139,92,246,.10)",
       sub: "Employee choice",
     },
-
+    {
+      label: "Regional Holidays",
+      value: stats ? Number(stats.regional_count) : 0,
+      icon: <CalendarDays size={20} />,
+      color: "#10B981",
+      bg: "rgba(16,185,129,.10)",
+      sub: "Location specific",
+    },
+    {
+      label: "Remaining",
+      value: stats ? Number(stats.upcoming_count) : 0,
+      icon: <TrendingUp size={20} />,
+      color: "#F43F5E",
+      bg: "rgba(244,63,94,.10)",
+      sub: "Left in " + (stats ? (new Date().getFullYear()) : ""),
+    },
   ];
+
 
   if (isLoading) {
     return (
-      <div className="stats-grid">
-        {[...Array(4)].map((_, i) => (
+      <div className="stats-grid stats-grid--6">
+        {[...Array(5)].map((_, i) => (
           <div key={i} className="stat-card">
             <div className="hc-skeleton" style={{ height: 80 }} />
           </div>
@@ -56,7 +72,7 @@ export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWi
   }
 
   return (
-    <div className="stats-grid">
+    <div className="stats-grid stats-grid--6">
       {widgets.map((w, i) => (
         <div key={i} className="stat-card" style={{ gap: "var(--space-3)" }}>
           <div className="stat-card__header">

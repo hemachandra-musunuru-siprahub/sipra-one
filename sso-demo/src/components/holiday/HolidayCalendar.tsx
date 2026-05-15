@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import type { Holiday } from "../../api/types";
 import {
   HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_BG, HOLIDAY_TYPE_LABELS,
-  getDatesInRange, isLongWeekend,
+  getDatesInRange, isLongWeekend, normalizeUTCDate,
 } from "../../api/holidays";
+import type { Holiday } from "../../api/types";
 import HolidayPreviewCard from "./HolidayPreview.tsx";
 
 interface HolidayCalendarProps {
@@ -17,7 +17,8 @@ interface HolidayCalendarProps {
   canEdit?: boolean;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
@@ -29,7 +30,8 @@ export const HolidayCalendar = ({
 }: HolidayCalendarProps) => {
   const [hovered, setHovered] = useState<{ holiday: Holiday; x: number; y: number } | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date();
+  const todayStr = todayDate.toISOString().slice(0, 10);
 
   // Build a lane-aware map: dateStr → { holiday, lane, isStart, isEnd, isMiddle }[]
   const processedData = useMemo(() => {
@@ -38,8 +40,8 @@ export const HolidayCalendar = ({
       const startB = b.start_date.slice(0, 10);
       if (startA !== startB) return startA.localeCompare(startB);
       // Longer holidays first to optimize packing
-      const durA = new Date(`${a.end_date}T12:00:00Z`).getTime() - new Date(`${a.start_date}T12:00:00Z`).getTime();
-      const durB = new Date(`${b.end_date}T12:00:00Z`).getTime() - new Date(`${b.start_date}T12:00:00Z`).getTime();
+      const durA = normalizeUTCDate(a.end_date).getTime() - normalizeUTCDate(a.start_date).getTime();
+      const durB = normalizeUTCDate(b.end_date).getTime() - normalizeUTCDate(b.start_date).getTime();
       return durB - durA;
     });
 
@@ -136,26 +138,64 @@ export const HolidayCalendar = ({
     else onMonthChange(year, month + 1);
   };
 
+  const jumpToToday = () => {
+    const d = new Date();
+    onMonthChange(d.getFullYear(), d.getMonth());
+  };
+
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const arr = [];
+    for (let i = current - 5; i <= current + 5; i++) arr.push(i);
+    return arr;
+  }, []);
+
   return (
-    <div className="hc-cal">
-      {/* Month navigation */}
-      <div className="hc-cal__nav">
-        <button className="hc-cal__nav-btn" onClick={prevMonth} aria-label="Previous month">
-          <ChevronLeft size={18} />
-        </button>
-        <h3 className="hc-cal__month-title">
-          {MONTH_NAMES[month]} {year}
-        </h3>
-        <button className="hc-cal__nav-btn" onClick={nextMonth} aria-label="Next month">
-          <ChevronRight size={18} />
-        </button>
+    <div className="hc-cal" role="application" aria-label="Holiday Calendar">
+      {/* Navigation Header */}
+      <div className="hc-cal__header">
+        <div className="hc-cal__header-left">
+          <div className="hc-cal__nav-group">
+            <button className="hc-cal__nav-btn" onClick={prevMonth} aria-label="Previous Month">
+              <ChevronLeft size={18} />
+            </button>
+            <div className="hc-cal__date-pickers">
+              <select 
+                value={month} 
+                onChange={(e) => onMonthChange(year, parseInt(e.target.value))}
+                className="hc-cal__select"
+                aria-label="Select Month"
+              >
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={name} value={i}>{name}</option>
+                ))}
+              </select>
+              <select 
+                value={year} 
+                onChange={(e) => onMonthChange(parseInt(e.target.value), month)}
+                className="hc-cal__select"
+                aria-label="Select Year"
+              >
+                {years.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <button className="hc-cal__nav-btn" onClick={nextMonth} aria-label="Next Month">
+              <ChevronRight size={18} />
+            </button>
+          </div>
+          <button className="hc-cal__today-btn" onClick={jumpToToday}>Today</button>
+        </div>
       </div>
 
       {/* Weekday headers */}
-      <div className="hc-cal__weekdays">
-        {WEEKDAYS.map(wd => (
+      <div className="hc-cal__weekdays" role="row">
+        {WEEKDAYS_SHORT.map((wd, i) => (
           <div
             key={wd}
+            role="columnheader"
+            aria-label={WEEKDAYS[i]}
             className={`hc-cal__weekday${wd === "Sun" || wd === "Sat" ? " hc-cal__weekday--weekend" : ""}`}
           >
             {wd}
@@ -164,18 +204,23 @@ export const HolidayCalendar = ({
       </div>
 
       {/* Days grid */}
-      <div className="hc-cal__grid">
+      <div className="hc-cal__grid" role="grid">
         {calendarDays.map(({ date, isCurrentMonth }) => {
-          const dayDate = new Date(`${date}T12:00:00Z`);
+          const dayDate = normalizeUTCDate(date);
           const dow = dayDate.getUTCDay();
           const isWeekend = dow === 0 || dow === 6;
-          const isToday = date === today;
+          const isToday = date === todayStr;
           const daySlots = processedData[date] || [];
           const hasHolidays = daySlots.some(s => !!s);
+          
+          const ariaLabel = `${dayDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${isToday ? ", Today" : ""}${hasHolidays ? ", Has Holidays" : ""}`;
 
           return (
             <div
               key={date}
+              role="gridcell"
+              aria-label={ariaLabel}
+              tabIndex={isCurrentMonth ? 0 : -1}
               className={[
                 "hc-cal__day",
                 !isCurrentMonth ? "hc-cal__day--other" : "",
@@ -184,33 +229,33 @@ export const HolidayCalendar = ({
                 hasHolidays ? "hc-cal__day--has-holiday" : "",
               ].filter(Boolean).join(" ")}
               onClick={() => canEdit && isCurrentMonth && onDateClick(date)}
-              title={canEdit && isCurrentMonth ? "Click to add holiday" : undefined}
             >
-              <span className="hc-cal__day-num">
+              <span className="hc-cal__day-num" aria-hidden="true">
                 {parseInt(date.slice(8, 10))}
               </span>
 
               {/* Holiday pills */}
               <div className="hc-cal__events">
-                {processedData[date]?.map((slot, laneIdx) => {
-                  if (!slot) return <div key={`spacer-${laneIdx}`} className="hc-cal__event-spacer" />;
+                {daySlots.map((slot, laneIdx) => {
+                  if (!slot) return <div key={`spacer-${laneIdx}`} className="hc-cal__event-spacer" aria-hidden="true" />;
                   
                   const { holiday: h, type } = slot;
                   const longWknd = isLongWeekend(h);
+                  const isDraft = h.status === "draft";
                   
                   return (
                     <div
                       key={h.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${h.title}, ${HOLIDAY_TYPE_LABELS[h.holiday_type]} holiday`}
                       className={[
                         "hc-cal__event",
                         `hc-cal__event--${type}`,
+                        isDraft ? "hc-cal__event--draft" : "",
                       ].filter(Boolean).join(" ")}
                       style={{
                         background: HOLIDAY_TYPE_COLORS[h.holiday_type],
-                        opacity: h.status === "draft" ? 0.6 : 1,
-                        // Ensure fixed height for all segments
-                        height: "22px",
-                        minHeight: "22px",
                       }}
                       onClick={e => { e.stopPropagation(); onHolidayClick(h); }}
                       onMouseEnter={e => {
@@ -218,14 +263,14 @@ export const HolidayCalendar = ({
                         setHovered({ holiday: h, x: rect.left, y: rect.bottom + 8 });
                       }}
                       onMouseLeave={() => setHovered(null)}
+                      onKeyDown={e => e.key === 'Enter' && onHolidayClick(h)}
                     >
                       {(type === "start" || type === "single") && (
                         <span className="hc-cal__event-label">
-                          {longWknd && <span className="hc-lw-dot" title="Long weekend" />}
+                          {longWknd && <span className="hc-lw-dot" title="Long weekend" aria-hidden="true" />}
                           {h.title}
                         </span>
                       )}
-                      {/* Show title also on 'middle' if it's the start of a week (Sunday) - Optional but nice */}
                       {type === "middle" && dow === 0 && (
                         <span className="hc-cal__event-label hc-cal__event-label--cont">
                           {h.title}
@@ -236,9 +281,8 @@ export const HolidayCalendar = ({
                 })}
               </div>
 
-              {/* Add icon on hover for admin */}
               {canEdit && isCurrentMonth && (
-                <div className="hc-cal__day-add">
+                <div className="hc-cal__day-add" title="Add holiday">
                   <Plus size={12} />
                 </div>
               )}

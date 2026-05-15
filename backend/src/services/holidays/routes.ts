@@ -62,18 +62,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 const HolidaySchema = z.object({
-  title:           z.string().min(2).max(255),
-  description:     z.string().optional().nullable(),
-  holiday_type:    z.enum(["mandatory", "optional", "festival", "regional", "company"]),
-  start_date:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  end_date:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  is_optional:     z.boolean().default(false),
-  is_recurring:    z.boolean().default(false),
-  status:          z.enum(["draft", "published", "archived"]).default("draft"),
+  title: z.string().min(2).max(255),
+  description: z.string().optional().nullable(),
+  holiday_type: z.enum(["mandatory", "optional", "festival", "regional", "company"]),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  is_optional: z.boolean().default(false),
+  is_recurring: z.boolean().default(false),
+  status: z.enum(["draft", "published", "archived"]).default("draft"),
   organization_id: z.string().uuid().optional().nullable(),
-  branch_id:       z.string().uuid().optional().nullable(),
-  department_id:   z.string().uuid().optional().nullable(),
-  location_id:     z.string().uuid().optional().nullable(),
+  branch_id: z.string().uuid().optional().nullable(),
+  department_id: z.string().uuid().optional().nullable(),
+  location_id: z.string().uuid().optional().nullable(),
   notify_employees: z.boolean().default(true),
 }).refine(d => {
   const s = new Date(`${d.start_date}T12:00:00Z`);
@@ -104,7 +104,7 @@ function broadcastHolidayUpdate(event: string, payload: object) {
 // ─── GET /api/holidays ────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   const userRole = req.user!.role;
-  const { year, status, holiday_type, search } = req.query as Record<string, string>;
+  const { year, status, holiday_type, search, start_date_gte, end_date_lte } = req.query as Record<string, string>;
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -133,15 +133,26 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     params.push(`%${search}%`);
   }
 
+  if (start_date_gte) {
+    conditions.push(`end_date >= $${paramIdx++}`);
+    params.push(start_date_gte);
+  }
+
+  if (end_date_lte) {
+    conditions.push(`start_date <= $${paramIdx++}`);
+    params.push(end_date_lte);
+  }
+
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const { rows } = await query(
     `SELECT * FROM holidays ${where} ORDER BY start_date ASC, title ASC`,
     params
   );
 
-  // Dashboard stats (admin/HR only)
+  // Dashboard stats for everyone
   let stats = null;
-  if (isAdmin(userRole) || isHR(userRole)) {
+  if (req.user) {
+
     const currentYear = year ? parseInt(year) : new Date().getFullYear();
     const statsRes = await query(`
       SELECT
@@ -149,7 +160,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
         COUNT(*) FILTER (WHERE status = 'draft')     AS total_draft,
         COUNT(*) FILTER (WHERE status = 'archived')  AS total_archived,
         COUNT(*) FILTER (WHERE is_optional = true AND status = 'published') AS optional_count,
+        COUNT(*) FILTER (WHERE holiday_type = 'regional' AND status = 'published') AS regional_count,
         COUNT(*) FILTER (WHERE start_date >= CURRENT_DATE AND status = 'published') AS upcoming_count,
+        COUNT(*) FILTER (WHERE start_date >= CURRENT_DATE AND start_date <= CURRENT_DATE + INTERVAL '90 days' AND status = 'published') AS upcoming_quarter_count,
         COALESCE(SUM((end_date - start_date) + 1) FILTER (WHERE status = 'published'), 0) AS total_days,
         COALESCE(SUM((end_date - start_date) + 1) FILTER (WHERE start_date >= CURRENT_DATE AND status = 'published'), 0) AS upcoming_days
       FROM holidays
@@ -193,9 +206,9 @@ router.post("/", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]),
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
       RETURNING *
     `, [d.title, d.description || null, d.holiday_type, d.start_date, d.end_date,
-        d.is_optional, d.is_recurring, d.status,
-        d.organization_id || null, d.branch_id || null, d.department_id || null,
-        d.location_id || null, d.notify_employees, req.user!.entra_oid]);
+    d.is_optional, d.is_recurring, d.status,
+    d.organization_id || null, d.branch_id || null, d.department_id || null,
+    d.location_id || null, d.notify_employees, req.user!.entra_oid]);
 
     const holiday = rows[0];
     await auditLog(holiday.id, "created", req.user!.entra_oid, d);
@@ -233,9 +246,9 @@ router.put("/:id", requireAuth, requireRole([...ADMIN_ROLES, ...HR_ROLES]),
         updated_by=$14, updated_at=NOW()
       WHERE id=$15 RETURNING *
     `, [d.title, d.description || null, d.holiday_type, d.start_date, d.end_date,
-        d.is_optional, d.is_recurring, d.status,
-        d.organization_id || null, d.branch_id || null, d.department_id || null,
-        d.location_id || null, d.notify_employees, req.user!.entra_oid, req.params.id]);
+    d.is_optional, d.is_recurring, d.status,
+    d.organization_id || null, d.branch_id || null, d.department_id || null,
+    d.location_id || null, d.notify_employees, req.user!.entra_oid, req.params.id]);
 
     const holiday = rows[0];
     await auditLog(holiday.id, "updated", req.user!.entra_oid, d);
@@ -278,9 +291,9 @@ router.post("/:id/duplicate", requireAuth, requireRole([...ADMIN_ROLES, ...HR_RO
       VALUES ($1,$2,$3,$4,$5,$6,$7,'draft',$8,$9,$10,$11,$12,$13,$13)
       RETURNING *
     `, [`${src.title} (Copy)`, src.description, src.holiday_type, src.start_date,
-        src.end_date, src.is_optional, src.is_recurring,
-        src.organization_id, src.branch_id, src.department_id,
-        src.location_id, src.notify_employees, req.user!.entra_oid]);
+    src.end_date, src.is_optional, src.is_recurring,
+    src.organization_id, src.branch_id, src.department_id,
+    src.location_id, src.notify_employees, req.user!.entra_oid]);
 
     const holiday = rows[0];
     await auditLog(holiday.id, "duplicated", req.user!.entra_oid, { source_id: req.params.id });

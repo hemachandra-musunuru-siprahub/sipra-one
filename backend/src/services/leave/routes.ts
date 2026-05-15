@@ -28,10 +28,13 @@ const router = Router();
     `);
 
     // Upgrade constraints to allow 'casual' and additional leave types
+    // We drop both current and potential legacy names to be safe
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_type`);
+    await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_requests`);
     await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('annual', 'sick', 'casual', 'unpaid', 'other'))`);
   } catch (err) {
     console.error("[LEAVE SETUP ERROR]:", err);
+    // Do not rethrow; we want the server to start even if this background task fails
   }
 })();
 

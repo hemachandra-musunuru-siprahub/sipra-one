@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Holiday } from "../../api/types";
 import {
   HOLIDAY_TYPE_LABELS, HOLIDAY_TYPE_COLORS,
-  isLongWeekend,
+  isLongWeekend, calculateTotalDays,
 } from "../../api/holidays";
 import {
   MoreHorizontal, Edit2, Trash2, Copy, Eye, EyeOff,
@@ -114,7 +114,7 @@ export const HolidayTable = ({
             const statusStyle = STATUS_STYLES[h.status];
             const start = new Date(`${h.start_date.slice(0, 10)}T12:00:00Z`);
             const end   = new Date(`${h.end_date.slice(0, 10)}T12:00:00Z`);
-            const diff  = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+            const diff = calculateTotalDays(h.start_date, h.end_date);
             
             const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) => 
               d.toLocaleDateString("en-IN", { ...opts, timeZone: "UTC" });

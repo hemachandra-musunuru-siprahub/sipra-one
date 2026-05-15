@@ -63,7 +63,9 @@ export const exportHolidays = (format: "xlsx" | "csv", filters?: HolidayFilters)
   window.open(`${BASE}/api/holidays/export?${params.toString()}`, "_blank");
 };
 
-// ─── Holiday utility helpers ──────────────────────────────────────────────────
+export * from "./holidayAnalytics";
+
+// ─── UI Constants ──────────────────────────────────────────────────
 export const HOLIDAY_TYPE_LABELS: Record<string, string> = {
   mandatory: "Mandatory",
   optional:  "Optional",
@@ -91,8 +93,6 @@ export const HOLIDAY_TYPE_BG: Record<string, string> = {
 /** Returns all dates (as YYYY-MM-DD strings) between start and end (inclusive) */
 export const getDatesInRange = (start: string, end: string): string[] => {
   const dates: string[] = [];
-  // Using T12:00:00Z to ensure we are always comfortably in the middle of the day UTC
-  // regardless of local timezone interpretation of the input string.
   const cur = new Date(`${start.slice(0, 10)}T12:00:00Z`);
   const last = new Date(`${end.slice(0, 10)}T12:00:00Z`);
   
@@ -101,16 +101,4 @@ export const getDatesInRange = (start: string, end: string): string[] => {
     cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return dates;
-};
-
-/** Detect if a holiday creates a long weekend (adjacent to Sat/Sun) */
-export const isLongWeekend = (holiday: Holiday): boolean => {
-  const s = new Date(`${holiday.start_date.slice(0, 10)}T12:00:00Z`);
-  const e = new Date(`${holiday.end_date.slice(0, 10)}T12:00:00Z`);
-  
-  const dayBefore = new Date(s); dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
-  const dayAfter  = new Date(e);   dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
-  
-  const isSatSun = (d: Date) => d.getUTCDay() === 0 || d.getUTCDay() === 6;
-  return isSatSun(dayBefore) || isSatSun(dayAfter);
 };

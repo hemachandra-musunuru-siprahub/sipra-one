@@ -148,7 +148,9 @@ export interface HolidayStats {
   total_draft: string;
   total_archived: string;
   optional_count: string;
+  regional_count: string;
   upcoming_count: string;
+  upcoming_quarter_count: string;
   total_days: string;
   upcoming_days: string;
 }

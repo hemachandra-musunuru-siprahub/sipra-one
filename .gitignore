@@ -26,3 +26,5 @@ logs/
 temp/
 tmp/
 ~$*
+backend/scratch/
+backend/src/scratch_check_db.ts backend/src/scratch_check_db_v2.ts backend/src/scratch_check_holidays.ts
