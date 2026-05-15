@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
+import { MyTimesheetSummary } from "./MyTimesheetSummary";
+import { TimesheetAnalyticsWidget } from "./TimesheetAnalyticsWidget";
 import { getTeamLeave, actionLeave } from "../api/leave";
 import { getTeamTimesheets, reviewTimesheet } from "../api/timesheets";
 import type { LeaveRequest, Timesheet } from "../api/types";
@@ -120,7 +122,11 @@ export const ManagerDashboard = ({ internalUser }: Props) => {
         <TopAnnouncementsCarousel />
       </div>
 
+      {/* ── My Timesheet Summary ── */}
+      <MyTimesheetSummary basePath="/manager" />
 
+      {/* ── Team Timesheet Analytics ── */}
+      <TimesheetAnalyticsWidget timesheets={timesheets} title="Team Timesheet Analytics" loading={loading} />
 
       {/* ── Tables ── */}
       < div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>

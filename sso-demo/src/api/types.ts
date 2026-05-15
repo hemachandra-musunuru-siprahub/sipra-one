@@ -117,3 +117,54 @@ export interface SearchResults {
   documents: Array<{ id: string; title: string; subtitle: string; type: string }>;
   totalCount: number;
 }
+
+// ─── Holiday Calendar ─────────────────────────────────────────────────────────
+export type HolidayType = 'mandatory' | 'optional' | 'festival' | 'regional' | 'company';
+export type HolidayStatus = 'draft' | 'published' | 'archived';
+
+export interface Holiday {
+  id: string;
+  title: string;
+  description: string | null;
+  holiday_type: HolidayType;
+  start_date: string;
+  end_date: string;
+  is_optional: boolean;
+  is_recurring: boolean;
+  status: HolidayStatus;
+  organization_id: string | null;
+  branch_id: string | null;
+  department_id: string | null;
+  location_id: string | null;
+  notify_employees: boolean;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HolidayStats {
+  total_published: string;
+  total_draft: string;
+  total_archived: string;
+  optional_count: string;
+  upcoming_count: string;
+  total_days: string;
+  upcoming_days: string;
+}
+
+export interface HolidayFilters {
+  year?: number;
+  status?: HolidayStatus;
+  holiday_type?: HolidayType;
+  search?: string;
+}
+
+export interface HolidayImportResult {
+  total: number;
+  imported: number;
+  errors: number;
+  duplicates: number;
+  results: Array<{ row: number; status: 'ok' | 'error' | 'duplicate'; data?: Holiday; error?: string }>;
+  holidays: Holiday[];
+}

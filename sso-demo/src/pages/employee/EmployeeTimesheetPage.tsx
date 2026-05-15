@@ -14,7 +14,7 @@ import { formatDate } from "../../utils/dateFormatter";
 import { normalizeRole } from "../../lib/roleHelper";
 import type { UserRole } from "../../lib/roleHelper";
 
-interface Props { internalUser: any; }
+interface Props { internalUser: any; role?: string; }
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -44,8 +44,8 @@ const startOfBusinessWeek = (d: string | Date) => {
   return normalizeDate(monday);
 };
 
-export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
-  const displayRole: UserRole = normalizeRole(internalUser?.roleFromEntra);
+export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
+  const displayRole: UserRole = normalizeRole(role || internalUser?.roleFromEntra || "Employee");
   const [activeTab, setActiveTab] = useState<"current" | "history">("current");
   
   // -- Current Week State --
@@ -180,12 +180,23 @@ export const EmployeeTimesheetPage = ({ internalUser }: Props) => {
       alert("Cannot submit an empty timesheet.");
       return;
     }
-    if (!window.confirm("Submit this timesheet for review? It will become read-only.")) return;
+
+    // Tailor the confirm message for HR/Manager who may be auto-approved
+    const isHrOrManager = displayRole === "HR" || displayRole === "Manager";
+    const confirmMsg = isHrOrManager && !internalUser?.manager_entra_oid
+      ? "Submit and auto-approve this timesheet? It will be marked as Reviewed immediately."
+      : "Submit this timesheet for review? It will become read-only.";
+
+    if (!window.confirm(confirmMsg)) return;
     
     setSubmitting(true);
     try {
-      const { timesheet: updated } = await submitTimesheet(timesheet.id);
-      setTimesheet(updated);
+      const result = await submitTimesheet(timesheet.id);
+      setTimesheet(result.timesheet);
+
+      if (result.autoApproved) {
+        alert("✅ Timesheet auto-approved! Your timesheet has been marked as Reviewed.");
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {

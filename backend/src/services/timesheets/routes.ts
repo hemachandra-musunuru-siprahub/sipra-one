@@ -440,34 +440,48 @@ router.post("/:id/submit", requireAuth,
     if (ts.status !== "draft") throw conflict("Timesheet is already submitted");
     if (!ts.entries || ts.entries.length === 0) throw badRequest("Cannot submit an empty timesheet");
 
-    const updated = await repo.submitTimesheet(req.params.id);
-    res.json({ timesheet: updated });
+    // ── Auto-approve for HR/Manager with no assigned manager ──────────
+    const role = req.user!.role;
+    const isHrOrManager = isHR(role) || isManager(role);
+    const employee = await getUserByOid(ts.employee_oid);
+    const managerOid = employee?.manager_entra_oid;
+    const shouldAutoApprove = isHrOrManager && !managerOid;
 
-    // ── Notify Manager (fire-and-forget) ───────────────────────────────
-    try {
-      const employee = await getUserByOid(ts.employee_oid);
-      const managerOid = employee?.manager_entra_oid;
+    let updated;
+    if (shouldAutoApprove) {
+      // Submit then immediately mark as reviewed (auto-approve)
+      await repo.submitTimesheet(req.params.id);
+      updated = await repo.updateStatus(req.params.id, "reviewed", req.user!.entra_oid, "Auto-approved");
+    } else {
+      updated = await repo.submitTimesheet(req.params.id);
+    }
 
-      if (managerOid) {
-        const manager = await getUserByOid(managerOid);
-        if (manager && manager.role !== "Admin") {
-          const notifTitle = "Timesheet Submitted";
-          const notifMsg = `${req.user!.name} has submitted their timesheet for week starting ${ts.week_start_date}.`;
-          
-          const n = await notifRepo.createNotification(
-            managerOid, "timesheet_submitted", notifTitle, notifMsg, "timesheet", req.params.id
-          );
-          emitNotification(managerOid, n);
+    res.json({ timesheet: updated, autoApproved: shouldAutoApprove });
 
-          const io = getSocketServer();
-          if (io) {
-            const unread = await notifRepo.unreadCount(managerOid);
-            io.to(`user:${managerOid}`).emit("unread_count", { count: unread });
+    // ── Notify Manager — only if NOT auto-approved ─────────────────────
+    if (!shouldAutoApprove) {
+      try {
+        if (managerOid) {
+          const manager = await getUserByOid(managerOid);
+          if (manager && manager.role !== "Admin") {
+            const notifTitle = "Timesheet Submitted";
+            const notifMsg = `${req.user!.name} has submitted their timesheet for week starting ${ts.week_start_date}.`;
+            
+            const n = await notifRepo.createNotification(
+              managerOid, "timesheet_submitted", notifTitle, notifMsg, "timesheet", req.params.id
+            );
+            emitNotification(managerOid, n);
+
+            const io = getSocketServer();
+            if (io) {
+              const unread = await notifRepo.unreadCount(managerOid);
+              io.to(`user:${managerOid}`).emit("unread_count", { count: unread });
+            }
           }
         }
+      } catch (nErr) {
+        console.error("[NOTIF] Failed to send timesheet submission notification:", nErr);
       }
-    } catch (nErr) {
-      console.error("[NOTIF] Failed to send timesheet submission notification:", nErr);
     }
   }
 );

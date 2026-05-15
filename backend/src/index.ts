@@ -43,6 +43,7 @@ import adminRoutes         from "./services/admin/routes";
 import managerRoutes       from "./services/manager/routes";
 import employeeRoutes      from "./services/employee/routes";
 import notificationRoutes  from "./services/notifications/routes";
+import holidayRoutes       from "./services/holidays/routes";
 import { initSocketServer } from "./lib/socketServer";
 
 const app = express();
@@ -82,6 +83,7 @@ app.use("/api/admin",          adminRoutes);
 app.use("/api/manager",        managerRoutes);
 app.use("/api/employee",       employeeRoutes);
 app.use("/api/notifications",  notificationRoutes);
+app.use("/api/holidays",       holidayRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

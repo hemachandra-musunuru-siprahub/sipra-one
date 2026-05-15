@@ -1,0 +1,276 @@
+import { useState, useEffect, useMemo } from "react";
+import { DashboardLayout } from "../../components/DashboardLayout";
+import { 
+  Calendar as CalendarIcon, Plus, 
+  Download,
+  Clock, Zap, Star, Coffee, Info
+} from "lucide-react";
+import { getHolidays, createHoliday, updateHoliday, deleteHoliday } from "../../api/holidays";
+import { HolidayCalendar } from "../../components/holiday/HolidayCalendar";
+import { HolidayForm } from "../../components/holiday/HolidayForm";
+import { HolidayImportModal } from "../../components/holiday/HolidayImportModal";
+import { HolidayDashboardWidgets } from "../../components/holiday/HolidayDashboardWidgets";
+import type { Holiday, HolidayStats } from "../../api/types";
+import { HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS, isLongWeekend } from "../../api/holidays";
+import toast from "react-hot-toast";
+
+interface HolidayCalendarPageProps {
+  internalUser: any;
+}
+
+export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) => {
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [stats, setStats] = useState<HolidayStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  
+  const [year, setYear] = useState(new Date().getUTCFullYear());
+  const [month, setMonth] = useState(new Date().getUTCMonth());
+
+  const canEdit = internalUser?.role === "Admin" || internalUser?.role === "HR";
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const res = await getHolidays({ year });
+      setHolidays(res.holidays || []);
+      if (res.stats) setStats(res.stats);
+    } catch (e) {
+      console.error("Failed to load holidays:", e);
+      toast.error("Failed to load holidays");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [year]);
+
+  const filteredHolidays = holidays;
+
+  const nextHoliday = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published")
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))[0];
+  }, [holidays]);
+
+  const upcomingHolidays = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published")
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .slice(0, 5);
+  }, [holidays]);
+
+  const longWeekends = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published" && isLongWeekend(h))
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .slice(0, 3);
+  }, [holidays]);
+
+  // Simple "Bridge Day" logic: Check if a holiday falls on Tue or Thu
+  const bridgeDays = useMemo(() => {
+    const now = new Date().toISOString().split("T")[0];
+    return holidays
+      .filter(h => h.start_date >= now && h.status === "published")
+      .filter(h => {
+        const d = new Date(`${h.start_date}T12:00:00Z`);
+        const day = d.getUTCDay(); // 2 is Tue, 4 is Thu
+        return day === 2 || day === 4;
+      })
+      .slice(0, 2);
+  }, [holidays]);
+
+  const handleEdit = (h: Holiday) => {
+    setEditingHoliday(h);
+    setIsFormOpen(true);
+  };
+
+  const handleSave = async (data: Partial<Holiday>) => {
+    try {
+      if (editingHoliday) {
+        await updateHoliday(editingHoliday.id, data);
+        toast.success("Holiday updated successfully");
+      } else {
+        await createHoliday(data as any);
+        toast.success("Holiday created successfully");
+      }
+      setIsFormOpen(false);
+      loadData();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || "Failed to save holiday");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this holiday?")) return;
+    try {
+      await deleteHoliday(id);
+      toast.success("Holiday deleted");
+      loadData();
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to delete holiday");
+    }
+  };
+
+  const countdownDays = nextHoliday ? Math.ceil((new Date(`${nextHoliday.start_date}T12:00:00Z`).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+  return (
+    <DashboardLayout internalUser={internalUser} role={internalUser?.role || "Admin"}>
+      <div className="hc-dashboard">
+        <header className="hc-header">
+          <div className="hc-header__left">
+            <h1 className="hc-title">Holiday Calendar</h1>
+            <p className="hc-subtitle">Plan and manage organizational holidays across all regions.</p>
+          </div>
+          <div className="hc-header__actions">
+            {canEdit && (
+              <>
+                <button className="hc-btn hc-btn--secondary" onClick={() => setIsImportOpen(true)}>
+                  <Download size={16} /> Import
+                </button>
+                <button className="hc-btn hc-btn--primary" onClick={() => { setEditingHoliday(null); setIsFormOpen(true); }}>
+                  <Plus size={16} /> Add Holiday
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        {internalUser?.role === "Admin" && stats && <HolidayDashboardWidgets stats={stats} />}
+
+        <div className="hc-main-grid">
+          <div className="hc-grid__content">
+            <div className="hc-content-card">
+
+              <HolidayCalendar 
+                holidays={filteredHolidays}
+                year={year}
+                month={month}
+                onMonthChange={(y, m) => { setYear(y); setMonth(m); }}
+                onDateClick={(d) => { if (canEdit) { setEditingHoliday(null); setIsFormOpen(true); } }}
+                onHolidayClick={handleEdit}
+                canEdit={canEdit}
+              />
+            </div>
+          </div>
+
+          <aside className="hc-grid__sidebar">
+            {/* Next Break Widget */}
+            {nextHoliday && (
+              <div className="hc-side-card hc-side-card--gradient">
+                <div className="hc-side-card__header">
+                  <Clock size={14} /> Next Break
+                </div>
+                <div className="hc-countdown">
+                  <span className="hc-countdown__value">{countdownDays}</span>
+                  <span className="hc-countdown__label">Days To Go</span>
+                </div>
+                <div className="hc-countdown__footer">
+                  <span className="hc-countdown__title">{nextHoliday.title}</span>
+                  <div className="hc-countdown__meta">
+                    <span>{new Date(`${nextHoliday.start_date}T12:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    <span className="hc-timeline-tag">{HOLIDAY_TYPE_LABELS[nextHoliday.holiday_type]}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Planning Insights */}
+            {(longWeekends.length > 0 || bridgeDays.length > 0) && (
+              <div className="hc-side-card">
+                <div className="hc-side-card__header">
+                  <Zap size={14} /> Planning Insights
+                </div>
+                <div className="hc-insights-list">
+                  {longWeekends.map((h, i) => (
+                    <div key={i} className="hc-insight-item">
+                      <div className="hc-insight-icon hc-insight-icon--zap"><Zap size={14} /></div>
+                      <div className="hc-insight-content">
+                        <p>Long Weekend!</p>
+                        <span>{h.title} starts on {new Date(`${h.start_date}T12:00:00Z`).toLocaleDateString('en-IN', { weekday: 'long' })}.</span>
+                      </div>
+                    </div>
+                  ))}
+                  {bridgeDays.map((h, i) => (
+                    <div key={i} className="hc-insight-item">
+                      <div className="hc-insight-icon hc-insight-icon--bridge"><Coffee size={14} /></div>
+                      <div className="hc-insight-content">
+                        <p>Bridge Leave Tip</p>
+                        <span>Take a day off before/after {h.title} for a 4-day break.</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming Timeline */}
+            {upcomingHolidays.length > 0 && (
+              <div className="hc-side-card">
+                <div className="hc-side-card__header">
+                  <Star size={14} /> Upcoming Timeline
+                </div>
+                <div className="hc-timeline">
+                  {upcomingHolidays.map((h, i) => (
+                    <div key={i} className="hc-timeline-item">
+                      <div className="hc-timeline-marker"></div>
+                      <div className="hc-timeline-content">
+                        <span className="hc-timeline-date">{new Date(`${h.start_date}T12:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                        <h4 className="hc-timeline-title">{h.title}</h4>
+                        <div className="hc-timeline-meta">
+                          <span className="hc-timeline-tag" style={{ color: HOLIDAY_TYPE_COLORS[h.holiday_type], background: `${HOLIDAY_TYPE_COLORS[h.holiday_type]}15` }}>
+                            {HOLIDAY_TYPE_LABELS[h.holiday_type]}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Legend Card */}
+            <div className="hc-side-card">
+              <div className="hc-side-card__header">
+                <Info size={14} /> Legend
+              </div>
+              <div className="hc-legend-card">
+                {Object.entries(HOLIDAY_TYPE_LABELS).map(([type, label]) => (
+                  <div key={type} className="hc-legend-item">
+                    <div className={`hc-legend-dot ${type === 'draft' ? 'hc-legend-dot--draft' : ''}`} style={{ background: type === 'draft' ? 'transparent' : HOLIDAY_TYPE_COLORS[type] }}></div>
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        {/* Modals */}
+        {isFormOpen && (
+          <HolidayForm 
+            holiday={editingHoliday || undefined}
+            onSave={handleSave}
+            onClose={() => setIsFormOpen(false)}
+          />
+        )}
+
+        {isImportOpen && (
+          <HolidayImportModal 
+            onSuccess={() => { setIsImportOpen(false); loadData(); }}
+            onClose={() => setIsImportOpen(false)}
+          />
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
