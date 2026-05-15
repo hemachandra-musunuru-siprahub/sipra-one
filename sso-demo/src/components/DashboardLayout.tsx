@@ -147,6 +147,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         label: "Self Service",
         items: [
           { label: "My Leave", icon: <Calendar size={18} />, path: `${basePath}/my-leave` },
+          { label: "My Timesheet", icon: <ClipboardList size={18} />, path: `${basePath}/my-timesheet` },
         ],
       },
     ],
@@ -176,6 +177,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         label: "Self Service",
         items: [
           { label: "My Leave", icon: <Calendar size={18} />, path: "/manager/my-leave" },
+          { label: "My Timesheet", icon: <ClipboardList size={18} />, path: "/manager/my-timesheet" },
         ],
       },
     ],

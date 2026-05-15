@@ -1,11 +1,25 @@
 import React from "react";
 import { DashboardLayout } from "./DashboardLayout";
 import { TopAnnouncementsCarousel } from "./TopAnnouncementsCarousel";
+import { MyTimesheetSummary } from "./MyTimesheetSummary";
+import { TimesheetAnalyticsWidget } from "./TimesheetAnalyticsWidget";
+import { getHRTimesheets } from "../api/timesheets";
+import type { HRTimesheet } from "../api/timesheets";
+import { useState, useEffect } from "react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface Props { internalUser: any; }
 
 export const HRDashboard = ({ internalUser }: Props) => {
+  const [timesheets, setTimesheets] = useState<HRTimesheet[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getHRTimesheets()
+      .then(data => setTimesheets(data.timesheets))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <DashboardLayout internalUser={internalUser} role={internalUser?.role || "HR"}>
@@ -65,7 +79,11 @@ export const HRDashboard = ({ internalUser }: Props) => {
         <TopAnnouncementsCarousel />
       </div>
 
+      {/* ── My Timesheet Summary ── */}
+      <MyTimesheetSummary basePath="/hr" />
 
+      {/* ── Organization Timesheet Analytics ── */}
+      <TimesheetAnalyticsWidget timesheets={timesheets} title="Organization Timesheet Analytics" loading={loading} />
 
     </DashboardLayout>
   );

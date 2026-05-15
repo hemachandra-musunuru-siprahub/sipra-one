@@ -203,7 +203,7 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
       user.entra_oid, managerOid, leaveType, startDate, endDate, totalDays, reason
     );
 
-    if (isHrOrManager) {
+    if (isHrOrManager && !user.manager_entra_oid) {
       request = await repo.approveRequest(request.id, user.entra_oid, user.entra_oid, leaveType, totalDays, year);
     }
 

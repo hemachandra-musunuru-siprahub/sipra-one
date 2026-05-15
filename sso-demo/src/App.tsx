@@ -389,6 +389,7 @@ const AppContent = () => {
                   <Route path="/hr/leave-management" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} defaultTab="requests" /></RoleGuard>} />
                   <Route path="/hr/timesheets" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRTimeSheetsPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/hr/my-leave" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeLeavePage internalUser={internalUser} role="HR" /></RoleGuard>} />
+                  <Route path="/hr/my-timesheet" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeTimesheetPage internalUser={internalUser} role="HR" /></RoleGuard>} />
 
                   {/* Manager */}
                   <Route path="/manager/dashboard" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><ManagerDashboard internalUser={internalUser} /></RoleGuard>} />
@@ -399,6 +400,7 @@ const AppContent = () => {
                   <Route path="/manager/announcements" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><AnnouncementsPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
                   <Route path="/manager/performance" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><PerformancePage internalUser={internalUser} role="Manager" /></RoleGuard>} />
                   <Route path="/manager/my-leave" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><EmployeeLeavePage internalUser={internalUser} role="Manager" /></RoleGuard>} />
+                  <Route path="/manager/my-timesheet" element={<RoleGuard internalUser={internalUser} allowed={isManagerRole}><EmployeeTimesheetPage internalUser={internalUser} role="Manager" /></RoleGuard>} />
 
                   {/* Employee */}
                   <Route path="/employee-dashboard" element={<RoleGuard internalUser={internalUser} allowed={isEmployeeRole}><EmployeeDashboard internalUser={internalUser} /></RoleGuard>} />

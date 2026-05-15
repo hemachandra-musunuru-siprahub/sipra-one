@@ -160,11 +160,11 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
       setForm({ leaveType: "annual", startDate: "", endDate: "", reason: "" });
       setShowForm(false);
       fetchData();
-      const isAutoApproved = isHRRole || isManagerRole;
+      const isAutoApproved = (isHRRole || isManagerRole) && !internalUser?.manager_entra_oid;
       addToast(
         "success",
-        isAutoApproved ? "Leave approved" : "Request submitted",
-        isAutoApproved ? "Your leave was auto-approved." : "Your manager has been notified."
+        isAutoApproved ? "Leave auto-approved ✅" : "Request submitted",
+        isAutoApproved ? "Your leave has been automatically approved." : "Your manager has been notified."
       );
     } catch (e: any) {
       addToast("error", "Submission failed", e.message || "An error occurred.");
