@@ -45,6 +45,7 @@ import employeeRoutes      from "./services/employee/routes";
 import notificationRoutes  from "./services/notifications/routes";
 import holidayRoutes       from "./services/holidays/routes";
 import { initSocketServer } from "./lib/socketServer";
+import { initTimesheetJobs } from "./jobs/timesheetReminders";
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -125,6 +126,9 @@ const bootstrap = async () => {
   try {
     const finalPort = await startServer(initialPort);
     
+    // Initialize Timesheet Reminder Jobs
+    await initTimesheetJobs();
+
     console.log("\n" + "=".repeat(50));
     logger.info(`🚀 SipraHub Backend Startup Success`);
     logger.info(`   Port:      ${finalPort}`);

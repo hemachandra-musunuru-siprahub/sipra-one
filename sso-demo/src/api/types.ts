@@ -80,6 +80,10 @@ export interface LeaveRequest {
   actioned_at: string | null;
   manager_comment: string | null;
   created_at: string;
+  // Medical certificate (Sick Leave only)
+  medical_certificate_name?: string | null;
+  medical_certificate_mime?: string | null;
+  medical_certificate_data?: string | null;
 }
 
 export interface LeaveBalance {

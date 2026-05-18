@@ -32,6 +32,11 @@ const router = Router();
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_type`);
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_requests`);
     await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('annual', 'sick', 'casual', 'unpaid', 'other'))`);
+
+    // ── Medical certificate columns (idempotent) ──────────────────────
+    await query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS medical_certificate_name VARCHAR(255)`);
+    await query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS medical_certificate_mime VARCHAR(100)`);
+    await query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS medical_certificate_data TEXT`);
   } catch (err) {
     console.error("[LEAVE SETUP ERROR]:", err);
     // Do not rethrow; we want the server to start even if this background task fails
@@ -167,18 +172,31 @@ router.get("/balances", requireAuth,
   }
 );
 
+const ALLOWED_CERT_MIMES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+
 const CreateLeaveSchema = z.object({
   leaveType: z.enum(["annual", "sick", "casual", "unpaid", "other"]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   reason: z.string().optional(),
-}).refine(d => new Date(d.startDate) <= new Date(d.endDate), {
+  medicalCertificateName: z.string().max(255).optional(),
+  medicalCertificateData: z.string().optional(),  // Base64 data URL
+  medicalCertificateMime: z.string().optional(),
+})
+.refine(d => new Date(d.startDate) <= new Date(d.endDate), {
   message: "start_date must be on or before end_date",
+})
+.refine(d => !d.medicalCertificateData || d.leaveType === "sick", {
+  message: "Medical certificate can only be attached to Sick Leave requests",
+})
+.refine(d => !d.medicalCertificateMime || ALLOWED_CERT_MIMES.includes(d.medicalCertificateMime), {
+  message: "Only PDF, JPG, and PNG files are accepted",
 });
 
 router.post("/", requireAuth, validate(CreateLeaveSchema),
   async (req: AuthRequest, res: Response) => {
-    const { leaveType, startDate, endDate, reason } = req.body;
+    const { leaveType, startDate, endDate, reason,
+            medicalCertificateName, medicalCertificateData, medicalCertificateMime } = req.body;
     const user = req.user!;
     const roles = [user.role];
 
@@ -203,7 +221,8 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
     }
 
     let request = await repo.createRequest(
-      user.entra_oid, managerOid, leaveType, startDate, endDate, totalDays, reason
+      user.entra_oid, managerOid, leaveType, startDate, endDate, totalDays, reason,
+      medicalCertificateName, medicalCertificateData, medicalCertificateMime
     );
 
     if (isHrOrManager && !user.manager_entra_oid) {

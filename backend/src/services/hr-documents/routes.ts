@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireRole, AuthRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { notFound, forbidden } from "../../lib/errors";
-import { HR_ROLES, ADMIN_ROLES } from "../../lib/roles";
+import { HR_ROLES, ADMIN_ROLES, isHR, isAdmin } from "../../lib/roles";
 import * as repo from "./repo";
 import * as notifRepo from "../notifications/repo";
 import { emitNotification, getSocketServer } from "../../lib/socketServer";
@@ -13,8 +13,10 @@ const router = Router();
 
 // ─── GET / — Employee/manager/HR sees scoped documents ────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
-  console.log(`[DOCS] Fetching documents for user: ${req.user!.name} (${req.user!.entra_oid}), role: ${req.user!.role}`);
-  const docs = await repo.listDocuments(req.user!.entra_oid);
+  const typesQuery = req.query.types as string;
+  const types = typesQuery ? typesQuery.split(',').map(t => t.trim()).filter(Boolean) : undefined;
+  console.log(`[DOCS] Fetching documents for user: ${req.user!.name} (${req.user!.entra_oid}), role: ${req.user!.role}, types: ${types}`);
+  const docs = await repo.listDocuments(req.user!.entra_oid, types);
   console.log(`[DOCS] Found ${docs.length} documents for user ${req.user!.entra_oid}`);
   res.json({ documents: docs });
 });
@@ -22,12 +24,21 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
 // ─── GET /all — HR/Admin sees everything they've shared ───────────────────────
 router.get("/all", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
-    console.log(`[DOCS] Admin fetch all documents by: ${req.user!.name} (${req.user!.entra_oid})`);
-    const docs = await repo.listAllDocuments();
+    const typesQuery = req.query.types as string;
+    const types = typesQuery ? typesQuery.split(',').map(t => t.trim()).filter(Boolean) : undefined;
+    console.log(`[DOCS] Admin fetch all documents by: ${req.user!.name} (${req.user!.entra_oid}), types: ${types}`);
+    const docs = await repo.listAllDocuments(types);
     console.log(`[DOCS] Total documents in system: ${docs.length}`);
     res.json({ documents: docs });
   }
 );
+
+// ─── GET /types — Fetch distinct document types ───────────────────────────────
+router.get("/types", requireAuth, async (req: AuthRequest, res: Response) => {
+  const isPrivileged = isHR(req.user!.role) || isAdmin(req.user!.role);
+  const types = await repo.listDocumentTypes(req.user!.entra_oid, isPrivileged);
+  res.json({ types });
+});
 
 // ─── GET /:id ─────────────────────────────────────────────────────────────────
 router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {

@@ -31,13 +31,16 @@ export const getOwnRequests = async (employeeOid: string, filters: { month?: str
 // ─── Create leave request ─────────────────────────────────────────────────────
 export const createRequest = async (
   employeeOid: string, managerOid: string, leaveType: string,
-  startDate: string, endDate: string, totalDays: number, reason?: string
+  startDate: string, endDate: string, totalDays: number, reason?: string,
+  medicalCertificateName?: string, medicalCertificateData?: string, medicalCertificateMime?: string
 ) => {
   const { rows } = await query(
     `INSERT INTO leave_requests
-       (employee_oid, manager_oid, leave_type, start_date, end_date, total_days, reason, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING *`,
-    [employeeOid, managerOid, leaveType, startDate, endDate, totalDays, reason || null]
+       (employee_oid, manager_oid, leave_type, start_date, end_date, total_days, reason, status,
+        medical_certificate_name, medical_certificate_data, medical_certificate_mime)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,$10) RETURNING *`,
+    [employeeOid, managerOid, leaveType, startDate, endDate, totalDays, reason || null,
+     medicalCertificateName || null, medicalCertificateData || null, medicalCertificateMime || null]
   );
   return rows[0];
 };

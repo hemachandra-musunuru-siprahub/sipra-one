@@ -4,11 +4,12 @@ import {
   FileText, Plus, Trash2, ExternalLink, HardDrive, 
   Search as SearchIcon, Folder, File, CheckCircle, 
   ChevronLeft, X, Loader2, Users as UsersIcon,
-  Check
+  Check, Filter
 } from "lucide-react";
 import { 
   getDocuments, getAllDocuments, createDocument, deleteDocument,
-  browseOneDrive, searchOneDrive, shareDocument, createShareLink
+  browseOneDrive, searchOneDrive, shareDocument, createShareLink,
+  getDocumentTypes
 } from "../../api/documents";
 import { getUsers } from "../../api/users";
 import type { HrDocument, User } from "../../api/types";
@@ -28,6 +29,11 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  // Document Type Filter State
+  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [showTypeFilter, setShowTypeFilter] = useState(false);
 
   // OneDrive Share Flow State
   const [showOneDriveModal, setShowOneDriveModal] = useState(false);
@@ -51,13 +57,17 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
 
   const fetchDocs = useCallback(() => {
     setLoading(true);
-    const fetchPromise = isPrivileged ? getAllDocuments() : getDocuments();
+    const fetchPromise = isPrivileged ? getAllDocuments(selectedTypes) : getDocuments(selectedTypes);
     
     fetchPromise
       .then(d => setDocuments(d.documents))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [isPrivileged]);
+  }, [isPrivileged, selectedTypes]);
+
+  useEffect(() => {
+    getDocumentTypes().then(res => setAvailableTypes(res.types)).catch(console.error);
+  }, []);
 
   useEffect(() => {
     fetchDocs();
@@ -193,6 +203,80 @@ export const DocumentsPage = ({ internalUser, isHR = false, role }: Props) => {
               <SearchIcon size={16} className="search-icon" />
               <input className="input" style={{ width: 220, paddingLeft: 36 }} placeholder="Search documents…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
+
+            <div style={{ position: "relative" }}>
+              <button 
+                className="btn btn--secondary" 
+                onClick={() => setShowTypeFilter(!showTypeFilter)}
+                style={{ position: "relative" }}
+              >
+                <Filter size={16} /> 
+                {selectedTypes.length > 0 ? "Types Filtered" : "Filter by Type"}
+                {selectedTypes.length > 0 && (
+                  <span style={{
+                    position: "absolute", right: -6, top: -6,
+                    background: "var(--primary-600)", color: "white",
+                    borderRadius: "10px", padding: "2px 6px", fontSize: "0.625rem", fontWeight: "bold"
+                  }}>
+                    {selectedTypes.length}
+                  </span>
+                )}
+              </button>
+              
+              {showTypeFilter && (
+                <>
+                  <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setShowTypeFilter(false)} />
+                  <div style={{
+                    position: "absolute", top: "100%", right: 0, marginTop: 4,
+                    width: 200, background: "white", borderRadius: "var(--rounded-md)",
+                    boxShadow: "var(--shadow-lg)", border: "1px solid var(--neutral-200)",
+                    zIndex: 50, padding: "var(--space-2)"
+                  }}>
+                    {availableTypes.length === 0 ? (
+                      <div style={{ padding: "var(--space-2)", fontSize: "0.875rem", color: "var(--neutral-500)", textAlign: "center" }}>No types available</div>
+                    ) : (
+                      <>
+                        <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                          {availableTypes.map(type => (
+                            <label key={type} style={{
+                              display: "flex", alignItems: "center", gap: "var(--space-2)",
+                              padding: "var(--space-2)", cursor: "pointer", borderRadius: "var(--rounded-sm)",
+                              fontSize: "0.875rem"
+                            }} onMouseEnter={e => e.currentTarget.style.background = "var(--neutral-50)"}
+                               onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedTypes.includes(type)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedTypes(prev => [...prev, type]);
+                                  } else {
+                                    setSelectedTypes(prev => prev.filter(t => t !== type));
+                                  }
+                                }}
+                              />
+                              <span style={{ textTransform: "capitalize" }}>{type}</span>
+                            </label>
+                          ))}
+                        </div>
+                        {selectedTypes.length > 0 && (
+                          <div style={{ borderTop: "1px solid var(--neutral-100)", paddingTop: "var(--space-2)", marginTop: "var(--space-2)" }}>
+                            <button 
+                              className="btn btn--ghost btn--sm" 
+                              style={{ width: "100%", fontSize: "0.75rem" }}
+                              onClick={() => setSelectedTypes([])}
+                            >
+                              Clear Filter
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             {isPrivileged && (
               <>
                 <button className="btn btn--secondary" onClick={openOneDriveFlow}><HardDrive size={16} /> Share from OneDrive</button>
