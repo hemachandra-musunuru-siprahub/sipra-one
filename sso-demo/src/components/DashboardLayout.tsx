@@ -15,7 +15,8 @@ import {
   Building2,
   ClipboardList,
   Target,
-  CalendarRange
+  CalendarRange,
+  Settings
 } from "lucide-react";
 import { useMsal } from "@azure/msal-react";
 import { useGlobalSearch } from "../hooks/useGlobalSearch";
@@ -119,6 +120,7 @@ export const DashboardLayout = ({ children, internalUser, role }: DashboardLayou
         items: [
           { label: "Users", icon: <Users size={18} />, path: "/admin/users" },
           { label: "Holiday Calendar", icon: <CalendarRange size={18} />, path: "/admin/holidays" },
+          { label: "System Settings", icon: <Settings size={18} />, path: "/admin/settings" },
         ],
       },
     ],

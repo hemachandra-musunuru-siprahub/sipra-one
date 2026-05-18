@@ -39,6 +39,9 @@ export const submitLeave = (data: {
   startDate: string;
   endDate: string;
   reason?: string;
+  medicalCertificateName?: string;
+  medicalCertificateData?: string;
+  medicalCertificateMime?: string;
 }) => api.post<{ request: LeaveRequest }>("/api/leave-requests", data);
 
 export const actionLeave = (

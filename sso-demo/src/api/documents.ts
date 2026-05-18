@@ -1,11 +1,18 @@
 import { api } from "./client";
 import type { HrDocument } from "./types";
 
-export const getDocuments = () =>
-  api.get<{ documents: HrDocument[] }>("/api/hr-documents");
+export const getDocuments = (types?: string[]) => {
+  const query = types && types.length > 0 ? `?types=${encodeURIComponent(types.join(','))}` : '';
+  return api.get<{ documents: HrDocument[] }>(`/api/hr-documents${query}`);
+};
 
-export const getAllDocuments = () =>
-  api.get<{ documents: HrDocument[] }>("/api/hr-documents/all");
+export const getAllDocuments = (types?: string[]) => {
+  const query = types && types.length > 0 ? `?types=${encodeURIComponent(types.join(','))}` : '';
+  return api.get<{ documents: HrDocument[] }>(`/api/hr-documents/all${query}`);
+};
+
+export const getDocumentTypes = () =>
+  api.get<{ types: string[] }>("/api/hr-documents/types");
 
 export const getDocumentById = (id: string) =>
   api.get<{ document: HrDocument }>(`/api/hr-documents/${id}`);

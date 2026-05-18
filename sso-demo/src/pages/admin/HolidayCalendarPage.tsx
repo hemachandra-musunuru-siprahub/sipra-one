@@ -17,6 +17,10 @@ import type { Holiday } from "../../api/types";
 import { HolidayDetailsModal } from "../../components/holiday/HolidayDetailsModal";
 import toast from "react-hot-toast";
 
+interface HolidayCalendarPageProps {
+  internalUser: any;
+}
+
 export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) => {
   const [year, setYear] = useState(new Date().getUTCFullYear());
   const [month, setMonth] = useState(new Date().getUTCMonth());

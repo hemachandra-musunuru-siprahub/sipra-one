@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import {
   Calendar,
@@ -10,6 +10,9 @@ import {
   Inbox,
   ChevronRight,
   FileText,
+  Paperclip,
+  Download,
+  Upload,
 } from "lucide-react";
 import { getMyLeave, getLeaveBalances, submitLeave, cancelLeave } from "../../api/leave";
 import type { LeaveRequest, LeaveBalance } from "../../api/types";
@@ -86,6 +89,9 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
     leaveType: "annual" as "annual" | "sick" | "unpaid" | "other",
     startDate: "", endDate: "", reason: "",
   });
+  const [certFile, setCertFile] = useState<{ name: string; data: string; mime: string } | null>(null);
+  const [certError, setCertError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "rejected">("all");
@@ -149,15 +155,51 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   };
 
   /* ─── Submit ── */
+  const handleCertFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ALLOWED = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!ALLOWED.includes(file.type)) {
+      setCertError("Only PDF, JPG, or PNG files are allowed.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setCertError("File must be under 5 MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    setCertError("");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setCertFile({ name: file.name, data: dataUrl, mime: file.type });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async () => {
     const errs = validate();
     if (Object.keys(errs).length) { setFieldErrors(errs); return; }
     setFieldErrors({});
     setSubmitting(true);
     try {
-      const { request } = await submitLeave(form);
+      const payload: Parameters<typeof submitLeave>[0] = {
+        leaveType: form.leaveType as any,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        reason: form.reason || undefined,
+      };
+      if (form.leaveType === "sick" && certFile) {
+        payload.medicalCertificateName = certFile.name;
+        payload.medicalCertificateData = certFile.data;
+        payload.medicalCertificateMime = certFile.mime;
+      }
+      const { request } = await submitLeave(payload);
       setRequests(prev => [request, ...prev]);
       setForm({ leaveType: "annual", startDate: "", endDate: "", reason: "" });
+      setCertFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setShowForm(false);
       fetchData();
       const isAutoApproved = (isHRRole || isManagerRole) && !internalUser?.manager_entra_oid;
@@ -440,6 +482,59 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
                   onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                 />
               </div>
+
+              {/* ── Medical Certificate Upload (Sick Leave only) ── */}
+              {form.leaveType === "sick" && (
+                <div className="form-field--compact">
+                  <label className="form-label--compact" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Paperclip size={13} /> Medical Certificate
+                    <span style={{ fontSize: "0.65rem", color: "var(--neutral-400)", fontWeight: 400 }}>(PDF, JPG, PNG · max 5 MB)</span>
+                  </label>
+                  {certFile ? (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "8px 12px",
+                      background: "var(--neutral-50)",
+                      border: "1px solid var(--neutral-200)",
+                      borderRadius: "var(--rounded-md)",
+                    }}>
+                      <FileText size={14} color="var(--primary-600)" />
+                      <span style={{ flex: 1, fontSize: "0.8rem", color: "var(--neutral-700)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {certFile.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setCertFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0 }}
+                        title="Remove attachment"
+                      >
+                        <X size={13} color="var(--neutral-400)" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label style={{
+                      display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+                      padding: "8px 12px",
+                      background: "var(--neutral-50)",
+                      border: "1px dashed var(--neutral-200)",
+                      borderRadius: "var(--rounded-md)",
+                      color: "var(--neutral-500)",
+                      fontSize: "0.8rem",
+                    }}>
+                      <Upload size={14} />
+                      Click to upload certificate
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display: "none" }}
+                        onChange={handleCertFileChange}
+                      />
+                    </label>
+                  )}
+                  {certError && <div className="form-error" style={{ marginTop: 4, fontSize: "0.75rem" }}>{certError}</div>}
+                </div>
+              )}
             </div>
 
             <div className="drawer__footer">
@@ -465,6 +560,29 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
               <div style={{ padding: "var(--space-4)", background: "var(--neutral-50)", borderRadius: "var(--rounded-md)", fontSize: "0.9rem" }}>
                 {detailMode === "reason" ? (detailRequest.reason || "No reason provided.") : (detailRequest.manager_comment || "No comment provided.")}
               </div>
+              {/* Attachment download (Sick Leave) */}
+              {detailMode === "reason" && detailRequest.medical_certificate_data && (
+                <div style={{
+                  marginTop: 12,
+                  padding: "10px 14px",
+                  background: "var(--primary-50, #eff6ff)",
+                  border: "1px solid var(--primary-100, #dbeafe)",
+                  borderRadius: "var(--rounded-md)",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}>
+                  <FileText size={16} color="var(--primary-600)" />
+                  <span style={{ flex: 1, fontSize: "0.8rem", color: "var(--neutral-700)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {detailRequest.medical_certificate_name || "Medical Certificate"}
+                  </span>
+                  <a
+                    href={detailRequest.medical_certificate_data}
+                    download={detailRequest.medical_certificate_name || "medical_certificate"}
+                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.75rem", color: "var(--primary-600)", textDecoration: "none", fontWeight: 600 }}
+                  >
+                    <Download size={13} /> Download
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>

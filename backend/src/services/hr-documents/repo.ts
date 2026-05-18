@@ -1,7 +1,15 @@
 import { query } from "../../db";
 
 // ─── Scoped list (employee sees company + own individual) ─────────────────────
-export const listDocuments = async (callerOid: string) => {
+export const listDocuments = async (callerOid: string, types?: string[]) => {
+  let typesClause = "";
+  const params: any[] = [callerOid];
+
+  if (types && types.length > 0) {
+    params.push(types);
+    typesClause = `AND d.document_type ILIKE ANY($2::text[])`;
+  }
+
   const { rows } = await query(
     `SELECT d.*, 
             d.visibility_scope AS scope,
@@ -13,18 +21,27 @@ export const listDocuments = async (callerOid: string) => {
      LEFT JOIN users sharer ON sharer.entra_oid = d.created_by_oid
      LEFT JOIN users emp    ON emp.entra_oid    = d.assigned_to_oid
      LEFT JOIN users caller ON caller.entra_oid = $1
-     WHERE d.visibility_scope = 'company' 
+     WHERE (d.visibility_scope = 'company' 
         OR d.visibility_scope = 'organization'
         OR (d.visibility_scope = 'individual' AND (d.assigned_to_oid = $1 OR d.created_by_oid = $1))
-        OR (d.department_name IS NOT NULL AND d.department_name = caller.department)
+        OR (d.department_name IS NOT NULL AND d.department_name = caller.department))
+        ${typesClause}
      ORDER BY d.created_at DESC`,
-    [callerOid]
+    params
   );
   return rows;
 };
 
 // ─── HR/Admin sees all documents ever shared ──────────────────────────────────
-export const listAllDocuments = async () => {
+export const listAllDocuments = async (types?: string[]) => {
+  let typesClause = "";
+  const params: any[] = [];
+
+  if (types && types.length > 0) {
+    params.push(types);
+    typesClause = `WHERE d.document_type ILIKE ANY($1::text[])`;
+  }
+
   const { rows } = await query(
     `SELECT d.*,
             d.visibility_scope AS scope,
@@ -35,7 +52,9 @@ export const listAllDocuments = async () => {
      FROM hr_documents d
      LEFT JOIN users emp    ON emp.entra_oid    = d.assigned_to_oid
      LEFT JOIN users sharer ON sharer.entra_oid = d.created_by_oid
-     ORDER BY d.created_at DESC`
+     ${typesClause}
+     ORDER BY d.created_at DESC`,
+    params
   );
   return rows;
 };
@@ -132,5 +151,24 @@ export const countDocuments = async (callerOid: string) => {
 export const deleteDocument = async (id: string) => {
   const { rowCount } = await query(`DELETE FROM hr_documents WHERE id = $1`, [id]);
   return (rowCount ?? 0) > 0;
+};
+
+// ─── Document Types (for filtering) ───────────────────────────────────────────
+export const listDocumentTypes = async (callerOid: string, isPrivileged: boolean) => {
+  if (isPrivileged) {
+    const { rows } = await query(`SELECT DISTINCT document_type FROM hr_documents WHERE document_type IS NOT NULL ORDER BY document_type`);
+    return rows.map(r => r.document_type);
+  }
+  const { rows } = await query(`
+    SELECT DISTINCT d.document_type 
+    FROM hr_documents d
+    LEFT JOIN users caller ON caller.entra_oid = $1
+    WHERE d.visibility_scope = 'company' 
+       OR d.visibility_scope = 'organization'
+       OR (d.visibility_scope = 'individual' AND (d.assigned_to_oid = $1 OR d.created_by_oid = $1))
+       OR (d.department_name IS NOT NULL AND d.department_name = caller.department)
+    ORDER BY d.document_type
+  `, [callerOid]);
+  return rows.map(r => r.document_type);
 };
 

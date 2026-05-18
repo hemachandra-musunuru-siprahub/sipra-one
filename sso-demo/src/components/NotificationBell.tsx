@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Bell, CheckCheck, X, Megaphone, Info, Calendar, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { Bell, CheckCheck, X, Megaphone, Info, Calendar, FileText, CheckCircle2, AlertCircle, Clock, ClipboardList } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Notification } from "../api/notifications";
 
@@ -10,6 +10,8 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string }> = {
   leave_rejected: { icon: <AlertCircle size={14} />, color: "#ef4444" },
   announcement: { icon: <Megaphone size={14} />, color: "#f59e0b" },
   hr_document: { icon: <FileText size={14} />, color: "#8b5cf6" },
+  timesheet_reminder: { icon: <Clock size={14} />, color: "#3b82f6" },
+  timesheet_manager_summary: { icon: <ClipboardList size={14} />, color: "#10b981" },
 };
 
 function relativeTime(dateStr: string): string {
@@ -94,6 +96,14 @@ export function NotificationBell({
       if (r === "manager") path = "/manager/documents";
       else if (r === "hr" || r === "admin") path = "/hr/documents";
       else path = "/employee/documents";
+    } else if (notif.type === "timesheet_reminder") {
+      if (r === "hr") path = "/hr/my-timesheet";
+      else if (r === "manager") path = "/manager/my-timesheet";
+      else path = "/employee/timesheets";
+    } else if (notif.type === "timesheet_manager_summary") {
+      if (r === "hr") path = "/hr/timesheets";
+      else if (r === "manager") path = "/manager/timesheets";
+      else path = "/employee/timesheets";
     }
 
     navigate(path);

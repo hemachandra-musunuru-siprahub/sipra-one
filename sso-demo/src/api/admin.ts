@@ -28,3 +28,42 @@ export async function deleteUser(oid: string) {
   }
   return res.json();
 }
+
+export async function getTimesheetReminderSettings() {
+  const res = await fetch(`${API}/api/admin/settings/timesheet-reminders`, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch timesheet reminder settings");
+  return res.json(); // { settings: { friday_enabled, friday_time, monday_enabled, monday_time } }
+}
+
+export async function updateTimesheetReminderSettings(settings: {
+  friday_enabled: boolean;
+  friday_time: string;
+  monday_enabled: boolean;
+  monday_time: string;
+}) {
+  const res = await fetch(`${API}/api/admin/settings/timesheet-reminders`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.details || "Failed to update timesheet reminder settings");
+  }
+  return res.json();
+}
+
+export async function triggerTimesheetReminder(type: "friday" | "monday") {
+  const res = await fetch(`${API}/api/admin/settings/timesheet-reminders/trigger`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.details || "Failed to trigger timesheet reminders");
+  }
+  return res.json();
+}

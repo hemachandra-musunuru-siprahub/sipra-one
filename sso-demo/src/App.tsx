@@ -12,13 +12,14 @@ import { AccessDenied } from "./components/AccessDenied";
 import { DashboardLayout } from "./components/DashboardLayout";
 import {
   Shield, Users,
-  Database, Globe, PieChart, HardDrive
+  Database, Globe, PieChart, HardDrive, Settings
 } from "lucide-react";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import type { UserRole } from "./lib/roleHelper";
 
 // Pages
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminSettingsPage } from "./pages/admin/AdminSettingsPage";
 import { EmployeeLeavePage } from "./pages/employee/EmployeeLeavePage";
 import { EmployeeTimesheetPage } from "./pages/employee/EmployeeTimesheetPage";
 import { AnnouncementsPage } from "./pages/shared/AnnouncementsPage";
@@ -203,6 +204,7 @@ const AdminDashboard = ({ internalUser }: { internalUser: InternalUser | null })
           <h1 className="page-title">Systems Control</h1>
           <div style={{ display: "flex", gap: "var(--space-3)" }}>
             <button className="btn btn--secondary" onClick={() => navigate("/admin/users")}><Users size={16} /> User Management</button>
+            <button className="btn btn--secondary" onClick={() => navigate("/admin/settings")}><Settings size={16} /> System Settings</button>
             <button className="btn btn--primary" onClick={() => navigate("/admin/health")}><Shield size={16} /> System Health</button>
           </div>
         </div>
@@ -377,6 +379,7 @@ const AppContent = () => {
                   {/* Admin */}
                   <Route path="/admin-dashboard" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminDashboard internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/admin/users" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminUsersPage internalUser={internalUser} /></RoleGuard>} />
+                  <Route path="/admin/settings" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminSettingsPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/admin/performance" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><PerformancePage internalUser={internalUser} role="Admin" /></RoleGuard>} />
                   <Route path="/admin/health" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><AdminHealthPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/admin/holidays" element={<RoleGuard internalUser={internalUser} allowed={isAdminRole}><HolidayCalendarPage internalUser={internalUser} /></RoleGuard>} />

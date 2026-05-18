@@ -15,6 +15,8 @@ import {
   Filter,
   Calendar as CalendarIcon,
   Users,
+  Download,
+  Paperclip,
 } from "lucide-react";
 import { getAllLeave, actionLeave } from "../../api/leave";
 import type { LeaveRequest } from "../../api/types";
@@ -311,7 +313,7 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
                       </div>
                     </td>
                     <td>
-                      <div className="truncate-cell" title={req.reason}>
+                      <div className="truncate-cell" title={req.reason || undefined}>
                         <button
                           className="link-btn"
                           onClick={() => setDetailRequest(req)}
@@ -448,6 +450,49 @@ export const ManagerApprovalsPage = ({ internalUser }: Props) => {
                   <p style={{ fontSize: "0.8125rem", color: "var(--error-700)", lineHeight: 1.5, margin: 0, fontWeight: 500 }}>
                     {detailRequest.manager_comment}
                   </p>
+                </div>
+              )}
+
+              {/* ── Medical Certificate Attachment ── */}
+              {detailRequest.medical_certificate_data && (
+                <div style={{
+                  marginTop: 16,
+                  padding: "12px 16px",
+                  background: "var(--primary-50, #eff6ff)",
+                  border: "1px solid var(--primary-100, #dbeafe)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}>
+                  <Paperclip size={16} color="var(--primary-600)" style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <div style={{ fontSize: "0.65rem", fontWeight: 800, textTransform: "uppercase", color: "var(--primary-600)", marginBottom: 2, letterSpacing: "0.05em" }}>
+                      Medical Certificate
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "var(--neutral-700)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {detailRequest.medical_certificate_name || "Attached document"}
+                    </div>
+                  </div>
+                  <a
+                    href={detailRequest.medical_certificate_data}
+                    download={detailRequest.medical_certificate_name || "medical_certificate"}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      padding: "5px 12px",
+                      background: "var(--primary-600)",
+                      color: "#fff",
+                      borderRadius: 6,
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Download size={12} /> Download
+                  </a>
                 </div>
               )}
             </div>

@@ -13,6 +13,11 @@ import {
 import type { Holiday } from "../../api/types";
 import { HolidayDetailsModal } from "../../components/holiday/HolidayDetailsModal";
 
+interface HolidayViewPageProps {
+  internalUser: any;
+  role?: string;
+}
+
 export const HolidayViewPage = ({ internalUser, role }: HolidayViewPageProps) => {
   const effectiveRole = (role || internalUser?.role || "Employee") as "HR" | "Manager" | "Employee" | "Admin";
   
