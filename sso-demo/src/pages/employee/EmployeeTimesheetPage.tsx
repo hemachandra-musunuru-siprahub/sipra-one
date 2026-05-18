@@ -233,6 +233,16 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
       .reduce((sum, e) => sum + Number(e?.hours || 0), 0);
   }, [groupedEntries]);
 
+  const calculatedExtra = useMemo(() => {
+    return Object.values(groupedEntries).reduce((totalExtra, entries) => {
+      const dayTotal = entries.reduce((sum, e) => sum + Number(e?.hours || 0), 0);
+      if (dayTotal > 8) {
+        return totalExtra + (dayTotal - 8);
+      }
+      return totalExtra;
+    }, 0);
+  }, [groupedEntries]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "reviewed": return { bg: "#ECFDF5", text: "#047857", border: "#A7F3D0", icon: <CheckCircle size={12} /> };
@@ -350,6 +360,12 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                   <div style={{ fontSize: "11px", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Total Hours</div>
                   <div style={{ fontWeight: 800, fontSize: "20px", color: "var(--primary-600)", letterSpacing: "-0.02em" }}>
                     {loadingWeek ? "..." : `${calculatedTotal.toFixed(2)}h`}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11px", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Extra Hours Worked</div>
+                  <div style={{ fontWeight: 800, fontSize: "20px", color: "var(--warning-600, #d97706)", letterSpacing: "-0.02em" }}>
+                    {loadingWeek ? "..." : `${calculatedExtra.toFixed(2)}h`}
                   </div>
                 </div>
                 <div>

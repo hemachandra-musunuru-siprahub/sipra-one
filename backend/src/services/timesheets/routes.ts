@@ -121,6 +121,14 @@ router.get("/manager-export", requireAuth,
 
       const rows = await repo.getManagerExportData(directReports, monthStart, monthEnd, employeeOidFilter);
 
+      // Pre-calculate daily totals per timesheet and date to correctly apply the daily 8h threshold
+      const dailyTotals: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        dailyTotals[key] = (dailyTotals[key] || 0) + Number(r.entry_hours || 0);
+      });
+      const assignedRegular: Record<string, number> = {};
+
       // ── Build Excel workbook ──────────────────────────────────────────────
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
@@ -137,6 +145,7 @@ router.get("/manager-export", requireAuth,
         { header: "Project", key: "project_name", width: 24 },
         { header: "Task / Desc", key: "task_description", width: 36 },
         { header: "Hours", key: "entry_hours", width: 8 },
+        { header: "Extra Hours", key: "extra_hours", width: 12 },
         { header: "Total Week Hrs", key: "total_hours", width: 14 },
         { header: "Status", key: "status", width: 10 },
         { header: "Reviewed By", key: "reviewed_by_name", width: 22 },
@@ -159,13 +168,25 @@ router.get("/manager-export", requireAuth,
 
       // Data rows
       rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        const dayTotal = dailyTotals[key] || 0;
+        const entryHours = r.entry_hours != null ? Number(r.entry_hours) : 0;
+        const alreadyAssigned = assignedRegular[key] || 0;
+
+        const remainingRegular = Math.max(Math.min(dayTotal, 8) - alreadyAssigned, 0);
+        const regularHours = Math.min(entryHours, remainingRegular);
+        const extraHours = Math.max(entryHours - regularHours, 0);
+
+        assignedRegular[key] = alreadyAssigned + regularHours;
+
         const row = sheet.addRow({
           employee_name: r.employee_name,
           week_start_date: formatDate(r.week_start_date),
           work_date: formatDate(r.work_date),
           project_name: r.project_name || "",
           task_description: r.task_description || "",
-          entry_hours: r.entry_hours != null ? Number(r.entry_hours) : "",
+          entry_hours: r.entry_hours != null ? Number(regularHours) : "",
+          extra_hours: r.entry_hours != null ? Number(extraHours) : "",
           total_hours: r.total_hours != null ? Number(r.total_hours) : "",
           status: r.status,
           reviewed_by_name: r.reviewed_by_name || "",
@@ -178,8 +199,8 @@ router.get("/manager-export", requireAuth,
         }
       });
 
-      // Auto-filter on header row
-      sheet.autoFilter = { from: "A1", to: "K1" };
+      // Auto-filter on header row (A to L now that we have 12 columns)
+      sheet.autoFilter = { from: "A1", to: "L1" };
 
       // ── Send response ─────────────────────────────────────────────────────
       const empLabel = employeeOidFilter
@@ -213,6 +234,14 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
 
       const rows = await repo.getHRExportData({ employeeOid, status, month });
 
+      // Pre-calculate daily totals per timesheet and date to correctly apply the daily 8h threshold
+      const dailyTotals: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        dailyTotals[key] = (dailyTotals[key] || 0) + Number(r.entry_hours || 0);
+      });
+      const assignedRegular: Record<string, number> = {};
+
       // ── Build Excel workbook ──────────────────────────────────────────────
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
@@ -230,6 +259,7 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
         { header: "Project", key: "project_name", width: 24 },
         { header: "Task / Desc", key: "task_description", width: 36 },
         { header: "Hours", key: "entry_hours", width: 8 },
+        { header: "Extra Hours", key: "extra_hours", width: 12 },
         { header: "Total Week Hrs", key: "total_hours", width: 14 },
         { header: "Status", key: "status", width: 10 },
         { header: "Submitted At", key: "submitted_at", width: 22 },
@@ -253,6 +283,17 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
 
       // Data rows
       rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        const dayTotal = dailyTotals[key] || 0;
+        const entryHours = r.entry_hours != null ? Number(r.entry_hours) : 0;
+        const alreadyAssigned = assignedRegular[key] || 0;
+
+        const remainingRegular = Math.max(Math.min(dayTotal, 8) - alreadyAssigned, 0);
+        const regularHours = Math.min(entryHours, remainingRegular);
+        const extraHours = Math.max(entryHours - regularHours, 0);
+
+        assignedRegular[key] = alreadyAssigned + regularHours;
+
         const row = sheet.addRow({
           employee_name: r.employee_name,
           employee_email: r.employee_email,
@@ -260,7 +301,8 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
           work_date: formatDate(r.work_date),
           project_name: r.project_name || "",
           task_description: r.task_description || "",
-          entry_hours: r.entry_hours != null ? Number(r.entry_hours) : "",
+          entry_hours: r.entry_hours != null ? Number(regularHours) : "",
+          extra_hours: r.entry_hours != null ? Number(extraHours) : "",
           total_hours: r.total_hours != null ? Number(r.total_hours) : "",
           status: (r.status || "").toUpperCase(),
           submitted_at: formatDate(r.submitted_at),
@@ -273,7 +315,8 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
         }
       });
 
-      sheet.autoFilter = { from: "A1", to: "M1" };
+      // Auto-filter on header row (A to N now that we have 14 columns)
+      sheet.autoFilter = { from: "A1", to: "N1" };
 
       // ── Send response ─────────────────────────────────────────────────────
       const timestamp = new Date().toISOString().slice(0, 10);
