@@ -1,25 +1,116 @@
 import { query, pool } from "../../db";
 
+// ─── Helper: calculate Monday of the week for a given date ───────────────────
+const getMondayForDate = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  const day = d.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+};
+
+// ─── Ensure holidays are generated for a draft week ───────────────────────────
+export const ensureHolidaysForWeek = async (timesheetId: string, weekStartDate: string) => {
+  const start = new Date(weekStartDate);
+  const end = new Date(weekStartDate);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const endStr = end.toISOString().slice(0, 10);
+  
+  const holidays = await query(
+    `SELECT id, title, start_date, end_date FROM holidays
+     WHERE status = 'published'
+       AND start_date <= $2 AND end_date >= $1`,
+    [weekStartDate, endStr]
+  );
+  
+  if (holidays.rows.length === 0) return;
+  
+  let changed = false;
+  
+  for (const h of holidays.rows) {
+    const hStart = new Date(h.start_date);
+    const hEnd = new Date(h.end_date);
+    
+    const overlapStart = hStart > start ? hStart : start;
+    const overlapEnd = hEnd < end ? hEnd : end;
+    
+    let current = new Date(overlapStart);
+    while (current <= overlapEnd) {
+       const dayOfWeek = current.getUTCDay();
+       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+           const workDateStr = current.toISOString().slice(0, 10);
+           
+           const existing = await query(`
+             SELECT id, holiday_id, leave_request_id FROM timesheet_entries
+             WHERE timesheet_week_id = $1 AND work_date = $2 AND is_system_generated = true
+           `, [timesheetId, workDateStr]);
+           
+           if (existing.rows.length > 0) {
+              const ext = existing.rows[0];
+              if (ext.holiday_id !== h.id) {
+                 await query(`
+                   UPDATE timesheet_entries 
+                   SET project_name = 'Holiday', task_description = $1, holiday_id = $2, leave_request_id = NULL
+                   WHERE id = $3
+                 `, [h.title, h.id, ext.id]);
+                 changed = true;
+              }
+           } else {
+              await query(`
+                 INSERT INTO timesheet_entries
+                   (timesheet_week_id, work_date, project_name, task_description, hours, is_system_generated, holiday_id)
+                 VALUES ($1, $2, 'Holiday', $3, 8, true, $4)
+              `, [timesheetId, workDateStr, h.title, h.id]);
+              changed = true;
+           }
+       }
+       current.setUTCDate(current.getUTCDate() + 1);
+    }
+  }
+  
+  if (changed) {
+    await query(
+      `UPDATE timesheet_weeks SET total_hours = (
+         SELECT COALESCE(SUM(hours),0) FROM timesheet_entries WHERE timesheet_week_id = $1
+       ), updated_at = NOW() WHERE id = $1`,
+      [timesheetId]
+    );
+  }
+};
+
 // ─── Get or create a draft week ───────────────────────────────────────────────
 export const getOrCreateWeek = async (employeeOid: string, weekStartDate: string) => {
   // Try to find existing
+  let weekId: string;
+  let status: string;
+  
   const existing = await query(
-    `SELECT tw.*, COALESCE(json_agg(te ORDER BY te.work_date) FILTER (WHERE te.id IS NOT NULL), '[]') AS entries
+    `SELECT id, status
      FROM timesheet_weeks tw
-     LEFT JOIN timesheet_entries te ON te.timesheet_week_id = tw.id
-     WHERE tw.employee_oid = $1 AND tw.week_start_date = $2
-     GROUP BY tw.id`,
+     WHERE tw.employee_oid = $1 AND tw.week_start_date = $2`,
     [employeeOid, weekStartDate]
   );
-  if (existing.rows.length > 0) return existing.rows[0];
+  
+  if (existing.rows.length > 0) {
+    weekId = existing.rows[0].id;
+    status = existing.rows[0].status;
+  } else {
+    // Create new draft
+    const created = await query(
+      `INSERT INTO timesheet_weeks (employee_oid, week_start_date, status, total_hours)
+       VALUES ($1, $2, 'draft', 0) RETURNING id, status`,
+      [employeeOid, weekStartDate]
+    );
+    weekId = created.rows[0].id;
+    status = created.rows[0].status;
+  }
 
-  // Create new draft
-  const created = await query(
-    `INSERT INTO timesheet_weeks (employee_oid, week_start_date, status, total_hours)
-     VALUES ($1, $2, 'draft', 0) RETURNING *`,
-    [employeeOid, weekStartDate]
-  );
-  return { ...created.rows[0], entries: [] };
+  // Auto-generate holidays if in draft status
+  if (status === 'draft') {
+    await ensureHolidaysForWeek(weekId, weekStartDate);
+  }
+
+  return await getWeekWithEntries(weekId);
 };
 
 // ─── Get week with entries ────────────────────────────────────────────────────
@@ -319,6 +410,77 @@ export const getManagerExportData = async (
   }
 
   return rows;
+};
+
+// ─── Create Out of Office timesheet entries after leave approval ─────────────
+/**
+ * For every workday (Mon–Fri) between startDate and endDate (inclusive),
+ * finds or creates the draft timesheet week for the employee, then inserts
+ * a single "Out of Office" entry for that day.
+ *
+ * Duplicate-safe: uses ON CONFLICT DO NOTHING based on the unique constraint
+ * on (timesheet_week_id, work_date, is_system_generated) or falls back to
+ * a prior-existence check using leave_request_id + work_date.
+ *
+ * Returns the number of entries inserted.
+ */
+export const createLeaveTimesheetEntries = async (params: {
+  employeeOid: string;
+  leaveRequestId: string;
+  startDate: string;  // YYYY-MM-DD
+  endDate: string;    // YYYY-MM-DD
+  leaveType: string;
+}): Promise<number> => {
+  const { employeeOid, leaveRequestId, startDate, endDate, leaveType } = params;
+  const taskDescription = `Approved Leave: ${leaveType}`;
+  let insertedCount = 0;
+
+  const current = new Date(startDate);
+  const end = new Date(endDate);
+
+  while (current <= end) {
+    const dayOfWeek = current.getUTCDay(); // 0=Sun, 6=Sat
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const workDateStr = current.toISOString().slice(0, 10);
+      const weekStart = getMondayForDate(workDateStr);
+
+      // Ensure the timesheet week exists (creates draft if absent)
+      const week = await getOrCreateWeek(employeeOid, weekStart);
+
+      // Guard: skip if an OOO entry for this leave_request_id + date already exists
+      // Also skip if a Holiday entry exists for this date, as Holidays take precedence
+      const existing = await query(
+        `SELECT id FROM timesheet_entries
+         WHERE timesheet_week_id = $1
+           AND work_date = $2
+           AND (leave_request_id = $3 OR holiday_id IS NOT NULL OR (is_system_generated = true AND project_name = 'Holiday'))`,
+        [week.id, workDateStr, leaveRequestId]
+      );
+
+      if (existing.rows.length === 0) {
+        await query(
+          `INSERT INTO timesheet_entries
+             (timesheet_week_id, work_date, project_name, task_description, hours,
+              is_system_generated, leave_request_id)
+           VALUES ($1, $2, 'Out of Office', $3, 8, true, $4)`,
+          [week.id, workDateStr, taskDescription, leaveRequestId]
+        );
+
+        // Recalculate total_hours for the week
+        await query(
+          `UPDATE timesheet_weeks SET total_hours = (
+             SELECT COALESCE(SUM(hours), 0) FROM timesheet_entries WHERE timesheet_week_id = $1
+           ), updated_at = NOW() WHERE id = $1`,
+          [week.id]
+        );
+
+        insertedCount++;
+      }
+    }
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return insertedCount;
 };
 
 // ─── Employee history: all own timesheets (no entries, lightweight) ───────────

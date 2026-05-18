@@ -479,11 +479,18 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                           position: "relative",
                           boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
                         }}>
-                          <div style={{ fontWeight: 700, color: "var(--neutral-900)", marginBottom: "2px" }}>{entry.project_name}</div>
+                          <div style={{ fontWeight: 700, color: "var(--neutral-900)", marginBottom: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            {entry.project_name}
+                            {entry.is_system_generated && (
+                              <span style={{ fontSize: "10px", padding: "2px 6px", background: "var(--primary-100)", color: "var(--primary-700)", borderRadius: "4px", lineHeight: 1 }}>
+                                {entry.project_name === "Holiday" ? "Holiday" : entry.project_name === "Out of Office" ? "Leave" : "System"}
+                              </span>
+                            )}
+                          </div>
                           <div style={{ color: "var(--neutral-500)", marginBottom: "8px", lineHeight: "1.4" }}>{entry.task_description}</div>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ fontWeight: 700, color: "var(--primary-700)" }}>{entry.hours}h</div>
-                            {isEditable && (
+                            {isEditable && !entry.is_system_generated && (
                               <div style={{ display: "flex", gap: "2px" }}>
                                 <button 
                                   className="btn btn--ghost btn--sm" 

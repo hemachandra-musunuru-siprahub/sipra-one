@@ -9,6 +9,7 @@ import { getDirectReportOids } from "../users/repo";
 import * as notifRepo from "../notifications/repo";
 import { emitNotification, getSocketServer } from "../../lib/socketServer";
 import { query } from "../../db";
+import { createLeaveTimesheetEntries } from "../timesheets/repo";
 
 const router = Router();
 
@@ -32,11 +33,27 @@ const router = Router();
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_type`);
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_requests`);
     await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('annual', 'sick', 'casual', 'unpaid', 'other'))`);
-
-    // ── Medical certificate columns (idempotent) ──────────────────────
-    await query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS medical_certificate_name VARCHAR(255)`);
-    await query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS medical_certificate_mime VARCHAR(100)`);
-    await query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS medical_certificate_data TEXT`);
+    
+    // Sync leave balances with actual approved leave requests to fix any stale data
+    await query(`
+      UPDATE leave_balances lb
+      SET used_days = COALESCE((
+          SELECT SUM(total_days)
+          FROM leave_requests lr
+          WHERE lr.employee_oid = lb.employee_oid
+            AND lr.leave_type = lb.leave_type
+            AND EXTRACT(YEAR FROM lr.start_date) = lb.year
+            AND lr.status = 'approved'
+      ), 0),
+      remaining_days = lb.total_days - COALESCE((
+          SELECT SUM(total_days)
+          FROM leave_requests lr
+          WHERE lr.employee_oid = lb.employee_oid
+            AND lr.leave_type = lb.leave_type
+            AND EXTRACT(YEAR FROM lr.start_date) = lb.year
+            AND lr.status = 'approved'
+      ), 0)
+    `);
   } catch (err) {
     console.error("[LEAVE SETUP ERROR]:", err);
     // Do not rethrow; we want the server to start even if this background task fails
@@ -227,6 +244,18 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
 
     if (isHrOrManager && !user.manager_entra_oid) {
       request = await repo.approveRequest(request.id, user.entra_oid, user.entra_oid, leaveType, totalDays, year);
+      // ── Auto-approval: create OOO timesheet entries (fire-and-forget) ─────────
+      createLeaveTimesheetEntries({
+        employeeOid: user.entra_oid,
+        leaveRequestId: request.id,
+        startDate,
+        endDate,
+        leaveType,
+      }).then(n => {
+        console.log(`[LEAVE] Auto-approval: ${n} OOO timesheet entries created for ${user.entra_oid}`);
+      }).catch(err => {
+        console.error("[LEAVE] Failed to create OOO timesheet entries (auto-approval):", err);
+      });
     }
 
     res.status(201).json({ request });
@@ -291,6 +320,20 @@ router.patch("/:id", requireAuth, validate(ActionSchema),
       const year = new Date(leaveReq.start_date).getFullYear();
       updated = await repo.approveRequest(req.params.id, req.user!.entra_oid,
         leaveReq.employee_oid, leaveReq.leave_type, leaveReq.total_days, year);
+      // ── Manager/Admin approval: create OOO timesheet entries (fire-and-forget) ──
+      const startStr = (leaveReq.start_date as unknown as string)?.toString().slice(0, 10);
+      const endStr   = (leaveReq.end_date   as unknown as string)?.toString().slice(0, 10);
+      createLeaveTimesheetEntries({
+        employeeOid: leaveReq.employee_oid,
+        leaveRequestId: req.params.id,
+        startDate: startStr,
+        endDate: endStr,
+        leaveType: leaveReq.leave_type,
+      }).then(n => {
+        console.log(`[LEAVE] Approval: ${n} OOO timesheet entries created for ${leaveReq.employee_oid}`);
+      }).catch(err => {
+        console.error("[LEAVE] Failed to create OOO timesheet entries:", err);
+      });
     } else {
       updated = await repo.rejectRequest(req.params.id, req.user!.entra_oid, req.body.rejectionReason!);
     }

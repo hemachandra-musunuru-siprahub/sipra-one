@@ -35,6 +35,7 @@ export interface TimesheetEntry {
   project_name: string;
   task_description: string;
   hours: number;
+  is_system_generated?: boolean;
 }
 
 export interface Timesheet {

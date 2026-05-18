@@ -12,6 +12,26 @@ import { query } from "../../db";
 
 const router = Router();
 
+// ─── Auto-migrate timesheet_entries schema (add leave metadata columns) ───────
+(async () => {
+  try {
+    await query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS is_system_generated BOOLEAN NOT NULL DEFAULT false
+    `);
+    await query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS leave_request_id UUID REFERENCES leave_requests(id) ON DELETE SET NULL
+    `);
+    await query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS holiday_id UUID REFERENCES holidays(id) ON DELETE SET NULL
+    `);
+  } catch (err) {
+    console.error("[TIMESHEET SETUP ERROR]:", err);
+  }
+})();
+
 // ─── Normalize week to Monday ─────────────────────────────────────────────────
 const normalizeToMonday = (dateStr: string): string => {
   const d = new Date(dateStr);
