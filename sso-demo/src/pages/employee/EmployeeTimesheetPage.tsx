@@ -13,6 +13,7 @@ import type { Timesheet, TimesheetEntry, TimesheetHistoryItem } from "../../api/
 import { formatDate } from "../../utils/dateFormatter";
 import { normalizeRole } from "../../lib/roleHelper";
 import type { UserRole } from "../../lib/roleHelper";
+import { TimeEntryModal, type TimeEntryFormValues } from "../../components/TimeEntryModal";
 
 interface Props { internalUser: any; role?: string; }
 
@@ -61,18 +62,12 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
 
   // -- Entry Form State --
   const [showAddModal, setShowAddModal] = useState(false);
-  const [form, setForm] = useState({ 
-    workDate: "", 
-    projectName: "", 
-    taskDescription: "", 
-    hours: 8 
-  });
+  const [addDate, setAddDate] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // -- Edit State --
   const [editingEntry, setEditingEntry] = useState<TimesheetEntry | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
 
   // -- Load Current Week --
   const loadWeek = async (week: string) => {
@@ -120,47 +115,32 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
     setCurrentWeek(normalizeDate(monday));
   };
 
-  const handleAddEntry = async () => {
-    if (!timesheet || !form.workDate || !form.projectName || !form.taskDescription) {
-      setError("Please fill all required fields.");
-      return;
-    }
-    if (form.hours <= 0 || form.hours > 24) {
-      setError("Hours must be between 0.5 and 24.");
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      const { timesheet: updated } = await addEntry(timesheet.id, {
-        workDate: form.workDate,
-        projectName: form.projectName,
-        taskDescription: form.taskDescription,
-        hours: form.hours
-      });
-      setTimesheet(updated);
-      setShowAddModal(false);
-      setForm({ workDate: "", projectName: "", taskDescription: "", hours: 8 });
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setSubmitting(false);
-    }
+  const handleAddEntry = async (values: TimeEntryFormValues) => {
+    if (!timesheet) return;
+    const { timesheet: updated } = await addEntry(timesheet.id, {
+      workDate: values.workDate,
+      projectName: values.projectName || "",
+      taskDescription: values.taskDescription,
+      hours: values.hours,
+      entryType: values.entryType,
+      jiraTaskId: values.jiraTaskId || null
+    });
+    setTimesheet(updated);
+    setShowAddModal(false);
   };
 
-  const handleUpdateEntry = async (entryId: string, data: any) => {
+  const handleUpdateEntry = async (entryId: string, values: TimeEntryFormValues) => {
     if (!timesheet) return;
-    setIsUpdating(true);
-    try {
-      const { timesheet: updated } = await putUpdateEntry(entryId, data);
-      setTimesheet(updated);
-      setEditingEntry(null);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setIsUpdating(false);
-    }
+    const { timesheet: updated } = await putUpdateEntry(entryId, {
+      date: values.workDate,
+      project: values.projectName || "",
+      task: values.taskDescription,
+      hours: values.hours,
+      entryType: values.entryType,
+      jiraTaskId: values.jiraTaskId || null
+    });
+    setTimesheet(updated);
+    setEditingEntry(null);
   };
 
   const handleDeleteEntry = async (entryId: string) => {
@@ -399,7 +379,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                   <button 
                     className="btn btn--secondary" 
                     onClick={() => {
-                      setForm({ ...form, workDate: currentWeek });
+                      setAddDate(currentWeek);
                       setShowAddModal(true);
                     }}
                   >
@@ -495,14 +475,25 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                           position: "relative",
                           boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
                         }}>
-                          <div style={{ fontWeight: 700, color: "var(--neutral-900)", marginBottom: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
-                            {entry.project_name}
-                            {entry.is_system_generated && (
-                              <span style={{ fontSize: "10px", padding: "2px 6px", background: "var(--primary-100)", color: "var(--primary-700)", borderRadius: "4px", lineHeight: 1 }}>
-                                {entry.project_name === "Holiday" ? "Holiday" : entry.project_name === "Out of Office" ? "Leave" : "System"}
+                          <div style={{ fontWeight: 700, color: "var(--neutral-900)", marginBottom: "2px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <span>{entry.project_name || entry.entry_type || "Work"}</span>
+                            {entry.entry_type && entry.entry_type !== "Work" && (
+                              <span style={{ 
+                                fontSize: "10px", 
+                                background: entry.entry_type === "Leave" ? "var(--error-50)" : "var(--primary-50)", 
+                                color: entry.entry_type === "Leave" ? "var(--error-600)" : "var(--primary-600)", 
+                                padding: "2px 6px", 
+                                borderRadius: "4px" 
+                              }}>
+                                {entry.entry_type}
                               </span>
                             )}
                           </div>
+                          {entry.jira_task_id && (
+                            <div style={{ fontSize: "11px", color: "var(--primary-600)", fontWeight: 600, marginBottom: "4px" }}>
+                              {entry.jira_task_id}
+                            </div>
+                          )}
                           <div style={{ color: "var(--neutral-500)", marginBottom: "8px", lineHeight: "1.4" }}>{entry.task_description}</div>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ fontWeight: 700, color: "var(--primary-700)" }}>{entry.hours}h</div>
@@ -534,7 +525,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                       {isEditable && (
                         <button 
                           onClick={() => {
-                            setForm({ ...form, workDate: dateStr });
+                            setAddDate(dateStr);
                             setShowAddModal(true);
                           }}
                           style={{
@@ -677,166 +668,32 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
         </div>
       )}
 
-      {/* -- Add Entry Modal -- */}
-      {showAddModal && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.4)", display: "flex",
-          alignItems: "center", justifyContent: "center", zIndex: 1000,
-          backdropFilter: "blur(4px)"
-        }}>
-          <div style={{
-            background: "white", borderRadius: "12px",
-            width: "100%", maxWidth: "450px",
-            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-            overflow: "hidden"
-          }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--neutral-100)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>Add Time Entry</h3>
-              <button onClick={() => setShowAddModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--neutral-400)" }}><X size={20} /></button>
-            </div>
-            
-            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Date</label>
-                <input 
-                  className="input" 
-                  type="date" 
-                  value={form.workDate} 
-                  onChange={e => setForm({ ...form, workDate: e.target.value })} 
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Project Name</label>
-                <input 
-                  className="input" 
-                  placeholder="e.g. SipraHub Intranet" 
-                  value={form.projectName} 
-                  onChange={e => setForm({ ...form, projectName: e.target.value })} 
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Task Description</label>
-                <textarea 
-                  className="input" 
-                  placeholder="What did you work on?" 
-                  style={{ height: "80px", resize: "none", padding: "10px" }}
-                  value={form.taskDescription} 
-                  onChange={e => setForm({ ...form, taskDescription: e.target.value })} 
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Hours</label>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <input 
-                    className="input" 
-                    type="number" 
-                    min={0.5} 
-                    max={24} 
-                    step={0.5} 
-                    value={form.hours} 
-                    onChange={e => setForm({ ...form, hours: parseFloat(e.target.value) })} 
-                    style={{ width: "100px" }}
-                  />
-                  <span style={{ fontSize: "13px", color: "var(--neutral-400)" }}>Max 24h per day</span>
-                </div>
-              </div>
-              
-              {error && (
-                <div style={{ display: "flex", gap: "8px", color: "var(--error-600)", fontSize: "13px", alignItems: "center" }}>
-                  <AlertCircle size={16} /> {error}
-                </div>
-              )}
-            </div>
-            
-            <div style={{ padding: "16px 24px", background: "var(--neutral-50)", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button className="btn btn--secondary" onClick={() => setShowAddModal(false)}>Cancel</button>
-              <button className="btn btn--primary" onClick={handleAddEntry} disabled={submitting}>
-                {submitting ? "Adding..." : "Add Entry"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* -- Modals -- */}
+      <TimeEntryModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSubmit={handleAddEntry}
+        initialValues={{ workDate: addDate }}
+        title="Add Time Entry"
+        submitText="Add Entry"
+      />
 
-      {/* -- Edit Entry Modal -- */}
       {editingEntry && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.4)", display: "flex",
-          alignItems: "center", justifyContent: "center", zIndex: 1000,
-          backdropFilter: "blur(4px)"
-        }}>
-          <div style={{
-            background: "white", borderRadius: "12px",
-            width: "100%", maxWidth: "450px",
-            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-            overflow: "hidden"
-          }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--neutral-100)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700 }}>Edit Entry</h3>
-              <button onClick={() => setEditingEntry(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--neutral-400)" }}><X size={20} /></button>
-            </div>
-            
-            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Date</label>
-                <input 
-                  className="input" 
-                  type="date" 
-                  value={editingEntry.work_date} 
-                  onChange={e => setEditingEntry({ ...editingEntry, work_date: e.target.value })} 
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Project Name</label>
-                <input 
-                  className="input" 
-                  value={editingEntry.project_name} 
-                  onChange={e => setEditingEntry({ ...editingEntry, project_name: e.target.value })} 
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Task Description</label>
-                <textarea 
-                  className="input" 
-                  style={{ height: "80px", resize: "none", padding: "10px" }}
-                  value={editingEntry.task_description} 
-                  onChange={e => setEditingEntry({ ...editingEntry, task_description: e.target.value })} 
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--neutral-600)", display: "block", marginBottom: "6px" }}>Hours</label>
-                <input 
-                  className="input" 
-                  type="number" 
-                  min={0.5} 
-                  max={24} 
-                  step={0.5} 
-                  value={editingEntry.hours} 
-                  onChange={e => setEditingEntry({ ...editingEntry, hours: parseFloat(e.target.value) })} 
-                  style={{ width: "100px" }}
-                />
-              </div>
-            </div>
-            
-            <div style={{ padding: "16px 24px", background: "var(--neutral-50)", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button className="btn btn--secondary" onClick={() => setEditingEntry(null)}>Cancel</button>
-              <button 
-                className="btn btn--primary" 
-                onClick={() => handleUpdateEntry(editingEntry.id, {
-                  date: editingEntry.work_date,
-                  project: editingEntry.project_name,
-                  task: editingEntry.task_description,
-                  hours: editingEntry.hours
-                })} 
-                disabled={isUpdating}
-              >
-                {isUpdating ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TimeEntryModal
+          isOpen={true}
+          onClose={() => setEditingEntry(null)}
+          onSubmit={(values) => handleUpdateEntry(editingEntry.id, values)}
+          initialValues={{
+            workDate: editingEntry.work_date,
+            projectName: editingEntry.project_name,
+            taskDescription: editingEntry.task_description,
+            hours: editingEntry.hours,
+            entryType: editingEntry.entry_type || "Work",
+            jiraTaskId: editingEntry.jira_task_id || ""
+          }}
+          title="Edit Time Entry"
+          submitText="Save Changes"
+        />
       )}
     </DashboardLayout>
   );

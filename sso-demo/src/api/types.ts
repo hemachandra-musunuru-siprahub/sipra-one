@@ -26,6 +26,9 @@ export interface Announcement {
   image_url?: string;
   author_name?: string;
   status?: "draft" | "published";
+  target_audience?: "ALL" | "HR" | "MANAGER" | "EMPLOYEE";
+  is_archived?: boolean;
+  archived_at?: string | null;
 }
 
 export interface TimesheetEntry {
@@ -35,7 +38,8 @@ export interface TimesheetEntry {
   project_name: string;
   task_description: string;
   hours: number;
-  is_system_generated?: boolean;
+  entry_type: "Work" | "Leave" | "Meeting";
+  jira_task_id: string | null;
 }
 
 export interface Timesheet {

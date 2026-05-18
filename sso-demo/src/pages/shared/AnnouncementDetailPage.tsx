@@ -4,6 +4,7 @@ import { ArrowLeft, Calendar, User, Share2 } from "lucide-react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { api } from "../../api/client";
 import type { Announcement } from "../../api/types";
+import DOMPurify from 'dompurify';
 
 export const AnnouncementDetailPage = ({ internalUser }: { internalUser: any }) => {
   const { id } = useParams<{ id: string }>();
@@ -117,9 +118,10 @@ export const AnnouncementDetailPage = ({ internalUser }: { internalUser: any }) 
             </h1>
 
             {/* Content */}
-            <div className="prose prose-red max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">
-              {announcement.body}
-            </div>
+            <div 
+              className="prose prose-red max-w-none text-gray-700 leading-relaxed custom-editor"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(announcement.body) }}
+            />
 
             {/* Footer */}
             <div className="mt-12 pt-8 border-t border-gray-100 flex items-center justify-between">

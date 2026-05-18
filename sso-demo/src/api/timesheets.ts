@@ -25,23 +25,38 @@ export const getTimesheetDetail = (id: string) =>
 export const getTeamTimesheets = (employeeId?: string, status?: string, search?: string, month?: string) => {
   const params = new URLSearchParams();
   if (employeeId && employeeId !== "all") params.append("employeeId", employeeId);
-  if (status     && status     !== "all") params.append("status",     status);
-  if (search     && search.trim())        params.append("search",     search.trim());
-  if (month      && month      !== "all") params.append("month",      month);
+  if (status && status !== "all") params.append("status", status);
+  if (search && search.trim()) params.append("search", search.trim());
+  if (month && month !== "all") params.append("month", month);
   const qs = params.toString();
   return api.get<{ timesheets: Timesheet[] }>(`/api/timesheets/team${qs ? `?${qs}` : ""}`);
 };
 
 export const addEntry = (timesheetId: string, data: {
-  workDate: string; projectName: string; taskDescription: string; hours: number;
+  workDate: string;
+  projectName?: string;
+  taskDescription: string;
+  hours: number;
+  entryType?: string;
+  jiraTaskId?: string | null;
 }) => api.post<{ timesheet: Timesheet }>(`/api/timesheets/${timesheetId}/entries`, data);
 
 export const updateEntry = (timesheetId: string, entryId: string, data: {
-  workDate?: string; projectName?: string; taskDescription?: string; hours?: number;
+  workDate?: string;
+  projectName?: string;
+  taskDescription?: string;
+  hours?: number;
+  entryType?: string;
+  jiraTaskId?: string | null;
 }) => api.patch<{ timesheet: Timesheet }>(`/api/timesheets/${timesheetId}/entries/${entryId}`, data);
 
 export const putUpdateEntry = (entryId: string, data: {
-  date: string; project: string; task: string; hours: number;
+  date: string;
+  project?: string;
+  task: string;
+  hours: number;
+  entryType?: string;
+  jiraTaskId?: string | null;
 }) => api.put<{ timesheet: Timesheet }>(`/api/timesheets/entries/${entryId}`, data);
 
 export const deleteEntry = (timesheetId: string, entryId: string) =>
@@ -72,14 +87,14 @@ export const exportManagerTimesheets = async (
   }
 
   const blob = await res.blob();
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
 
   // Try to get filename from Content-Disposition header
-  const cd       = res.headers.get("Content-Disposition") || "";
-  const match    = cd.match(/filename="?([^"]+)"?/);
-  a.download     = match ? match[1] : `timesheets-reviewed-${month}.xlsx`;
+  const cd = res.headers.get("Content-Disposition") || "";
+  const match = cd.match(/filename="?([^"]+)"?/);
+  a.download = match ? match[1] : `timesheets-reviewed-${month}.xlsx`;
 
   document.body.appendChild(a);
   a.click();
@@ -101,8 +116,8 @@ export const getHRTimesheets = (options?: {
 }) => {
   const params = new URLSearchParams();
   if (options?.employeeOid && options.employeeOid !== "all") params.append("employeeOid", options.employeeOid);
-  if (options?.status      && options.status      !== "all") params.append("status",      options.status);
-  if (options?.month)                                        params.append("month",        options.month);
+  if (options?.status && options.status !== "all") params.append("status", options.status);
+  if (options?.month) params.append("month", options.month);
   const qs = params.toString();
   return api.get<{ timesheets: HRTimesheet[] }>(`/api/timesheets/hr${qs ? `?${qs}` : ""}`);
 };
@@ -116,8 +131,8 @@ export const exportHRTimesheets = async (options?: {
   const BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
   const params = new URLSearchParams();
   if (options?.employeeOid && options.employeeOid !== "all") params.append("employeeOid", options.employeeOid);
-  if (options?.status      && options.status      !== "all") params.append("status",      options.status);
-  if (options?.month)                                        params.append("month",       options.month);
+  if (options?.status && options.status !== "all") params.append("status", options.status);
+  if (options?.month) params.append("month", options.month);
 
   const res = await fetch(`${BASE}/api/timesheets/export?${params}`, {
     credentials: "include",
@@ -129,14 +144,14 @@ export const exportHRTimesheets = async (options?: {
   }
 
   const blob = await res.blob();
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
-  
-  const cd       = res.headers.get("Content-Disposition") || "";
-  const match    = cd.match(/filename="?([^"]+)"?/);
-  a.download     = match ? match[1] : `hr-timesheets-export-${options?.month || "all"}.xlsx`;
-  
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+
+  const cd = res.headers.get("Content-Disposition") || "";
+  const match = cd.match(/filename="?([^"]+)"?/);
+  a.download = match ? match[1] : `hr-timesheets-export-${options?.month || "all"}.xlsx`;
+
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

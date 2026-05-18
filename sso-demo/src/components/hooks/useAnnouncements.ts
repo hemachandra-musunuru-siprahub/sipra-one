@@ -1,20 +1,26 @@
 import { useState, useEffect, useCallback } from "react";
-import { getAnnouncements } from "../../api/announcements";
+import { getAnnouncements, getArchivedAnnouncements } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-export function useAnnouncements(initialPage = 1, limit = 20, status = "published") {
+export function useAnnouncements(initialPage = 1, limit = 20, status = "published", enabled = true) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
   const [page, setPage] = useState(initialPage);
   const [hasMore, setHasMore] = useState(true);
 
   const fetchAnnouncements = useCallback(async (p: number, overwrite = false) => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await getAnnouncements(p, limit, status);
-      console.log(`[useAnnouncements] Fetched announcements:`, data.announcements);
+      const data = status === "archived" 
+        ? await getArchivedAnnouncements(p, limit, { skipGlobalRedirect: true })
+        : await getAnnouncements(p, limit, status, { skipGlobalRedirect: true });
+      console.log(`[useAnnouncements] Fetched announcements (${status}):`, data.announcements);
       setAnnouncements(prev => overwrite ? data.announcements : [...prev, ...data.announcements]);
       setHasMore(data.announcements.length === limit);
       setPage(p);
@@ -24,11 +30,15 @@ export function useAnnouncements(initialPage = 1, limit = 20, status = "publishe
     } finally {
       setLoading(false);
     }
-  }, [limit, status]);
+  }, [limit, status, enabled]);
 
   useEffect(() => {
-    fetchAnnouncements(initialPage, true);
-  }, [fetchAnnouncements, initialPage]);
+    if (enabled) {
+      fetchAnnouncements(initialPage, true);
+    } else {
+      setLoading(false);
+    }
+  }, [fetchAnnouncements, initialPage, enabled]);
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {

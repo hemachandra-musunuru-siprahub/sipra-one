@@ -407,9 +407,22 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
 // ─── POST /api/timesheets/:id/entries — add entry (employee, draft only) ──────
 const EntrySchema = z.object({
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
-  projectName: z.string().min(1).max(100),
+  projectName: z.string().max(100).optional().nullable(),
   taskDescription: z.string().min(1),
   hours: z.number().min(0.5).max(24).multipleOf(0.5),
+  entryType: z.enum(["Work", "Leave", "Meeting"]).default("Work"),
+  jiraTaskId: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.entryType === "Work") {
+    if (!data.projectName || data.projectName.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["projectName"], message: "Project Name is required" });
+    }
+    if (!data.jiraTaskId || !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Valid Jira Task ID required (e.g. ABC-123)" });
+    }
+  } else if (data.jiraTaskId && data.jiraTaskId.trim() !== "" && !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Invalid Jira Task ID format" });
+  }
 });
 
 router.post("/:id/entries", requireAuth, validate(EntrySchema),
@@ -420,8 +433,8 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
     if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.role))
       throw forbidden("You can only edit your own timesheet");
 
-    const { workDate, projectName, taskDescription, hours } = req.body;
-    const updated = await repo.addEntry(req.params.id, workDate, projectName, taskDescription, hours);
+    const { workDate, projectName, taskDescription, hours, entryType, jiraTaskId } = req.body;
+    const updated = await repo.addEntry(req.params.id, workDate, projectName || "", taskDescription, hours, entryType, jiraTaskId || null);
     res.status(201).json({ timesheet: updated });
   }
 );
@@ -429,9 +442,11 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
 // ─── PATCH /api/timesheets/:id/entries/:entryId — update entry ────────────────
 const UpdateEntrySchema = z.object({
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  projectName: z.string().min(1).max(100).optional(),
+  projectName: z.string().max(100).optional().nullable(),
   taskDescription: z.string().min(1).optional(),
   hours: z.number().min(0.5).max(24).multipleOf(0.5).optional(),
+  entryType: z.enum(["Work", "Leave", "Meeting"]).optional(),
+  jiraTaskId: z.string().optional().nullable(),
 });
 
 router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
@@ -442,9 +457,9 @@ router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
       throw forbidden("You can only edit your own timesheet");
     if (ts.status !== "draft") throw forbidden("Only draft timesheets can be edited");
 
-    const { workDate, projectName, taskDescription, hours } = req.body;
+    const { workDate, projectName, taskDescription, hours, entryType, jiraTaskId } = req.body;
     const updated = await repo.updateEntry(req.params.entryId, req.params.id, {
-      work_date: workDate, project_name: projectName, task_description: taskDescription, hours
+      work_date: workDate, project_name: projectName === null ? "" : projectName, task_description: taskDescription, hours, entry_type: entryType, jira_task_id: jiraTaskId
     });
     res.json({ timesheet: updated });
   }
@@ -453,9 +468,22 @@ router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
 // ─── PUT /api/timesheets/entries/:entryId — update entry (new format) ──────────
 const PutEntrySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
-  project: z.string().min(1).max(100),
+  project: z.string().max(100).optional().nullable(),
   task: z.string().min(1),
   hours: z.number().min(0.5).max(24).multipleOf(0.5),
+  entryType: z.enum(["Work", "Leave", "Meeting"]).default("Work"),
+  jiraTaskId: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.entryType === "Work") {
+    if (!data.project || data.project.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["project"], message: "Project Name is required" });
+    }
+    if (!data.jiraTaskId || !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Valid Jira Task ID required (e.g. ABC-123)" });
+    }
+  } else if (data.jiraTaskId && data.jiraTaskId.trim() !== "" && !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Invalid Jira Task ID format" });
+  }
 });
 
 router.put("/entries/:entryId", requireAuth, validate(PutEntrySchema),
@@ -469,12 +497,14 @@ router.put("/entries/:entryId", requireAuth, validate(PutEntrySchema),
     if (entry.status !== "draft")
       throw forbidden("Only entries in draft timesheets can be edited");
 
-    const { date, project, task, hours } = req.body;
+    const { date, project, task, hours, entryType, jiraTaskId } = req.body;
     const updated = await repo.updateEntry(req.params.entryId, entry.timesheet_week_id, {
       work_date: date,
-      project_name: project,
+      project_name: project || "",
       task_description: task,
-      hours
+      hours,
+      entry_type: entryType,
+      jira_task_id: jiraTaskId || null
     });
     res.json({ timesheet: updated });
   }

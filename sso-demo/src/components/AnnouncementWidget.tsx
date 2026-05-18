@@ -48,7 +48,7 @@ const CompactAnnouncementCard = ({ announcement, onClick, getImageUrl }: Compact
           {announcement.title}
         </h4>
         <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-          {announcement.body}
+          {announcement.body.replace(/<[^>]*>/g, '')}
         </p>
         <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-medium">
           <Clock size={10} />
@@ -65,7 +65,7 @@ export const AnnouncementWidget = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
   const getImageUrl = (url: string) => url.startsWith("http") ? url : `${API_BASE_URL}${url}`;

@@ -140,12 +140,13 @@ export const getEntryWithTimesheet = async (entryId: string) => {
 // ─── Add entry ────────────────────────────────────────────────────────────────
 export const addEntry = async (
   timesheetId: string, workDate: string, projectName: string,
-  taskDescription: string, hours: number
+  taskDescription: string, hours: number,
+  entryType: string = "Work", jiraTaskId: string | null = null
 ) => {
   await query(
-    `INSERT INTO timesheet_entries (timesheet_week_id, work_date, project_name, task_description, hours)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [timesheetId, workDate, projectName, taskDescription, hours]
+    `INSERT INTO timesheet_entries (timesheet_week_id, work_date, project_name, task_description, hours, entry_type, jira_task_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [timesheetId, workDate, projectName, taskDescription, hours, entryType, jiraTaskId]
   );
   // Update total hours
   await query(
@@ -160,15 +161,17 @@ export const addEntry = async (
 // ─── Update entry ─────────────────────────────────────────────────────────────
 export const updateEntry = async (
   entryId: string, timesheetId: string,
-  fields: { work_date?: string; project_name?: string; task_description?: string; hours?: number }
+  fields: { work_date?: string; project_name?: string; task_description?: string; hours?: number; entry_type?: string; jira_task_id?: string | null }
 ) => {
   const sets: string[] = [];
-  const vals: any[] = [];
+  const vals: unknown[] = [];
   let i = 1;
-  if (fields.work_date)        { sets.push(`work_date = $${i++}`);        vals.push(fields.work_date); }
-  if (fields.project_name)     { sets.push(`project_name = $${i++}`);     vals.push(fields.project_name); }
+  if (fields.work_date) { sets.push(`work_date = $${i++}`); vals.push(fields.work_date); }
+  if (fields.project_name !== undefined) { sets.push(`project_name = $${i++}`); vals.push(fields.project_name); }
   if (fields.task_description) { sets.push(`task_description = $${i++}`); vals.push(fields.task_description); }
   if (fields.hours !== undefined) { sets.push(`hours = $${i++}`); vals.push(fields.hours); }
+  if (fields.entry_type !== undefined) { sets.push(`entry_type = $${i++}`); vals.push(fields.entry_type); }
+  if (fields.jira_task_id !== undefined) { sets.push(`jira_task_id = $${i++}`); vals.push(fields.jira_task_id); }
   sets.push(`updated_at = NOW()`);
   vals.push(entryId);
   await query(`UPDATE timesheet_entries SET ${sets.join(", ")} WHERE id = $${i}`, vals);
@@ -253,12 +256,12 @@ export const getTeamTimesheets = async (
   if (month) {
     const [year, mon] = month.split("-").map(Number);
     const startDate = `${month}-01`;
-    const endDate   = mon === 12 
-      ? `${year + 1}-01-01` 
+    const endDate = mon === 12
+      ? `${year + 1}-01-01`
       : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
-    
+
     console.log(`[REPO] Filtering team timesheets by month: ${month} (${startDate} to ${endDate})`);
-    
+
     queryStr += ` AND tw.week_start_date >= $${paramIdx++} AND tw.week_start_date < $${paramIdx++}`;
     params.push(startDate, endDate);
   }
@@ -296,7 +299,7 @@ export const getHRExportData = async (options?: {
 
   if (options?.month) {
     const startOfMonth = `${options.month}-01`;
-    const endOfMonth   = `(date '${startOfMonth}' + interval '1 month' - interval '1 day')`;
+    const endOfMonth = `(date '${startOfMonth}' + interval '1 month' - interval '1 day')`;
     conditions.push(`tw.week_start_date <= ${endOfMonth}`);
     conditions.push(`(tw.week_start_date + interval '6 days') >= date '${startOfMonth}'`);
   }
@@ -353,13 +356,13 @@ export const getManagerExportData = async (
   const endDt = new Date(monthEnd);
   endDt.setUTCDate(endDt.getUTCDate() + 7);
   const rangeStart = startDt.toISOString().slice(0, 10);
-  const rangeEnd   = endDt.toISOString().slice(0, 10);
+  const rangeEnd = endDt.toISOString().slice(0, 10);
 
   console.log("Export filters:", {
     targetOids,
-    requestedMonth:  `${monthStart} → ${monthEnd}`,
-    queryRange:      `${rangeStart} → ${rangeEnd}`,
-    employeeFilter:  employeeOid || "all direct reports",
+    requestedMonth: `${monthStart} → ${monthEnd}`,
+    queryRange: `${rangeStart} → ${rangeEnd}`,
+    employeeFilter: employeeOid || "all direct reports",
   });
 
   // ── Run a quick sanity check — how many reviewed rows exist for these OIDs? ──
@@ -546,8 +549,8 @@ export const getHRTimesheets = async (options?: {
     // Overlap logic: week must start on or before end of month AND end on or after start of month.
     // options.month is 'YYYY-MM'
     const startOfMonth = `${options.month}-01`;
-    const endOfMonth   = `(date '${startOfMonth}' + interval '1 month' - interval '1 day')`;
-    
+    const endOfMonth = `(date '${startOfMonth}' + interval '1 month' - interval '1 day')`;
+
     conditions.push(`tw.week_start_date <= ${endOfMonth}`);
     conditions.push(`(tw.week_start_date + interval '6 days') >= date '${startOfMonth}'`);
   }
