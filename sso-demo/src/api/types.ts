@@ -38,8 +38,11 @@ export interface TimesheetEntry {
   project_name: string;
   task_description: string;
   hours: number;
-  entry_type: "Work" | "Leave" | "Meeting";
+  entry_type: string;
   jira_task_id: string | null;
+  is_system_generated?: boolean;
+  leave_request_id?: string | null;
+  holiday_id?: string | null;
 }
 
 export interface Timesheet {

@@ -50,7 +50,7 @@ export const ensureHolidaysForWeek = async (timesheetId: string, weekStartDate: 
               if (ext.holiday_id !== h.id) {
                  await query(`
                    UPDATE timesheet_entries 
-                   SET project_name = 'Holiday', task_description = $1, holiday_id = $2, leave_request_id = NULL
+                   SET project_name = 'Holiday', task_description = $1, holiday_id = $2, leave_request_id = NULL, entry_type = 'holiday'
                    WHERE id = $3
                  `, [h.title, h.id, ext.id]);
                  changed = true;
@@ -58,8 +58,8 @@ export const ensureHolidaysForWeek = async (timesheetId: string, weekStartDate: 
            } else {
               await query(`
                  INSERT INTO timesheet_entries
-                   (timesheet_week_id, work_date, project_name, task_description, hours, is_system_generated, holiday_id)
-                 VALUES ($1, $2, 'Holiday', $3, 8, true, $4)
+                   (timesheet_week_id, work_date, project_name, task_description, hours, is_system_generated, holiday_id, entry_type)
+                 VALUES ($1, $2, 'Holiday', $3, 8, true, $4, 'holiday')
               `, [timesheetId, workDateStr, h.title, h.id]);
               changed = true;
            }
@@ -464,8 +464,8 @@ export const createLeaveTimesheetEntries = async (params: {
         await query(
           `INSERT INTO timesheet_entries
              (timesheet_week_id, work_date, project_name, task_description, hours,
-              is_system_generated, leave_request_id)
-           VALUES ($1, $2, 'Out of Office', $3, 8, true, $4)`,
+              is_system_generated, leave_request_id, entry_type)
+           VALUES ($1, $2, 'Out of Office', $3, 8, true, $4, 'leave')`,
           [week.id, workDateStr, taskDescription, leaveRequestId]
         );
 

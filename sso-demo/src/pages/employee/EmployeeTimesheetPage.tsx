@@ -477,17 +477,50 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                         }}>
                           <div style={{ fontWeight: 700, color: "var(--neutral-900)", marginBottom: "2px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                             <span>{entry.project_name || entry.entry_type || "Work"}</span>
-                            {entry.entry_type && entry.entry_type !== "Work" && (
-                              <span style={{ 
-                                fontSize: "10px", 
-                                background: entry.entry_type === "Leave" ? "var(--error-50)" : "var(--primary-50)", 
-                                color: entry.entry_type === "Leave" ? "var(--error-600)" : "var(--primary-600)", 
-                                padding: "2px 6px", 
-                                borderRadius: "4px" 
-                              }}>
-                                {entry.entry_type}
-                              </span>
-                            )}
+                            {(() => {
+                              const typeLower = entry.entry_type?.toLowerCase() || "";
+                              const projNameLower = entry.project_name?.toLowerCase() || "";
+                              if (typeLower === "holiday" || projNameLower === "holiday") {
+                                return (
+                                  <span style={{ 
+                                    fontSize: "10px", 
+                                    background: "var(--warning-50)", 
+                                    color: "var(--warning-600)", 
+                                    padding: "2px 6px", 
+                                    borderRadius: "4px" 
+                                  }}>
+                                    Holiday
+                                  </span>
+                                );
+                              }
+                              if (typeLower === "leave" || typeLower === "out_of_office" || entry.leave_request_id || projNameLower === "out of office") {
+                                return (
+                                  <span style={{ 
+                                    fontSize: "10px", 
+                                    background: "var(--error-50)", 
+                                    color: "var(--error-600)", 
+                                    padding: "2px 6px", 
+                                    borderRadius: "4px" 
+                                  }}>
+                                    Leave
+                                  </span>
+                                );
+                              }
+                              if (entry.entry_type && typeLower !== "work") {
+                                return (
+                                  <span style={{ 
+                                    fontSize: "10px", 
+                                    background: "var(--primary-50)", 
+                                    color: "var(--primary-600)", 
+                                    padding: "2px 6px", 
+                                    borderRadius: "4px" 
+                                  }}>
+                                    {entry.entry_type}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                           {entry.jira_task_id && (
                             <div style={{ fontSize: "11px", color: "var(--primary-600)", fontWeight: 600, marginBottom: "4px" }}>
@@ -688,7 +721,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
             projectName: editingEntry.project_name,
             taskDescription: editingEntry.task_description,
             hours: editingEntry.hours,
-            entryType: editingEntry.entry_type || "Work",
+            entryType: (editingEntry.entry_type === "Meeting" || editingEntry.entry_type === "Leave" || editingEntry.entry_type === "Work")
+              ? editingEntry.entry_type
+              : "Work",
             jiraTaskId: editingEntry.jira_task_id || ""
           }}
           title="Edit Time Entry"
