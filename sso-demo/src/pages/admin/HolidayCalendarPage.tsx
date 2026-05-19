@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { 
-  Calendar as CalendarIcon, Plus, Download, Clock, Zap, Star, Coffee, Info 
+  Calendar as CalendarIcon, Plus, Download, Clock, Star, Info 
 } from "lucide-react";
 import { DashboardLayout } from "../../components/DashboardLayout";
 import { createHoliday, updateHoliday, deleteHoliday } from "../../api/holidays";
@@ -10,7 +10,7 @@ import { HolidayImportModal } from "../../components/holiday/HolidayImportModal"
 import { HolidayDashboardWidgets } from "../../components/holiday/HolidayDashboardWidgets";
 import { 
   HOLIDAY_TYPE_COLORS, HOLIDAY_TYPE_LABELS,
-  normalizeUTCDate, getHolidayWeekday, getBridgeDayInsight 
+  normalizeUTCDate 
 } from "../../api/holidays";
 import { useHolidays } from "../../hooks/useHolidays";
 import type { Holiday } from "../../api/types";
@@ -28,13 +28,14 @@ export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) 
   
   const { 
     holidays, publishedHolidays, upcomingHolidays, 
-    nextHoliday, longWeekends, bridgeDays, countdownDays,
+    nextHoliday, countdownDays,
     stats, loading, refresh 
   } = useHolidays({ year });
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   
   const canEdit = internalUser?.role === "Admin" || internalUser?.role === "HR";
 
@@ -154,38 +155,6 @@ export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) 
               </div>
             )}
 
-            {/* Planning Insights */}
-            {(longWeekends.length > 0 || bridgeDays.length > 0) && (
-              <div className="hc-side-card">
-                <div className="hc-side-card__header">
-                  <Zap size={14} /> Planning Insights
-                </div>
-                <div className="hc-insights-list">
-                  {longWeekends.map((h, i) => (
-                    <div key={i} className="hc-insight-item">
-                      <div className="hc-insight-icon hc-insight-icon--zap"><Zap size={14} /></div>
-                      <div className="hc-insight-content">
-                        <p>Long Weekend!</p>
-                        <span>{h.title} starts on {getHolidayWeekday(h.start_date)}.</span>
-                      </div>
-                    </div>
-                  ))}
-                  {bridgeDays.map((h, i) => {
-                    const insight = getBridgeDayInsight(h);
-                    return (
-                      <div key={i} className="hc-insight-item">
-                        <div className="hc-insight-icon hc-insight-icon--bridge"><Coffee size={14} /></div>
-                        <div className="hc-insight-content">
-                          <p>Bridge Leave Tip</p>
-                          <span>{insight || `Take a day off near ${h.title} for a longer break.`}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* Upcoming Timeline */}
             {upcomingHolidays.length > 0 && (
               <div className="hc-side-card">
@@ -193,7 +162,7 @@ export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) 
                   <Star size={14} /> Upcoming Timeline
                 </div>
                 <div className="hc-timeline">
-                  {upcomingHolidays.map((h, i) => (
+                  {(showAllUpcoming ? upcomingHolidays : upcomingHolidays.slice(0, 3)).map((h, i) => (
                     <div key={i} className="hc-timeline-item" onClick={() => setSelectedHoliday(h)} style={{ cursor: 'pointer' }}>
                       <div className="hc-timeline-marker"></div>
                       <div className="hc-timeline-content">
@@ -208,6 +177,15 @@ export const HolidayCalendarPage = ({ internalUser }: HolidayCalendarPageProps) 
                     </div>
                   ))}
                 </div>
+                {upcomingHolidays.length > 3 && (
+                  <button 
+                    className="hc-btn hc-btn--secondary" 
+                    style={{ marginTop: '8px', width: '100%', fontSize: '0.8125rem' }}
+                    onClick={() => setShowAllUpcoming(!showAllUpcoming)}
+                  >
+                    {showAllUpcoming ? 'View Less' : `View More (${upcomingHolidays.length - 3})`}
+                  </button>
+                )}
               </div>
             )}
 

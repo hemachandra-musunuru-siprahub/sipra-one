@@ -660,6 +660,29 @@ h6 {
   margin-bottom: var(--space-8);
 }
 
+.stats-grid--6 {
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+  .stats-grid--6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .stats-grid--6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .stats-grid--6 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stat-card {
   background-color: var(--neutral-0);
   border: 1px solid var(--neutral-200);
@@ -2320,8 +2343,8 @@ tbody td:last-child {
 
 .hc-main-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
   align-items: start;
 }
 
@@ -2332,11 +2355,25 @@ tbody td:last-child {
 }
 
 .hc-grid__sidebar {
+  max-height: 620px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: 14px;
   position: sticky;
   top: 80px;
+  padding-right: 4px;
+}
+
+.hc-grid__sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.hc-grid__sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hc-grid__sidebar::-webkit-scrollbar-thumb {
+  background: var(--neutral-200);
+  border-radius: 4px;
 }
 
 .hc-loading-state, .hc-empty-state {
@@ -2381,10 +2418,10 @@ tbody td:last-child {
   border-radius: 16px;
   border: 1px solid var(--neutral-100);
   box-shadow: 0 4px 20px -4px rgba(0,0,0,0.05);
-  padding: 24px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 12px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -2426,11 +2463,11 @@ tbody td:last-child {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-2) 0;
+  padding: var(--space-1) 0;
 }
 
 .hc-countdown__value {
-  font-size: 4rem;
+  font-size: 2.75rem;
   font-weight: 800;
   line-height: 1;
   font-family: 'Outfit', 'Inter', sans-serif;
@@ -2441,12 +2478,12 @@ tbody td:last-child {
   font-size: 0.8125rem;
   font-weight: 600;
   opacity: 0.8;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .hc-countdown__footer {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid rgba(255,255,255,0.15);
   display: flex;
   flex-direction: column;
@@ -2471,7 +2508,7 @@ tbody td:last-child {
 .hc-insights-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 8px;
 }
 
 .hc-insight-item {
@@ -2527,9 +2564,9 @@ tbody td:last-child {
 
 .hc-timeline-item {
   display: flex;
-  gap: var(--space-4);
+  gap: 12px;
   position: relative;
-  padding-bottom: 24px;
+  padding-bottom: 16px;
 }
 
 .hc-timeline-item:last-child {
@@ -4146,8 +4183,8 @@ tbody td:last-child {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-4);
-  padding: 0 var(--space-2);
+  margin-bottom: 12px;
+  padding: 0 8px;
 }
 
 .hc-cal__header-left {
