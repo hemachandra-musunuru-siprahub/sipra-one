@@ -17,10 +17,10 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) =>
   const currentYear = new Date().getFullYear();
 
   try {
-    const [docCount, annCount, leaveBalances] = await Promise.all([
+    const [docCount, annCount, paidLeaveBalance] = await Promise.all([
       hrRepo.countDocuments(oid),
       annRepo.countAnnouncements(),
-      leaveRepo.getBalances(oid, currentYear),
+      leaveRepo.getPaidLeaveBalance(oid, currentYear),
     ]);
 
     res.json({
@@ -28,7 +28,7 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) =>
         documents: docCount,
         announcements: annCount,
       },
-      leaveBalances,
+      paidLeaveBalance,
     });
   } catch (error: any) {
     console.error("Dashboard data error:", error);

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { Users, CheckCircle, XCircle, RefreshCw, Search, X } from "lucide-react";
+import { Users, CheckCircle, XCircle, RefreshCw, Search, X, Calendar, History } from "lucide-react";
 import { setActive, setManager, getManagers } from "../../api/users";
-import { getAllUsers, deleteUser } from "../../api/admin";
+import { getAllUsers, deleteUser, updateEmployeeDOJ } from "../../api/admin";
+import { backfillEmployeeCredits, recalculateEmployeeCredits } from "../../api/leavePolicies";
 
 interface Props { internalUser: any; }
 
@@ -265,6 +266,16 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // DOJ modal state
+  const [dojTarget, setDojTarget] = useState<any | null>(null);
+  const [dojValue, setDojValue] = useState("");
+  const [dojSaving, setDojSaving] = useState(false);
+  const [dojError, setDojError] = useState("");
+
+  // Backfill state
+  const [backfillOid, setBackfillOid] = useState<string | null>(null);
+  const [backfillResult, setBackfillResult] = useState<{ message: string; credited: number; final_balance: number } | null>(null);
+
   const loadUsers = async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
@@ -311,6 +322,53 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
     } catch (e: any) { alert(e.message); }
   };
 
+  const openDojModal = (user: any) => {
+    setDojTarget(user);
+    setDojValue(user.date_of_joining ? user.date_of_joining.slice(0, 10) : "");
+    setDojError("");
+  };
+
+  const handleSaveDoj = async () => {
+    if (!dojTarget) return;
+    if (!dojValue) { setDojError("Please select a date."); return; }
+    setDojSaving(true);
+    setDojError("");
+    try {
+      await updateEmployeeDOJ(dojTarget.entra_oid, dojValue);
+      setUsers(prev => prev.map(u =>
+        u.entra_oid === dojTarget.entra_oid ? { ...u, date_of_joining: dojValue } : u
+      ));
+      setDojTarget(null);
+    } catch (e: any) {
+      setDojError(e.message || "Failed to save.");
+    } finally {
+      setDojSaving(false);
+    }
+  };
+
+  const handleBackfill = async (user: any) => {
+    if (!user.date_of_joining) {
+      alert("Please set a Date of Joining for this employee first.");
+      return;
+    }
+    setBackfillOid(user.entra_oid);
+    setBackfillResult(null);
+    try {
+      // Use recalculate — removes wrong credits and recomputes from scratch
+      const result = await recalculateEmployeeCredits(user.entra_oid);
+      const msg = result.removed > 0
+        ? `${result.removed} incorrect credit(s) removed, ${result.credited} correct credit(s) applied.`
+        : result.credited > 0
+          ? `${result.credited} missing credit(s) applied.`
+          : "Balance is already correct.";
+      setBackfillResult({ message: msg, credited: result.credited, final_balance: result.final_balance });
+    } catch (e: any) {
+      alert(e.message || "Recalculation failed.");
+    } finally {
+      setBackfillOid(null);
+    }
+  };
+
   const activeCount = users.filter(u => u.is_active).length;
   const inactiveCount = users.filter(u => !u.is_active).length;
 
@@ -352,6 +410,23 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
         </div>
       )}
 
+      {backfillResult && (
+        <div style={{
+          padding: "var(--space-4)", background: "#F0FDF4", border: "1px solid #BBF7D0",
+          borderRadius: "var(--rounded-lg)", color: "#15803D", marginBottom: "var(--space-4)",
+          fontSize: "0.875rem", display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span>
+            ✅ <strong>{backfillResult.credited > 0 ? `${backfillResult.credited} credit(s) applied.` : "Already up to date."}</strong>
+            {" "}Current balance: <strong>{backfillResult.final_balance} day(s)</strong>.
+          </span>
+          <button
+            onClick={() => setBackfillResult(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1rem", color: "#15803D" }}
+          >✕</button>
+        </div>
+      )}
+
       <div className="card">
         <div className="card__header">
           <h3 className="card__title">
@@ -374,6 +449,7 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                 <th>Email</th>
                 <th>Entra Role</th>
                 <th>Manager</th>
+                <th>Date of Joining</th>
                 <th>Status</th>
                 <th>Last Login</th>
                 <th>Actions</th>
@@ -381,11 +457,11 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-8)" }}>
+                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--neutral-500)", padding: "var(--space-8)" }}>
                   Loading users and resolving roles from Microsoft Entra ID…
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No users found</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--neutral-500)" }}>No users found</td></tr>
               ) : filtered.map(user => (
                 <tr key={user.entra_oid}>
                   {/* Name */}
@@ -452,6 +528,13 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
                     )}
                   </td>
 
+                  {/* Date of Joining */}
+                  <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                    {user.date_of_joining
+                      ? new Date(user.date_of_joining).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                      : <span style={{ color: "var(--neutral-300)" }}>—</span>}
+                  </td>
+
                   {/* Status */}
                   <td>
                     <span className={`badge ${user.is_active ? "badge--published" : "badge--draft"}`}>
@@ -466,7 +549,25 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
 
                   {/* Actions */}
                   <td>
-                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                      <button
+                        className="btn btn--sm btn--secondary"
+                        style={{ height: 28, fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4 }}
+                        onClick={() => openDojModal(user)}
+                        title="Set Date of Joining"
+                      >
+                        <Calendar size={12} /> DOJ
+                      </button>
+                      <button
+                        className="btn btn--sm btn--secondary"
+                        style={{ height: 28, fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4 }}
+                        onClick={() => handleBackfill(user)}
+                        disabled={backfillOid === user.entra_oid}
+                        title="Recalculate: removes incorrect credits and recomputes from DOJ (no credit in joining month)"
+                      >
+                        <History size={12} />
+                        {backfillOid === user.entra_oid ? "…" : "Recalculate"}
+                      </button>
                       <button
                         className={`btn btn--sm ${user.is_active ? "btn--secondary" : "btn--primary"}`}
                         style={{ height: 28, fontSize: "0.75rem" }}
@@ -503,6 +604,45 @@ export const AdminUsersPage = ({ internalUser }: Props) => {
           </p>
         </div>
       </div>
+
+      {/* ── Set DOJ Modal ──────────────────────────────────────────────────── */}
+      {dojTarget && (
+        <div className="modal-overlay" onClick={() => setDojTarget(null)}>
+          <div className="modal" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <div className="modal__header">
+              <div className="modal__title">Set Date of Joining</div>
+              <button className="topbar__icon-btn" onClick={() => setDojTarget(null)}><X size={18} /></button>
+            </div>
+            <div className="modal__body">
+              <div style={{ marginBottom: "var(--space-3)", fontSize: "0.875rem", color: "var(--neutral-600)" }}>
+                Employee: <strong>{dojTarget.name}</strong>
+              </div>
+              <div className="form-field--compact">
+                <label className="form-label--compact">Date of Joining <span style={{ color: "var(--error-500)" }}>*</span></label>
+                <input
+                  type="date"
+                  className="form-input--compact"
+                  value={dojValue}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={e => setDojValue(e.target.value)}
+                />
+              </div>
+              {dojError && (
+                <div style={{ marginTop: "var(--space-2)", fontSize: "0.8125rem", color: "var(--error-600)" }}>{dojError}</div>
+              )}
+              <div style={{ marginTop: "var(--space-3)", padding: "8px 12px", background: "#FFFBEB", border: "1px solid #FEF3C7", borderRadius: 6, fontSize: "0.75rem", color: "#92400E" }}>
+                First leave credit fires on this date. Monthly credits continue on the 1st of each month.
+              </div>
+            </div>
+            <div className="modal__footer" style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
+              <button className="btn btn--secondary" onClick={() => setDojTarget(null)}>Cancel</button>
+              <button className="btn btn--primary" onClick={handleSaveDoj} disabled={dojSaving}>
+                {dojSaving ? "Saving…" : "Save DOJ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

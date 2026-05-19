@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole, AuthRequest } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
-import { notFound, forbidden, badRequest, conflict, unprocessable } from "../../lib/errors";
+import { notFound, forbidden, conflict, unprocessable } from "../../lib/errors";
 import { isAdmin, isManager, isHR, HR_ROLES, MANAGER_ROLES, ADMIN_ROLES, canAccess } from "../../lib/roles";
 import * as repo from "./repo";
 import { getDirectReportOids } from "../users/repo";
@@ -10,103 +10,20 @@ import * as notifRepo from "../notifications/repo";
 import { emitNotification, getSocketServer } from "../../lib/socketServer";
 import { query } from "../../db";
 import { createLeaveTimesheetEntries } from "../timesheets/repo";
+import { runMonthlyLeaveCredit, runYearEndLeaveExpiry } from "../../jobs/leaveCredits";
 
 const router = Router();
 
-// ─── Auto-initialize leave_policies table & upgrade constraints ───────────────
+// ─── Ensure leave_request constraint allows all leave types ───────────────────
 (async () => {
   try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS leave_policies (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name VARCHAR(255) NOT NULL,
-        leave_type VARCHAR(50) NOT NULL,
-        total_days NUMERIC(4,1) NOT NULL,
-        scope VARCHAR(50) DEFAULT 'all',
-        target VARCHAR(255),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Upgrade constraints to allow 'casual' and additional leave types
-    // We drop both current and potential legacy names to be safe
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_type`);
     await query(`ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS chk_leave_requests`);
-    await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('annual', 'sick', 'casual', 'unpaid', 'other'))`);
-    
-    // Sync leave balances with actual approved leave requests to fix any stale data
-    await query(`
-      UPDATE leave_balances lb
-      SET used_days = COALESCE((
-          SELECT SUM(total_days)
-          FROM leave_requests lr
-          WHERE lr.employee_oid = lb.employee_oid
-            AND lr.leave_type = lb.leave_type
-            AND EXTRACT(YEAR FROM lr.start_date) = lb.year
-            AND lr.status = 'approved'
-      ), 0),
-      remaining_days = lb.total_days - COALESCE((
-          SELECT SUM(total_days)
-          FROM leave_requests lr
-          WHERE lr.employee_oid = lb.employee_oid
-            AND lr.leave_type = lb.leave_type
-            AND EXTRACT(YEAR FROM lr.start_date) = lb.year
-            AND lr.status = 'approved'
-      ), 0)
-    `);
+    await query(`ALTER TABLE leave_requests ADD CONSTRAINT chk_leave_type CHECK (leave_type IN ('casual', 'sick', 'unpaid'))`);
   } catch (err) {
     console.error("[LEAVE SETUP ERROR]:", err);
-    // Do not rethrow; we want the server to start even if this background task fails
   }
 })();
-
-router.get("/policies", requireAuth, async (req: AuthRequest, res: Response) => {
-  const { rows } = await query("SELECT * FROM leave_policies ORDER BY created_at DESC");
-  res.json({ policies: rows });
-});
-
-const CreatePolicySchema = z.object({
-  name: z.string().min(2),
-  leaveType: z.enum(["annual", "sick", "casual", "unpaid", "other"]),
-  totalDays: z.number().min(0).max(365),
-  scope: z.enum(["all", "department", "individual"]),
-  target: z.string().optional().nullable(),
-});
-
-router.post("/policies", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]), validate(CreatePolicySchema), async (req: AuthRequest, res: Response) => {
-  const { name, leaveType, totalDays, scope, target } = req.body;
-
-  const { rows } = await query(
-    `INSERT INTO leave_policies (name, leave_type, total_days, scope, target)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [name, leaveType, totalDays, scope, target || null]
-  );
-  const policy = rows[0];
-
-  const currentYear = new Date().getFullYear();
-  let employeeOids: string[] = [];
-
-  if (scope === "all" || scope === "department") {
-    // Note: Since users don't have department columns, both act on all active employees
-    const usersRes = await query("SELECT entra_oid FROM users WHERE is_active = true");
-    employeeOids = usersRes.rows.map(u => u.entra_oid);
-  } else if (scope === "individual" && target) {
-    employeeOids = [target];
-  }
-
-  // Atomically initialize balances for everyone in scope
-  for (const oid of employeeOids) {
-    await query(
-      `INSERT INTO leave_balances (employee_oid, leave_type, year, total_days, used_days, remaining_days)
-       VALUES ($1, $2, $3, $4, 0, $4)
-       ON CONFLICT (employee_oid, leave_type, year)
-       DO UPDATE SET total_days = $4, remaining_days = $4 - leave_balances.used_days, updated_at = NOW()`,
-      [oid, leaveType, currentYear, totalDays]
-    );
-  }
-
-  res.status(201).json({ policy });
-});
 
 
 const calcWorkingDays = (start: string, end: string): number => {
@@ -181,11 +98,68 @@ router.get("/team", requireAuth,
   }
 );
 
-router.get("/balances", requireAuth,
+// ─── Paid Leave Balance (accrual-based) ──────────────────────────────────────
+router.get("/paid-balance", requireAuth,
   async (req: AuthRequest, res: Response) => {
     const year = parseInt(req.query.year as string) || new Date().getFullYear();
-    const balances = await repo.getBalances(req.user!.entra_oid, year);
-    res.json({ balances, year });
+    const balance = await repo.getPaidLeaveBalance(req.user!.entra_oid, year);
+    res.json({ balance, year });
+  }
+);
+
+// ─── Leave Transactions ───────────────────────────────────────────────────────
+router.get("/transactions", requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    const year   = req.query.year   ? parseInt(req.query.year as string)  : undefined;
+    const type   = req.query.type   as string | undefined;
+    const limit  = parseInt(req.query.limit  as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const txs = await repo.getTransactions(req.user!.entra_oid, year, type, limit, offset);
+    res.json({ transactions: txs });
+  }
+);
+
+// ─── HR/Admin: get any employee's transactions ────────────────────────────────
+router.get("/transactions/:employeeOid", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
+  async (req: AuthRequest, res: Response) => {
+    const year   = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const type   = req.query.type as string | undefined;
+    const limit  = parseInt(req.query.limit  as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const txs = await repo.getTransactions(req.params.employeeOid, year, type, limit, offset);
+    res.json({ transactions: txs });
+  }
+);
+
+// ─── HR/Admin: manual leave balance adjustment ────────────────────────────────
+const AdjustBalanceSchema = z.object({
+  amount: z.number().refine(v => v !== 0, { message: "amount cannot be 0" }),
+  reason: z.string().min(5, "Reason must be at least 5 characters"),
+});
+
+router.post("/adjust/:employeeOid", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
+  validate(AdjustBalanceSchema),
+  async (req: AuthRequest, res: Response) => {
+    const { amount, reason } = req.body;
+    const result = await repo.adjustBalance(
+      req.params.employeeOid, amount, reason, req.user!.entra_oid
+    );
+    res.json({ success: true, newBalance: result.newBalance, year: result.year });
+  }
+);
+
+// ─── Admin: manual cron triggers (for testing/recovery) ──────────────────────
+router.post("/jobs/monthly-credit", requireAuth, requireRole([...ADMIN_ROLES]),
+  async (_req: AuthRequest, res: Response) => {
+    res.json({ message: "Monthly leave credit job triggered" });
+    runMonthlyLeaveCredit().catch(console.error);
+  }
+);
+
+router.post("/jobs/year-end-expiry", requireAuth, requireRole([...ADMIN_ROLES]),
+  async (_req: AuthRequest, res: Response) => {
+    res.json({ message: "Year-end expiry job triggered" });
+    runYearEndLeaveExpiry().catch(console.error);
   }
 );
 
@@ -231,10 +205,10 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
     const totalDays = calcWorkingDays(startDate, endDate);
     const year = new Date(startDate).getFullYear();
 
-    if (leaveType === "annual" || leaveType === "sick" || leaveType === "casual") {
-      const balance = await repo.getBalance(user.entra_oid, leaveType, year);
-      if (!balance || Number(balance.remaining_days) < totalDays)
-        throw unprocessable("INSUFFICIENT_BALANCE", `Insufficient ${leaveType} leave balance`);
+    if (leaveType === "casual") {
+      const hasBalance = await repo.hasSufficientPaidLeave(user.entra_oid, totalDays, year);
+      if (!hasBalance)
+        throw unprocessable("INSUFFICIENT_BALANCE", `Insufficient casual leave balance`);
     }
 
     let request = await repo.createRequest(
@@ -374,18 +348,12 @@ router.delete("/:id", requireAuth,
   }
 );
 
-const SetBalanceSchema = z.object({
-  leaveType: z.enum(["annual", "sick", "unpaid", "other"]),
-  year: z.number().int().min(2020).max(2100),
-  totalDays: z.number().min(0).max(365),
-});
-
-router.patch("/balances/:employeeId", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
-  validate(SetBalanceSchema),
+// ─── HR/Admin: get any employee's paid leave balance ─────────────────────────
+router.get("/paid-balance/:employeeOid", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
-    const { leaveType, year, totalDays } = req.body;
-    const balance = await repo.setBalance(req.params.employeeId, leaveType, year, totalDays);
-    res.json({ balance });
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const balance = await repo.getPaidLeaveBalance(req.params.employeeOid, year);
+    res.json({ balance, year });
   }
 );
 

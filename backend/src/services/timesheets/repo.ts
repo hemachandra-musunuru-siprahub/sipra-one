@@ -1,20 +1,27 @@
 import { query, pool } from "../../db";
 
-// ─── Helper: calculate Monday of the week for a given date ───────────────────
+// ─── Helper: calculate Monday of the week for a given date (LOCAL time) ───────
+// Uses local date methods to avoid UTC-to-local shift for IST (UTC+5:30) and
+// other UTC+ timezones. "YYYY-MM-DD" + "T00:00:00" forces local midnight parse.
 const getMondayForDate = (dateStr: string): string => {
-  const d = new Date(dateStr);
-  const day = d.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const d = new Date(dateStr.length === 10 ? dateStr + "T00:00:00" : dateStr);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat (local)
   const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() + diff);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const dayPart = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayPart}`;
 };
 
 // ─── Ensure holidays are generated for a draft week ───────────────────────────
 export const ensureHolidaysForWeek = async (timesheetId: string, weekStartDate: string) => {
-  const start = new Date(weekStartDate);
-  const end = new Date(weekStartDate);
-  end.setUTCDate(end.getUTCDate() + 6);
-  const endStr = end.toISOString().slice(0, 10);
+  // Force local midnight to avoid UTC shift in IST
+  const start = new Date(weekStartDate + "T00:00:00");
+  const end = new Date(weekStartDate + "T00:00:00");
+  end.setDate(end.getDate() + 6);
+  // Format end as YYYY-MM-DD using local date parts
+  const endStr = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,"0")}-${String(end.getDate()).padStart(2,"0")}`;
   
   const holidays = await query(
     `SELECT id, title, start_date, end_date FROM holidays
@@ -34,11 +41,14 @@ export const ensureHolidaysForWeek = async (timesheetId: string, weekStartDate: 
     const overlapStart = hStart > start ? hStart : start;
     const overlapEnd = hEnd < end ? hEnd : end;
     
-    let current = new Date(overlapStart);
+    let current = new Date(overlapStart.getFullYear(), overlapStart.getMonth(), overlapStart.getDate());
     while (current <= overlapEnd) {
-       const dayOfWeek = current.getUTCDay();
+       const dayOfWeek = current.getDay(); // local day
        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-           const workDateStr = current.toISOString().slice(0, 10);
+           const y = current.getFullYear();
+           const m = String(current.getMonth()+1).padStart(2,"0");
+           const dd = String(current.getDate()).padStart(2,"0");
+           const workDateStr = `${y}-${m}-${dd}`;
            
            const existing = await query(`
              SELECT id, holiday_id, leave_request_id FROM timesheet_entries
@@ -64,7 +74,7 @@ export const ensureHolidaysForWeek = async (timesheetId: string, weekStartDate: 
               changed = true;
            }
        }
-       current.setUTCDate(current.getUTCDate() + 1);
+       current.setDate(current.getDate() + 1);
     }
   }
   
@@ -442,9 +452,12 @@ export const createLeaveTimesheetEntries = async (params: {
   const end = new Date(endDate);
 
   while (current <= end) {
-    const dayOfWeek = current.getUTCDay(); // 0=Sun, 6=Sat
+    const dayOfWeek = current.getDay(); // local day 0=Sun, 6=Sat
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      const workDateStr = current.toISOString().slice(0, 10);
+      const y = current.getFullYear();
+      const m = String(current.getMonth()+1).padStart(2,"0");
+      const d = String(current.getDate()).padStart(2,"0");
+      const workDateStr = `${y}-${m}-${d}`;
       const weekStart = getMondayForDate(workDateStr);
 
       // Ensure the timesheet week exists (creates draft if absent)
@@ -480,7 +493,7 @@ export const createLeaveTimesheetEntries = async (params: {
         insertedCount++;
       }
     }
-    current.setUTCDate(current.getUTCDate() + 1);
+    current.setDate(current.getDate() + 1);
   }
 
   return insertedCount;

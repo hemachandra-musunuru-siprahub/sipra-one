@@ -20,7 +20,8 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children, onSyncComplete }: ProtectedRouteProps) => {
-  const isAuthenticated = useIsAuthenticated();
+  const isDevBypass = import.meta.env.DEV && !!localStorage.getItem("sipra_session");
+  const isAuthenticated = useIsAuthenticated() || isDevBypass;
   const location = useLocation();
 
   if (!isAuthenticated) {

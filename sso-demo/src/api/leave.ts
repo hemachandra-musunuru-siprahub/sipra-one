@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { LeaveRequest, LeaveBalance } from "./types";
+import type { LeaveRequest, LeaveTransaction, PaidLeaveBalance } from "./types";
 
 export const getMyLeave = (month?: string) => {
   const url = month ? `/api/leave-requests?month=${month}` : "/api/leave-requests";
@@ -12,7 +12,6 @@ export const getTeamLeave = () =>
 /**
  * HR/Admin: returns ALL leave requests (unfiltered).
  * Manager: returns only requests where manager_oid = caller's OID.
- * Filtering is server-side; no params needed.
  */
 export const getAllLeave = (month?: string, status?: string, search?: string) => {
   const params = new URLSearchParams();
@@ -22,18 +21,61 @@ export const getAllLeave = (month?: string, status?: string, search?: string) =>
   return api.get<{ requests: LeaveRequest[] }>(`/api/leave-requests/all?${params.toString()}`);
 };
 
-/**
- * Explicit manager-scoped endpoint: requests where manager_oid = caller.
- * Prefer getAllLeave() from the HR/Manager pages — it auto-branches by role.
- */
 export const getManagerLeave = () =>
   api.get<{ requests: LeaveRequest[] }>("/api/leave-requests/manager");
 
-export const getLeaveBalances = (year?: number) =>
-  api.get<{ balances: LeaveBalance[]; year: number }>(
-    `/api/leave-requests/balances${year ? `?year=${year}` : ""}`
+// ─── Accrual-Based Paid Leave Balance ────────────────────────────────────────
+export const getPaidLeaveBalance = (year?: number) =>
+  api.get<{ balance: PaidLeaveBalance | null; year: number }>(
+    `/api/leave-requests/paid-balance${year ? `?year=${year}` : ""}`
   );
 
+export const getPaidLeaveBalanceForEmployee = (employeeOid: string, year?: number) =>
+  api.get<{ balance: PaidLeaveBalance | null; year: number }>(
+    `/api/leave-requests/paid-balance/${employeeOid}${year ? `?year=${year}` : ""}`
+  );
+
+// ─── Leave Transaction History ────────────────────────────────────────────────
+export const getLeaveTransactions = (opts?: {
+  year?: number;
+  type?: string;
+  limit?: number;
+  offset?: number;
+}) => {
+  const params = new URLSearchParams();
+  if (opts?.year)   params.append("year",   String(opts.year));
+  if (opts?.type)   params.append("type",   opts.type);
+  if (opts?.limit)  params.append("limit",  String(opts.limit));
+  if (opts?.offset) params.append("offset", String(opts.offset));
+  return api.get<{ transactions: LeaveTransaction[] }>(
+    `/api/leave-requests/transactions?${params.toString()}`
+  );
+};
+
+export const getLeaveTransactionsForEmployee = (
+  employeeOid: string,
+  opts?: { year?: number; type?: string; limit?: number; offset?: number }
+) => {
+  const params = new URLSearchParams();
+  if (opts?.year)   params.append("year",   String(opts.year));
+  if (opts?.type)   params.append("type",   opts.type);
+  if (opts?.limit)  params.append("limit",  String(opts.limit));
+  if (opts?.offset) params.append("offset", String(opts.offset));
+  return api.get<{ transactions: LeaveTransaction[] }>(
+    `/api/leave-requests/transactions/${employeeOid}?${params.toString()}`
+  );
+};
+
+// ─── HR/Admin: Manual Adjustment ─────────────────────────────────────────────
+export const adjustLeaveBalance = (
+  employeeOid: string,
+  data: { amount: number; reason: string }
+) => api.post<{ success: boolean; newBalance: number; year: number }>(
+  `/api/leave-requests/adjust/${employeeOid}`,
+  data
+);
+
+// ─── Leave Application ────────────────────────────────────────────────────────
 export const submitLeave = (data: {
   leaveType: "annual" | "sick" | "unpaid" | "other";
   startDate: string;
@@ -53,28 +95,9 @@ export const actionLeave = (
 export const cancelLeave = (id: string) =>
   api.delete<{ request: LeaveRequest }>(`/api/leave-requests/${id}`);
 
-export const setLeaveBalance = (
-  employeeOid: string,
-  data: { leaveType: "annual" | "sick" | "unpaid" | "other"; year: number; totalDays: number }
-) => api.patch<{ balance: LeaveBalance }>(`/api/leave-requests/balances/${employeeOid}`, data);
+// ─── Admin: Manual Cron Triggers ──────────────────────────────────────────────
+export const triggerMonthlyCredit = () =>
+  api.post<{ message: string }>("/api/leave-requests/jobs/monthly-credit", {});
 
-export interface LeavePolicy {
-  id: string;
-  name: string;
-  leave_type: "annual" | "sick" | "casual" | "unpaid" | "other";
-  total_days: number;
-  scope: "all" | "department" | "individual";
-  target?: string;
-  created_at: string;
-}
-
-export const getPolicies = () =>
-  api.get<{ policies: LeavePolicy[] }>("/api/leave-requests/policies");
-
-export const createPolicy = (data: {
-  name: string;
-  leaveType: "annual" | "sick" | "casual" | "unpaid" | "other";
-  totalDays: number;
-  scope: "all" | "department" | "individual";
-  target?: string | null;
-}) => api.post<{ policy: LeavePolicy }>("/api/leave-requests/policies", data);
+export const triggerYearEndExpiry = () =>
+  api.post<{ message: string }>("/api/leave-requests/jobs/year-end-expiry", {});

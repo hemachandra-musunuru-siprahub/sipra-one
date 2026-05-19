@@ -32,13 +32,23 @@ const router = Router();
   }
 })();
 
-// ─── Normalize week to Monday ─────────────────────────────────────────────────
+// ─── Normalize week to Monday (LOCAL time, not UTC) ──────────────────────────
+// IMPORTANT: Must use local date methods (getDay, getDate), NOT UTC variants.
+// Reason: The DB stores "YYYY-MM-DD" dates. Parsing "2026-05-18" with new Date()
+// gives UTC midnight. In IST (UTC+5:30), this is Sun May 17 at 18:30 local time,
+// so getUTCDay() returns 0 (Sunday) → shifts to wrong Monday.
+// By using the plain Date constructor and local getDay(), we stay in local (IST) time.
 const normalizeToMonday = (dateStr: string): string => {
-  const d = new Date(dateStr);
-  const day = d.getUTCDay();
+  // Append T00:00:00 to force LOCAL midnight parsing (not UTC midnight)
+  const d = new Date(dateStr.length === 10 ? dateStr + "T00:00:00" : dateStr);
+  const day = d.getDay(); // local day: 0=Sun, 1=Mon...
   const diff = day === 0 ? -6 : 1 - day; // Monday = 1
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() + diff);
+  // Return as YYYY-MM-DD using local date parts
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const dayStr = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayStr}`;
 };
 
 // ─── GET /api/timesheets?week=YYYY-MM-DD — own week ───────────────────────────
@@ -593,6 +603,9 @@ router.patch("/:id/status", requireAuth, validate(UpdateStatusSchema),
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
     if (ts.status !== "submitted") throw unprocessable("INVALID_STATUS", "Can only review submitted timesheets");
+    if (req.body.status === "reviewed" && (!ts.entries || ts.entries.length === 0)) {
+      throw unprocessable("EMPTY_TIMESHEET", "Cannot review an empty timesheet");
+    }
 
     // Check manager owns this direct report
     if (!isAdmin(role)) {

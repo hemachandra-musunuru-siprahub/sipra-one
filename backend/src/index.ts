@@ -44,8 +44,10 @@ import managerRoutes       from "./services/manager/routes";
 import employeeRoutes      from "./services/employee/routes";
 import notificationRoutes  from "./services/notifications/routes";
 import holidayRoutes       from "./services/holidays/routes";
+import leavePolicyRoutes   from "./services/leave-policies/routes";
 import { initSocketServer } from "./lib/socketServer";
 import { initTimesheetJobs } from "./jobs/timesheetReminders";
+import { initLeaveJobs } from "./jobs/leaveCredits";
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -84,7 +86,8 @@ app.use("/api/admin",          adminRoutes);
 app.use("/api/manager",        managerRoutes);
 app.use("/api/employee",       employeeRoutes);
 app.use("/api/notifications",  notificationRoutes);
-app.use("/api/holidays",       holidayRoutes);
+app.use("/api/holidays",        holidayRoutes);
+app.use("/api/leave-policies", leavePolicyRoutes);
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -128,6 +131,9 @@ const bootstrap = async () => {
     
     // Initialize Timesheet Reminder Jobs
     await initTimesheetJobs();
+
+    // Initialize Leave Policy Cron Jobs
+    initLeaveJobs();
 
     console.log("\n" + "=".repeat(50));
     logger.info(`🚀 SipraHub Backend Startup Success`);

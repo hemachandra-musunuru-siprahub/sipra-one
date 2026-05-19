@@ -1,0 +1,12 @@
+import { pool } from "./src/db";
+async function test() {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query('SELECT * FROM leave_balances');
+    console.log(rows);
+  } finally {
+    client.release();
+    process.exit(0);
+  }
+}
+test();

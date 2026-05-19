@@ -142,7 +142,7 @@ h6 {
   left: 0;
   z-index: 50;
   overflow: hidden;
-  box-shadow: 2px 0 12px rgba(206, 33, 36, 0.04);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.03);
   transition: width var(--transition);
 }
 
@@ -283,19 +283,19 @@ h6 {
 }
 
 .sidebar__nav-item:hover {
-  background: var(--primary-50);
-  color: var(--primary-600);
+  background: var(--neutral-100);
+  color: var(--neutral-800);
 }
 
 .sidebar__nav-item:hover .sidebar__nav-icon svg {
-  color: var(--primary-500);
+  color: var(--neutral-600);
 }
 
 /* Active state */
 .sidebar__nav-item--active {
   background: var(--primary-500);
   color: var(--neutral-0);
-  box-shadow: 0 2px 8px rgba(206, 33, 36, 0.3);
+  box-shadow: none; /* Removed strong red shadows/glows */
 }
 
 .sidebar__nav-item--active .sidebar__nav-icon svg {
@@ -438,6 +438,10 @@ h6 {
   padding-left: var(--space-10);
   font-size: 0.875rem;
   transition: all var(--transition);
+}
+
+.topbar__search-input::placeholder {
+  color: var(--neutral-300);
 }
 
 .topbar__search-input:focus {
