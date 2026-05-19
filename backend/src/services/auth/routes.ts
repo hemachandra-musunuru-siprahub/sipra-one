@@ -51,7 +51,7 @@ router.get("/dev-login", async (req: Request, res: Response): Promise<void> => {
       { expiresIn: "8h" }
     );
 
-    const isProd = process.env.NODE_ENV === "production";
+    const isProd = (process.env.NODE_ENV as string) === "production";
     res.cookie("session_token", sessionToken, {
       httpOnly: true,
       secure:   isProd,
