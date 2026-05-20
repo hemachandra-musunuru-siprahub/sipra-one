@@ -110,9 +110,9 @@ router.get("/paid-balance", requireAuth,
 // ─── Leave Transactions ───────────────────────────────────────────────────────
 router.get("/transactions", requireAuth,
   async (req: AuthRequest, res: Response) => {
-    const year   = req.query.year   ? parseInt(req.query.year as string)  : undefined;
-    const type   = req.query.type   as string | undefined;
-    const limit  = parseInt(req.query.limit  as string) || 50;
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const type = req.query.type as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
     const txs = await repo.getTransactions(req.user!.entra_oid, year, type, limit, offset);
     res.json({ transactions: txs });
@@ -122,9 +122,9 @@ router.get("/transactions", requireAuth,
 // ─── HR/Admin: get any employee's transactions ────────────────────────────────
 router.get("/transactions/:employeeOid", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
   async (req: AuthRequest, res: Response) => {
-    const year   = req.query.year ? parseInt(req.query.year as string) : undefined;
-    const type   = req.query.type as string | undefined;
-    const limit  = parseInt(req.query.limit  as string) || 50;
+    const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+    const type = req.query.type as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
     const txs = await repo.getTransactions(req.params.employeeOid, year, type, limit, offset);
     res.json({ transactions: txs });
@@ -174,20 +174,20 @@ const CreateLeaveSchema = z.object({
   medicalCertificateData: z.string().optional(),  // Base64 data URL
   medicalCertificateMime: z.string().optional(),
 })
-.refine(d => new Date(d.startDate) <= new Date(d.endDate), {
-  message: "start_date must be on or before end_date",
-})
-.refine(d => !d.medicalCertificateData || d.leaveType === "sick", {
-  message: "Medical certificate can only be attached to Sick Leave requests",
-})
-.refine(d => !d.medicalCertificateMime || ALLOWED_CERT_MIMES.includes(d.medicalCertificateMime), {
-  message: "Only PDF, JPG, and PNG files are accepted",
-});
+  .refine(d => new Date(d.startDate) <= new Date(d.endDate), {
+    message: "start_date must be on or before end_date",
+  })
+  .refine(d => !d.medicalCertificateData || d.leaveType === "sick", {
+    message: "Medical certificate can only be attached to Sick Leave requests",
+  })
+  .refine(d => !d.medicalCertificateMime || ALLOWED_CERT_MIMES.includes(d.medicalCertificateMime), {
+    message: "Only PDF, JPG, and PNG files are accepted",
+  });
 
 router.post("/", requireAuth, validate(CreateLeaveSchema),
   async (req: AuthRequest, res: Response) => {
     const { leaveType, startDate, endDate, reason,
-            medicalCertificateName, medicalCertificateData, medicalCertificateMime } = req.body;
+      medicalCertificateName, medicalCertificateData, medicalCertificateMime } = req.body;
     const user = req.user!;
     const roles = [user.role];
 
@@ -250,12 +250,12 @@ router.post("/", requireAuth, validate(CreateLeaveSchema),
       if (finalOids.length > 0) {
         const notifTitle = "New Leave Request";
         const notifMsg = `${user.name || "An employee"} has submitted a ${leaveType} leave request (${startDate} to ${endDate}).`;
-        
+
         const notifications = await notifRepo.createNotifications(
           finalOids, "leave_request", notifTitle, notifMsg, "leave_request", request.id
         );
         notifications.forEach(n => emitNotification(n.recipient_oid, n));
-        
+
         // Update unread counts
         const io = getSocketServer();
         if (io) {
@@ -296,7 +296,7 @@ router.patch("/:id", requireAuth, validate(ActionSchema),
         leaveReq.employee_oid, leaveReq.leave_type, leaveReq.total_days, year);
       // ── Manager/Admin approval: create OOO timesheet entries (fire-and-forget) ──
       const startStr = (leaveReq.start_date as unknown as string)?.toString().slice(0, 10);
-      const endStr   = (leaveReq.end_date   as unknown as string)?.toString().slice(0, 10);
+      const endStr = (leaveReq.end_date as unknown as string)?.toString().slice(0, 10);
       createLeaveTimesheetEntries({
         employeeOid: leaveReq.employee_oid,
         leaveRequestId: req.params.id,

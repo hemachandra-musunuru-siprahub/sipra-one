@@ -14,10 +14,10 @@ export const getOwnRequests = async (employeeOid: string, filters: { month?: str
   if (filters.month) {
     const [year, mon] = filters.month.split("-").map(Number);
     const startDate = `${filters.month}-01`;
-    const endDate = mon === 12 
-      ? `${year + 1}-01-01` 
+    const endDate = mon === 12
+      ? `${year + 1}-01-01`
       : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
-    
+
     queryStr += ` AND lr.start_date < $${paramIdx++} AND lr.end_date >= $${paramIdx++}`;
     params.push(endDate, startDate);
   }
@@ -40,7 +40,7 @@ export const createRequest = async (
         medical_certificate_name, medical_certificate_data, medical_certificate_mime)
      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9,$10) RETURNING *`,
     [employeeOid, managerOid, leaveType, startDate, endDate, totalDays, reason || null,
-     medicalCertificateName || null, medicalCertificateData || null, medicalCertificateMime || null]
+      medicalCertificateName || null, medicalCertificateData || null, medicalCertificateMime || null]
   );
   return rows[0];
 };
@@ -88,10 +88,10 @@ export const getAllRequests = async (filters: { month?: string, status?: string,
   if (filters.month) {
     const [year, mon] = filters.month.split("-").map(Number);
     const startDate = `${filters.month}-01`;
-    const endDate = mon === 12 
-      ? `${year + 1}-01-01` 
+    const endDate = mon === 12
+      ? `${year + 1}-01-01`
       : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
-    
+
     queryStr += ` AND lr.start_date < $${paramIdx++} AND lr.end_date >= $${paramIdx++}`;
     params.push(endDate, startDate);
   }
@@ -130,9 +130,9 @@ export const getManagerRequests = async (managerOid: string, filters: { month?: 
   if (filters.month) {
     const [year, mon] = filters.month.split("-").map(Number);
     const startDate = `${filters.month}-01`;
-    const endDate = mon === 12 
-      ? `${year + 1}-01-01` 
-      : `${year}-${String(mon + 1).padStart(2, "0")}-01`; 
+    const endDate = mon === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(mon + 1).padStart(2, "0")}-01`;
     queryStr += ` AND lr.start_date < $${paramIdx++} AND lr.end_date >= $${paramIdx++}`;
     params.push(endDate, startDate);
   }
@@ -266,7 +266,7 @@ export const getPaidLeaveBalance = async (employeeOid: string, year: number) => 
 
 // ─── Get leave transaction history ────────────────────────────────────────────
 export const getTransactions = async (
-  employeeOid: string, 
+  employeeOid: string,
   year?: number,
   type?: string,
   limit = 50,

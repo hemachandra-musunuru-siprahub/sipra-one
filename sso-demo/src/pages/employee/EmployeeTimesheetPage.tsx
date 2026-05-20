@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
-import { 
-  Plus, Trash2, Send, ChevronLeft, ChevronRight, 
-  History, Calendar as CalendarIcon, Clock, AlertCircle, 
+import {
+  Plus, Trash2, Send, ChevronLeft, ChevronRight,
+  History, Calendar as CalendarIcon, Clock, AlertCircle,
   CheckCircle, FileText, Pencil, Filter
 } from "lucide-react";
-import { 
-  getMyTimesheet, addEntry, deleteEntry, submitTimesheet, 
-  putUpdateEntry, getMyTimesheetHistory 
+import {
+  getMyTimesheet, addEntry, deleteEntry, submitTimesheet,
+  putUpdateEntry, getMyTimesheetHistory
 } from "../../api/timesheets";
 import type { Timesheet, TimesheetEntry, TimesheetHistoryItem } from "../../api/types";
 import { formatDate } from "../../utils/dateFormatter";
@@ -41,7 +41,7 @@ const startOfBusinessWeek = (d: string | Date) => {
     date.setFullYear(y, m - 1, day);
     date.setHours(0, 0, 0, 0);
   }
-  
+
   const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day; // 1 is Monday
   const monday = new Date(date);
@@ -52,12 +52,12 @@ const startOfBusinessWeek = (d: string | Date) => {
 export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
   const displayRole: UserRole = normalizeRole(role || internalUser?.roleFromEntra || "Employee");
   const [activeTab, setActiveTab] = useState<"current" | "history">("current");
-  
+
   // -- Current Week State --
   const [currentWeek, setCurrentWeek] = useState(() => startOfBusinessWeek(new Date()));
   const [timesheet, setTimesheet] = useState<Timesheet | null>(null);
   const [loadingWeek, setLoadingWeek] = useState(true);
-  
+
   // -- History State --
   const [history, setHistory] = useState<TimesheetHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -92,9 +92,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
   const loadHistory = async () => {
     setLoadingHistory(true);
     try {
-      const d = await getMyTimesheetHistory({ 
-        status: statusFilter, 
-        month: monthFilter || undefined 
+      const d = await getMyTimesheetHistory({
+        status: statusFilter,
+        month: monthFilter || undefined
       });
       setHistory(d.timesheets);
     } catch (err) {
@@ -172,7 +172,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
       : "Submit this timesheet for review? It will become read-only.";
 
     if (!window.confirm(confirmMsg)) return;
-    
+
     setSubmitting(true);
     try {
       const result = await submitTimesheet(timesheet.id);
@@ -194,12 +194,12 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
   const groupedEntries = useMemo(() => {
     const groups: Record<string, TimesheetEntry[]> = {};
     if (!timesheet) return groups;
-    
+
     // Force local midnight to avoid UTC→local shift (e.g. IST = UTC+5:30).
     // "2026-05-18" via new Date() = UTC midnight = May 17 in IST.
     // Appending T00:00:00 forces the JS engine to use local time instead.
     const start = new Date(timesheet.week_start_date + "T00:00:00");
-    
+
     // Create entries for Mon–Fri
     for (let i = 0; i < 5; i++) {
       const d = new Date(start);
@@ -242,12 +242,12 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
       <header className="page-header" style={{ marginBottom: "20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="page-title">Work Logs</h1>
-          
-          <div style={{ 
-            display: "flex", 
+
+          <div style={{
+            display: "flex",
             gap: "8px"
           }}>
-            <button 
+            <button
               onClick={() => setActiveTab("current")}
               style={{
                 padding: "6px 16px",
@@ -267,7 +267,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
             >
               <CalendarIcon size={14} /> Current Week
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab("history")}
               style={{
                 padding: "6px 16px",
@@ -294,9 +294,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
       {activeTab === "current" ? (
         <>
           {/* -- Week Selector & Summary -- */}
-          <div style={{ 
-            display: "flex", 
-            justifyContent: "space-between", 
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "20px",
             background: "white",
@@ -307,22 +307,22 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <button 
-                  className="btn btn--ghost btn--sm" 
+                <button
+                  className="btn btn--ghost btn--sm"
                   onClick={() => navigateWeek(-1)}
                   style={{ width: 32, height: 32, padding: 0 }}
                 >
                   <ChevronLeft size={18} />
                 </button>
-                <button 
-                  className="btn btn--secondary btn--sm" 
+                <button
+                  className="btn btn--secondary btn--sm"
                   onClick={() => setCurrentWeek(startOfBusinessWeek(new Date()))}
                   style={{ fontSize: "12px", padding: "4px 12px", height: 32 }}
                 >
                   Today
                 </button>
-                <button 
-                  className="btn btn--ghost btn--sm" 
+                <button
+                  className="btn btn--ghost btn--sm"
                   onClick={() => navigateWeek(1)}
                   style={{ width: 32, height: 32, padding: 0 }}
                 >
@@ -333,9 +333,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                 <div style={{ fontSize: "11px", color: "var(--neutral-600)", fontWeight: 600, textTransform: "uppercase" }}>Week Starting</div>
                 <div style={{ fontWeight: 700, fontSize: "15px" }}>{formatDate(currentWeek)}</div>
               </div>
-              
+
               <div style={{ height: "32px", width: "1px", background: "var(--neutral-200)" }} />
-              
+
               <div style={{ display: "flex", gap: "24px" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: "var(--neutral-600)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Total Hours</div>
@@ -353,9 +353,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ 
-                display: "flex", 
-                alignItems: "center", 
+              <div style={{
+                display: "flex",
+                alignItems: "center",
                 gap: "6px",
                 height: "32px",
                 boxSizing: "border-box"
@@ -364,9 +364,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                 {loadingWeek ? (
                   <div style={{ height: "24px", width: "50px", background: "var(--neutral-100)", borderRadius: "4px" }} />
                 ) : (
-                  <div style={{ 
-                    display: "flex", 
-                    alignItems: "center", 
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
                     gap: "4px",
                     padding: "3px 8px",
                     borderRadius: "4px",
@@ -389,7 +389,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
 
               {isEditable && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <button 
+                  <button
                     onClick={() => {
                       setAddDate(currentWeek);
                       setShowAddModal(true);
@@ -424,7 +424,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                     <Plus size={14} style={{ color: "var(--neutral-500)" }} />
                     <span>Add Entry</span>
                   </button>
-                  <button 
+                  <button
                     onClick={handleSubmitWeek}
                     disabled={submitting || !timesheet?.entries.length}
                     style={{
@@ -465,11 +465,11 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
           </div>
 
           {timesheet?.manager_comment && (
-            <div style={{ 
-              marginBottom: "20px", 
-              padding: "12px 16px", 
-              background: "#FFFBEB", 
-              border: "1px solid #FEF3C7", 
+            <div style={{
+              marginBottom: "20px",
+              padding: "12px 16px",
+              background: "#FFFBEB",
+              border: "1px solid #FEF3C7",
               borderRadius: "8px",
               display: "flex",
               gap: "12px",
@@ -484,11 +484,11 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
           )}
 
           {error && (
-            <div style={{ 
-              marginBottom: "20px", 
-              padding: "12px 16px", 
-              background: "var(--error-50)", 
-              border: "1px solid var(--error-200)", 
+            <div style={{
+              marginBottom: "20px",
+              padding: "12px 16px",
+              background: "var(--error-50)",
+              border: "1px solid var(--error-200)",
               borderRadius: "8px",
               display: "flex",
               gap: "12px",
@@ -503,11 +503,11 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
           )}
 
           {/* -- Weekly Calendar Grid -- */}
-          <div style={{ 
-            display: "grid", 
-            gridTemplateColumns: "repeat(5, 1fr)", 
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(5, 1fr)",
             gap: "12px",
-            minHeight: "320px"
+            alignItems: "start"
           }}>
             {WEEKDAYS.map((dayName, idx) => {
               // Force local midnight to avoid UTC shift (same as groupedEntries fix)
@@ -528,10 +528,12 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                   flexDirection: "column",
                   overflow: "hidden",
                   boxShadow: "var(--shadow-sm)",
-                  transition: "transform 0.2s, box-shadow 0.2s"
+                  transition: "transform 0.2s, box-shadow 0.2s",
+                  height: "fit-content",
+                  minHeight: "auto"
                 }}>
-                  <div style={{ 
-                    padding: "10px 12px", 
+                  <div style={{
+                    padding: "10px 12px",
                     background: isToday ? "var(--primary-50, #fef2f2)" : "var(--neutral-50)",
                     borderBottom: "1px solid var(--neutral-200)",
                     display: "flex",
@@ -540,7 +542,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       {isEditable && (
-                        <button 
+                        <button
                           onClick={() => {
                             setAddDate(dateStr);
                             setShowAddModal(true);
@@ -579,250 +581,223 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                         <div style={{ fontSize: "13px", fontWeight: 600 }}>{date.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>
                       </div>
                     </div>
-                    <div style={{ 
-                      fontSize: "14px", 
-                      fontWeight: 800, 
+                    <div style={{
+                      fontSize: "14px",
+                      fontWeight: 800,
                       color: dayTotal > 8 ? "var(--error-700)" : "var(--neutral-800)"
                     }}>
                       {dayTotal}h
                     </div>
                   </div>
 
-                    <div style={{ 
-                      padding: "8px", 
-                      flex: 1, 
-                      display: "flex", 
-                      flexDirection: "column", 
-                      gap: "8px", 
-                      background: "#fafafa",
+                  <div style={{
+                    padding: "8px",
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    background: "#fafafa"
+                  }}>
+                    {/* Stacked Kanban Cards */}
+                    <div style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
                       position: "relative",
-                      minHeight: "260px"
+                      zIndex: 2
                     }}>
-                      {/* 8-hour dashed indicator line */}
-                      <div style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: `${8 * 24 + 8}px`, // 8 hours * 24px + 8px padding
-                        borderTop: "2px dashed var(--neutral-300)",
-                        zIndex: 1,
-                        pointerEvents: "none"
-                      }}>
-                        <span style={{
-                          position: "absolute",
-                          right: "8px",
-                          top: "-9px",
-                          background: "#fafafa",
-                          padding: "0 6px",
-                          fontSize: "9px",
-                          fontWeight: 700,
-                          color: "var(--neutral-400)",
-                          textTransform: "uppercase"
-                        }}>
-                          8h Limit
-                        </span>
-                      </div>
+                      {entries.map(entry => {
+                        const typeLower = entry.entry_type?.toLowerCase() || "";
+                        const projNameLower = entry.project_name?.toLowerCase() || "";
+                        const isHoliday = typeLower === "holiday" || projNameLower === "holiday";
+                        const isLeave = typeLower === "leave" || typeLower === "out_of_office" || entry.leave_request_id || projNameLower === "out of office";
 
-                      {/* Stacked Kanban Cards */}
-                      <div style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                        position: "relative",
-                        zIndex: 2
-                      }}>
-                        {entries.map(entry => {
-                          const typeLower = entry.entry_type?.toLowerCase() || "";
-                          const projNameLower = entry.project_name?.toLowerCase() || "";
-                          const isHoliday = typeLower === "holiday" || projNameLower === "holiday";
-                          const isLeave = typeLower === "leave" || typeLower === "out_of_office" || entry.leave_request_id || projNameLower === "out of office";
+                        // Define dynamic colors based on card category
+                        let cardBg = "white";
+                        let cardBorder = "1px solid var(--neutral-200)";
+                        let titleColor = "var(--neutral-800)";
+                        let descColor = "var(--neutral-500)";
+                        let hoursColor = "var(--neutral-800)";
 
-                          // Define dynamic colors based on card category
-                          let cardBg = "white";
-                          let cardBorder = "1px solid var(--neutral-200)";
-                          let titleColor = "var(--neutral-800)";
-                          let descColor = "var(--neutral-500)";
-                          let hoursColor = "var(--neutral-800)";
+                        if (isLeave) {
+                          cardBg = "var(--warning-50)";
+                          cardBorder = "1px solid var(--warning-200, #FDE68A)";
+                          titleColor = "var(--warning-700)";
+                          descColor = "var(--warning-700)";
+                          hoursColor = "var(--warning-700)";
+                        } else if (isHoliday) {
+                          cardBg = "var(--primary-50)";
+                          cardBorder = "1px solid var(--primary-100)";
+                          titleColor = "var(--primary-700)";
+                          descColor = "var(--primary-700)";
+                          hoursColor = "var(--primary-700)";
+                        }
 
-                          if (isLeave) {
-                            cardBg = "var(--warning-50)";
-                            cardBorder = "1px solid var(--warning-200, #FDE68A)";
-                            titleColor = "var(--warning-700)";
-                            descColor = "var(--warning-700)";
-                            hoursColor = "var(--warning-700)";
-                          } else if (isHoliday) {
-                            cardBg = "var(--primary-50)";
-                            cardBorder = "1px solid var(--primary-100)";
-                            titleColor = "var(--primary-700)";
-                            descColor = "var(--primary-700)";
-                            hoursColor = "var(--primary-700)";
-                          }
-
-                          // Calculate proportional card height based on hours
-                          const HOUR_HEIGHT = 24;
-                          const MIN_CARD_HEIGHT = 75;
-                          const cardHeight = Math.max(Number(entry.hours) * HOUR_HEIGHT, MIN_CARD_HEIGHT);                          return (
-                            <div key={entry.id} style={{
-                              background: cardBg,
-                              padding: "10px",
-                              borderRadius: "8px",
-                              border: cardBorder,
+                        // Calculate proportional card height based on hours
+                        const HOUR_HEIGHT = 24;
+                        const MIN_CARD_HEIGHT = 75;
+                        const cardHeight = Math.max(Number(entry.hours) * HOUR_HEIGHT, MIN_CARD_HEIGHT); return (
+                          <div key={entry.id} style={{
+                            background: cardBg,
+                            padding: "10px",
+                            borderRadius: "8px",
+                            border: cardBorder,
+                            fontSize: "12px",
+                            position: "relative",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                            height: `${cardHeight}px`,
+                            boxSizing: "border-box",
+                            display: "flex",
+                            flexDirection: "column"
+                          }}>
+                            {/* Absolute positioned total hours badge */}
+                            <div style={{
+                              position: "absolute",
+                              top: "10px",
+                              right: "10px",
+                              fontWeight: 800,
                               fontSize: "12px",
-                              position: "relative",
-                              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-                              height: `${cardHeight}px`,
-                              boxSizing: "border-box",
-                              display: "flex",
-                              flexDirection: "column"
+                              color: hoursColor,
+                              zIndex: 3
                             }}>
-                              {/* Absolute positioned total hours badge */}
-                              <div style={{
-                                position: "absolute",
-                                top: "10px",
-                                right: "10px",
-                                fontWeight: 800,
-                                fontSize: "12px",
-                                color: hoursColor,
-                                zIndex: 3
-                              }}>
-                                {entry.hours}h
-                              </div>
+                              {entry.hours}h
+                            </div>
 
-                              {/* Bottom Anchored Content Wrapper */}
+                            {/* Bottom Anchored Content Wrapper */}
+                            <div style={{
+                              marginTop: "auto",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "4px",
+                              width: "100%",
+                              flexShrink: 0
+                            }}>
+                              {/* Header / Category / Project Name & Badges */}
                               <div style={{
-                                marginTop: "auto",
+                                fontWeight: 700,
+                                color: titleColor,
                                 display: "flex",
-                                flexDirection: "column",
-                                gap: "4px",
-                                width: "100%",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                paddingRight: "32px", // Safe space to prevent overlap with absolute hours badge
                                 flexShrink: 0
                               }}>
-                                {/* Header / Category / Project Name & Badges */}
-                                <div style={{ 
-                                  fontWeight: 700, 
-                                  color: titleColor, 
-                                  display: "flex", 
-                                  justifyContent: "space-between", 
-                                  alignItems: "flex-start",
-                                  paddingRight: "32px", // Safe space to prevent overlap with absolute hours badge
-                                  flexShrink: 0
-                                }}>
-                                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: "4px" }}>
-                                    {entry.project_name || entry.entry_type || "Work"}
-                                  </span>
-                                  {(() => {
-                                    if (isHoliday) {
-                                      return (
-                                        <span style={{ 
-                                          fontSize: "10px", 
-                                          background: "var(--primary-100)", 
-                                          color: "var(--primary-700)", 
-                                          padding: "2px 6px", 
-                                          borderRadius: "4px",
-                                          fontWeight: 600,
-                                          whiteSpace: "nowrap"
-                                        }}>
-                                          Holiday
-                                        </span>
-                                      );
-                                    }
-                                    if (isLeave) {
-                                      return (
-                                        <span style={{ 
-                                          fontSize: "10px", 
-                                          background: "var(--warning-100, #FEF3C7)", 
-                                          color: "var(--warning-700)", 
-                                          padding: "2px 6px", 
-                                          borderRadius: "4px",
-                                          fontWeight: 600,
-                                          whiteSpace: "nowrap"
-                                        }}>
-                                          Leave
-                                        </span>
-                                      );
-                                    }
-                                    if (entry.entry_type && typeLower !== "work") {
-                                      return (
-                                        <span style={{ 
-                                          fontSize: "10px", 
-                                          background: "var(--neutral-100)", 
-                                          color: "var(--neutral-700)", 
-                                          padding: "2px 6px", 
-                                          borderRadius: "4px",
-                                          fontWeight: 600,
-                                          whiteSpace: "nowrap"
-                                        }}>
-                                          {entry.entry_type}
-                                        </span>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
-                                </div>
-
-                                {/* Jira ID */}
-                                {entry.jira_task_id && (
-                                  <div style={{ fontSize: "11px", color: "var(--primary-600)", fontWeight: 600, flexShrink: 0 }}>
-                                    {entry.jira_task_id}
-                                  </div>
-                                )}
-
-                                {/* Description */}
-                                <div style={{ 
-                                  color: descColor, 
-                                  fontSize: "11px",
-                                  lineHeight: "1.3",
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: Math.max(1, Math.floor((cardHeight - 65) / 16)),
-                                  WebkitBoxOrient: "vertical",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis"
-                                }}>
-                                  {entry.task_description}
-                                </div>
-
-                                {/* Actions Footer */}
-                                {isEditable && !entry.is_system_generated && (
-                                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "2px", marginTop: "2px", flexShrink: 0 }}>
-                                    <button 
-                                      className="btn btn--ghost btn--sm" 
-                                      style={{ padding: 4, height: 24, width: 24, color: "var(--neutral-400)", minWidth: "auto" }}
-                                      onClick={() => setEditingEntry(entry)}
-                                      onMouseEnter={e => (e.currentTarget.style.color = "var(--primary-600)")}
-                                      onMouseLeave={e => (e.currentTarget.style.color = "var(--neutral-400)")}
-                                    >
-                                      <Pencil size={14} />
-                                    </button>
-                                    <button 
-                                      className="btn btn--ghost btn--sm" 
-                                      style={{ padding: 4, height: 24, width: 24, color: "var(--neutral-400)", minWidth: "auto" }}
-                                      onClick={() => handleDeleteEntry(entry.id)}
-                                      onMouseEnter={e => (e.currentTarget.style.color = "var(--error-600)")}
-                                      onMouseLeave={e => (e.currentTarget.style.color = "var(--neutral-400)")}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                )}
+                                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginRight: "4px" }}>
+                                  {entry.project_name || entry.entry_type || "Work"}
+                                </span>
+                                {(() => {
+                                  if (isHoliday) {
+                                    return (
+                                      <span style={{
+                                        fontSize: "10px",
+                                        background: "var(--primary-100)",
+                                        color: "var(--primary-700)",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        fontWeight: 600,
+                                        whiteSpace: "nowrap"
+                                      }}>
+                                        Holiday
+                                      </span>
+                                    );
+                                  }
+                                  if (isLeave) {
+                                    return (
+                                      <span style={{
+                                        fontSize: "10px",
+                                        background: "var(--warning-100, #FEF3C7)",
+                                        color: "var(--warning-700)",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        fontWeight: 600,
+                                        whiteSpace: "nowrap"
+                                      }}>
+                                        Leave
+                                      </span>
+                                    );
+                                  }
+                                  if (entry.entry_type && typeLower !== "work") {
+                                    return (
+                                      <span style={{
+                                        fontSize: "10px",
+                                        background: "var(--neutral-100)",
+                                        color: "var(--neutral-700)",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        fontWeight: 600,
+                                        whiteSpace: "nowrap"
+                                      }}>
+                                        {entry.entry_type}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
+
+                              {/* Jira ID */}
+                              {entry.jira_task_id && (
+                                <div style={{ fontSize: "11px", color: "var(--primary-600)", fontWeight: 600, flexShrink: 0 }}>
+                                  {entry.jira_task_id}
+                                </div>
+                              )}
+
+                              {/* Description */}
+                              <div style={{
+                                color: descColor,
+                                fontSize: "11px",
+                                lineHeight: "1.3",
+                                display: "-webkit-box",
+                                WebkitLineClamp: Math.max(1, Math.floor((cardHeight - 65) / 16)),
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis"
+                              }}>
+                                {entry.task_description}
+                              </div>
+
+                              {/* Actions Footer */}
+                              {isEditable && !entry.is_system_generated && (
+                                <div style={{ display: "flex", justifyContent: "flex-end", gap: "2px", marginTop: "2px", flexShrink: 0 }}>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    style={{ padding: 4, height: 24, width: 24, color: "var(--neutral-400)", minWidth: "auto" }}
+                                    onClick={() => setEditingEntry(entry)}
+                                    onMouseEnter={e => (e.currentTarget.style.color = "var(--primary-600)")}
+                                    onMouseLeave={e => (e.currentTarget.style.color = "var(--neutral-400)")}
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    style={{ padding: 4, height: 24, width: 24, color: "var(--neutral-400)", minWidth: "auto" }}
+                                    onClick={() => handleDeleteEntry(entry.id)}
+                                    onMouseEnter={e => (e.currentTarget.style.color = "var(--error-600)")}
+                                    onMouseLeave={e => (e.currentTarget.style.color = "var(--neutral-400)")}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
-
-
+                          </div>
+                        );
+                      })}
                     </div>
+
+
                   </div>
-                );
-              })}
-            </div>
-            
-            <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
-              <span style={{ fontSize: "11px", color: "var(--neutral-400)", display: "flex", alignItems: "center", gap: "6px" }}>
-                <Clock size={12} /> Changes are automatically saved as draft
-              </span>
-            </div>
-          </>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+            <span style={{ fontSize: "11px", color: "var(--neutral-400)", display: "flex", alignItems: "center", gap: "6px" }}>
+              <Clock size={12} /> Changes are automatically saved as draft
+            </span>
+          </div>
+        </>
       ) : (
         /* -- History View -- */
         <div className="card" style={{ border: "1px solid var(--neutral-200)", borderRadius: "12px", overflow: "hidden" }}>
@@ -830,13 +805,13 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
             <h3 className="card__title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <History size={18} /> Timesheet History
             </h3>
-            
+
             <div style={{ display: "flex", gap: "12px" }}>
               <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                 <Filter size={14} style={{ position: "absolute", left: "10px", color: "var(--neutral-400)" }} />
-                <select 
-                  className="input" 
-                  value={statusFilter} 
+                <select
+                  className="input"
+                  value={statusFilter}
                   onChange={e => setStatusFilter(e.target.value)}
                   style={{ height: "36px", paddingLeft: "32px", fontSize: "13px", minWidth: "140px" }}
                 >
@@ -847,17 +822,17 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                   <option value="rejected">Rejected</option>
                 </select>
               </div>
-              
-              <input 
-                type="month" 
-                className="input" 
+
+              <input
+                type="month"
+                className="input"
                 value={monthFilter}
                 onChange={e => setMonthFilter(e.target.value)}
                 style={{ height: "36px", fontSize: "13px" }}
               />
             </div>
           </div>
-          
+
           <div className="table-container">
             <table>
               <thead>
@@ -886,9 +861,9 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                     </td>
                     <td style={{ color: "var(--neutral-500)" }}>{item.entries_count} tasks</td>
                     <td>
-                      <div style={{ 
-                        display: "inline-flex", 
-                        alignItems: "center", 
+                      <div style={{
+                        display: "inline-flex",
+                        alignItems: "center",
                         gap: "6px",
                         padding: "2px 10px",
                         borderRadius: "20px",
@@ -904,7 +879,7 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                     <td style={{ fontSize: "13px", color: "var(--neutral-500)" }}>{item.submitted_at ? formatDate(item.submitted_at) : "—"}</td>
                     <td style={{ fontSize: "13px", color: "var(--neutral-500)" }}>{item.reviewed_at ? formatDate(item.reviewed_at) : "—"}</td>
                     <td style={{ textAlign: "right" }}>
-                      <button 
+                      <button
                         className="btn btn--secondary btn--sm"
                         onClick={() => {
                           setCurrentWeek(normalizeDate(item.week_start_date));
