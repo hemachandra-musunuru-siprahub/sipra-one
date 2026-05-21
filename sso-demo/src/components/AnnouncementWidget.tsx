@@ -65,7 +65,7 @@ export const AnnouncementWidget = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const navigate = useNavigate();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
   const getImageUrl = (url: string) => url.startsWith("http") ? url : `${API_BASE_URL}${url}`;

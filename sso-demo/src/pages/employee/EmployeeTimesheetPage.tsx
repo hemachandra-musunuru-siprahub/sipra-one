@@ -344,10 +344,27 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "11px", color: "var(--neutral-600)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Extra Hours Worked</div>
-                  <div style={{ fontWeight: 800, fontSize: "20px", color: "var(--warning-500)", letterSpacing: "-0.02em" }}>
-                    {loadingWeek ? "..." : `${calculatedExtra.toFixed(2)}h`}
-                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--neutral-500)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Status</div>
+                  {loadingWeek ? (
+                    <div style={{ height: "20px", width: "60px", background: "var(--neutral-100)", borderRadius: "4px" }} />
+                  ) : (
+                    <div style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: "6px",
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      border: `1px solid ${getStatusColor(timesheet?.status || "draft").border}`,
+                      background: getStatusColor(timesheet?.status || "draft").bg,
+                      color: getStatusColor(timesheet?.status || "draft").text,
+                    }}>
+                      {getStatusColor(timesheet?.status || "draft").icon}
+                      {timesheet?.status}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
