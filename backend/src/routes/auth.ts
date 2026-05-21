@@ -223,7 +223,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
       res.cookie("session_token", sessionToken, {
         httpOnly: true,
         secure:   isProd,
-        sameSite: isProd ? "strict" : "lax",
+        sameSite: isProd ? "none" : "lax",
         path:     "/",
         maxAge:   24 * 60 * 60 * 1000 // 24 hours
       });
@@ -249,7 +249,13 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response): Promise<
 });
 
 router.post("/logout", requireAuth, (req: AuthRequest, res: Response) => {
-  res.clearCookie("session_token");
+  const isProd = process.env.NODE_ENV === "production";
+  res.clearCookie("session_token", {
+    httpOnly: true,
+    secure:   isProd,
+    sameSite: isProd ? "none" : "lax",
+    path:     "/"
+  });
   res.json({ message: "Logged out successfully" });
 });
 

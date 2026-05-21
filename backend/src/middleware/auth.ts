@@ -51,6 +51,9 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
   const cookies = req.cookies || {};
   const token = cookies.session_token;
 
+  const hasCookies = Object.keys(cookies).length > 0;
+  console.log(`[AUTH DEBUG] ${req.method} ${req.path} - Cookies: ${hasCookies}, session_token: ${!!token}`);
+
   if (!token) {
     console.warn(`[AUTH] 401 - No session_token cookie on ${req.method} ${req.path}.`);
     res.status(401).json({ error: "Unauthorized: No session token provided" });
