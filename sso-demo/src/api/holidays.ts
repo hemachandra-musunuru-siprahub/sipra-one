@@ -1,7 +1,7 @@
 import { api, apiFetch } from "./client";
 import type { Holiday, HolidayFilters, HolidayImportResult, HolidayStats } from "./types";
 
-const BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+const BASE = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 export interface HolidaysResponse {
   holidays: Holiday[];
