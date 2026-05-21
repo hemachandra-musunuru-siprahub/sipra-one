@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 
 /** Flat list of all users with Entra-synced roles */
 export async function getAllUsers() {

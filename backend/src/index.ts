@@ -90,6 +90,12 @@ app.use(cookieParser());
 app.use(requestId);
 app.use(express.static("public"));
 
+// ─── Route Logging Middleware ──────────────────────────────────────────────────
+app.use((req, _res, next) => {
+  console.log(`[ROUTE LOG] ${req.method} ${req.url} - IP: ${req.ip} - Origin: ${req.get("origin")}`);
+  next();
+});
+
 // ─── Health ───────────────────────────────────────────────────────────────────
 app.get("/health", async (_req, res) => {
   try {

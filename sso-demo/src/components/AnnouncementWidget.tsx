@@ -67,7 +67,7 @@ export const AnnouncementWidget = () => {
   const navigate = useNavigate();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
   const getImageUrl = (url: string) => url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
 
   const fetchAnnouncements = useCallback(async () => {

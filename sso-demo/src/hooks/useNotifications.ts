@@ -3,7 +3,7 @@ import { socket } from "../lib/socket";
 import { notificationsApi } from "../api/notifications";
 import type { Notification } from "../api/notifications";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 
 interface UseNotificationsOptions {
   /** The authenticated user's Entra OID – used to join the private WS room */
