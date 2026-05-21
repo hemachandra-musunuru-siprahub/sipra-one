@@ -367,7 +367,8 @@ export const EmployeeTimesheetPage = ({ internalUser, role }: Props) => {
                       fontWeight: 700,
                       textTransform: "uppercase",
                       border: `1px solid ${getStatusColor(timesheet?.status || "draft").border}`,
-                      ...getStatusColor(timesheet?.status || "draft")
+                      background: getStatusColor(timesheet?.status || "draft").bg,
+                      color: getStatusColor(timesheet?.status || "draft").text,
                     }}>
                       {getStatusColor(timesheet?.status || "draft").icon}
                       {timesheet?.status}
