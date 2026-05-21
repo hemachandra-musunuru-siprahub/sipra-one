@@ -248,11 +248,11 @@ export const HRLeavePoliciesPage = ({ internalUser }: Props) => {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)", marginTop: "var(--space-2)" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8125rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={policyForm.carry_forward} onChange={e => setPolicyForm(f => ({ ...f, carry_forward: e.checked }))} />
+                  <input type="checkbox" checked={policyForm.carry_forward} onChange={e => setPolicyForm(f => ({ ...f, carry_forward: e.target.checked }))} />
                   Carry Forward Balance
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8125rem", cursor: "pointer" }}>
-                  <input type="checkbox" checked={policyForm.expire_year_end} onChange={e => setPolicyForm(f => ({ ...f, expire_year_end: e.checked }))} />
+                  <input type="checkbox" checked={policyForm.expire_year_end} onChange={e => setPolicyForm(f => ({ ...f, expire_year_end: e.target.checked }))} />
                   Expire on Dec 31
                 </label>
               </div>
