@@ -10,8 +10,9 @@ export const AccessDenied = () => {
   const handleLogout = () => {
     localStorage.removeItem("sipra_session");
     sessionStorage.clear();
+    const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
     // Fire backend logout in parallel — don't block on it
-    fetch("http://localhost:3000/api/auth/logout", { method: "POST", credentials: "include" }).catch(console.error);
+    fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(console.error);
     instance.logoutRedirect({ postLogoutRedirectUri: "/" }).catch(console.error);
   };
 
