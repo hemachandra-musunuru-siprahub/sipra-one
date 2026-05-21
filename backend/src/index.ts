@@ -53,8 +53,35 @@ const app = express();
 const httpServer = http.createServer(app);
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://deployment-testing-production-3314.up.railway.app"
+];
+
+if (process.env.FRONTEND_URL) {
+  const originClean = process.env.FRONTEND_URL.replace(/\/$/, "");
+  if (!allowedOrigins.includes(originClean)) {
+    allowedOrigins.push(originClean);
+  }
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    
+    const cleanOrigin = origin.replace(/\/$/, "");
+    if (
+      allowedOrigins.includes(origin) || 
+      allowedOrigins.includes(cleanOrigin) ||
+      origin.endsWith(".up.railway.app") ||
+      origin.includes("railway.app")
+    ) {
+      return callback(null, true);
+    }
+    
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: "50mb" }));
