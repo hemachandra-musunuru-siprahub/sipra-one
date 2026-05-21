@@ -55,7 +55,7 @@ router.get("/dev-login", async (req: Request, res: Response): Promise<void> => {
     res.cookie("session_token", sessionToken, {
       httpOnly: true,
       secure:   isProd,
-      sameSite: isProd ? "strict" : "lax",
+      sameSite: isProd ? "none" : "lax",
       path:     "/",
       maxAge:   24 * 60 * 60 * 1000
     });
@@ -273,7 +273,7 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
     res.cookie("session_token", sessionToken, {
       httpOnly: true,
       secure:   isProd,
-      sameSite: isProd ? "strict" : "lax",
+      sameSite: isProd ? "none" : "lax",
       path:     "/",
       maxAge:   24 * 60 * 60 * 1000
     });
@@ -299,7 +299,13 @@ router.get("/me", requireAuth, async (req: AuthRequest, res: Response): Promise<
 router.post("/logout", requireAuth, async (req: AuthRequest, res: Response) => {
   const startTotal = Date.now();
   const startSessionDestruction = Date.now();
-  res.clearCookie("session_token");
+  const isProd = process.env.NODE_ENV === "production";
+  res.clearCookie("session_token", {
+    httpOnly: true,
+    secure:   isProd,
+    sameSite: isProd ? "none" : "lax",
+    path:     "/"
+  });
   console.log(`[LOGOUT] Session Destruction Time: ${Date.now() - startSessionDestruction}ms`);
   console.log(`[LOGOUT] Total Request Time: ${Date.now() - startTotal}ms`);
   res.json({ message: "Logged out successfully" });
