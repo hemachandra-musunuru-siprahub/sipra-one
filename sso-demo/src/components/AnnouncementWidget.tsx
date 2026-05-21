@@ -48,7 +48,7 @@ const CompactAnnouncementCard = ({ announcement, onClick, getImageUrl }: Compact
           {announcement.title}
         </h4>
         <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-          {announcement.body}
+          {announcement.body.replace(/<[^>]*>/g, '')}
         </p>
         <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-medium">
           <Clock size={10} />

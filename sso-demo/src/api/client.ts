@@ -13,7 +13,11 @@ export class ApiError extends Error {
   }
 }
 
-export const apiFetch = async <T>(path: string, init?: RequestInit): Promise<T> => {
+export interface SipraRequestInit extends RequestInit {
+  skipGlobalRedirect?: boolean;
+}
+
+export const apiFetch = async <T>(path: string, init?: SipraRequestInit): Promise<T> => {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     credentials: "include",
@@ -23,7 +27,7 @@ export const apiFetch = async <T>(path: string, init?: RequestInit): Promise<T> 
     const body = await res.json().catch(() => ({}));
     console.error(`[API] ${res.status} ${res.statusText} on ${init?.method || 'GET'} ${path}`, body);
     
-    if (res.status === 403) {
+    if (res.status === 403 && !init?.skipGlobalRedirect) {
       if (typeof window !== "undefined" && window.location.pathname !== "/access-denied") {
         window.location.href = "/access-denied";
       }
@@ -36,9 +40,9 @@ export const apiFetch = async <T>(path: string, init?: RequestInit): Promise<T> 
 };
 
 export const api = {
-  get:    <T>(path: string)                  => apiFetch<T>(path),
-  post:   <T>(path: string, body: unknown)   => apiFetch<T>(path, { method: "POST",   body: JSON.stringify(body) }),
-  put:    <T>(path: string, body: unknown)   => apiFetch<T>(path, { method: "PUT",    body: JSON.stringify(body) }),
-  patch:  <T>(path: string, body: unknown)   => apiFetch<T>(path, { method: "PATCH",  body: JSON.stringify(body) }),
-  delete: <T = void>(path: string)           => apiFetch<T>(path, { method: "DELETE" }),
+  get:    <T>(path: string, init?: SipraRequestInit)                  => apiFetch<T>(path, init),
+  post:   <T>(path: string, body: unknown, init?: SipraRequestInit)   => apiFetch<T>(path, { ...init, method: "POST",   body: JSON.stringify(body) }),
+  put:    <T>(path: string, body: unknown, init?: SipraRequestInit)   => apiFetch<T>(path, { ...init, method: "PUT",    body: JSON.stringify(body) }),
+  patch:  <T>(path: string, body: unknown, init?: SipraRequestInit)   => apiFetch<T>(path, { ...init, method: "PATCH",  body: JSON.stringify(body) }),
+  delete: <T = void>(path: string, init?: SipraRequestInit)           => apiFetch<T>(path, { ...init, method: "DELETE" }),
 };

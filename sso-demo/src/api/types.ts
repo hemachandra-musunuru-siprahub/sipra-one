@@ -7,6 +7,7 @@ export interface User {
   designation?: string;
   manager_entra_oid: string | null;
   is_active: boolean;
+  date_of_joining?: string | null;
   created_at: string;
   last_login: string | null;
 }
@@ -26,6 +27,9 @@ export interface Announcement {
   image_url?: string;
   author_name?: string;
   status?: "draft" | "published";
+  target_audience?: "ALL" | "HR" | "MANAGER" | "EMPLOYEE";
+  is_archived?: boolean;
+  archived_at?: string | null;
 }
 
 export interface TimesheetEntry {
@@ -35,6 +39,11 @@ export interface TimesheetEntry {
   project_name: string;
   task_description: string;
   hours: number;
+  entry_type: string;
+  jira_task_id: string | null;
+  is_system_generated?: boolean;
+  leave_request_id?: string | null;
+  holiday_id?: string | null;
 }
 
 export interface Timesheet {
@@ -86,14 +95,36 @@ export interface LeaveRequest {
   medical_certificate_data?: string | null;
 }
 
-export interface LeaveBalance {
+export type LeaveTransactionType = "CREDIT" | "DEBIT" | "EXPIRE" | "ADJUSTMENT";
+
+export interface LeaveTransaction {
   id: string;
+  employee_oid: string;
+  transaction_type: LeaveTransactionType;
+  amount: number;
+  balance_after: number | null;
+  reason: string | null;
+  leave_request_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  // joined from leave_requests
+  leave_type?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface PaidLeaveBalance {
   employee_oid: string;
   leave_type: string;
   year: number;
   total_days: number;
   used_days: number;
   remaining_days: number;
+  available_balance: number;
+  total_credited: number;
+  total_debited: number;
+  total_expired: number;
+  total_adjusted: number;
 }
 
 export interface HrDocument {
@@ -173,4 +204,37 @@ export interface HolidayImportResult {
   duplicates: number;
   results: Array<{ row: number; status: 'ok' | 'error' | 'duplicate'; data?: Holiday; error?: string }>;
   holidays: Holiday[];
+}
+
+// ─── Leave Policies ───────────────────────────────────────────────────────────
+export interface LeavePolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  leave_type: string;
+  monthly_credit: number;
+  carry_forward: boolean;
+  expire_year_end: boolean;
+  is_active: boolean;
+  created_by_oid: string;
+  created_by_name?: string;
+  assigned_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeePolicyAssignment {
+  id: string;
+  employee_oid: string;
+  employee_name?: string;
+  employee_email?: string;
+  role?: string;
+  date_of_joining?: string | null;
+  policy_id: string;
+  policy_name?: string;
+  monthly_credit?: number;
+  leave_type?: string;
+  assigned_by: string;
+  assigned_at: string;
+  is_active: boolean;
 }

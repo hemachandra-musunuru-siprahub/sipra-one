@@ -3,6 +3,8 @@ import type React from "react";
 import type { DragEvent } from "react";
 import { Pin, X, UploadCloud, Check, ImageIcon } from "lucide-react";
 import { api } from "../api/client";
+import { RichTextEditor } from "./RichTextEditor";
+import DOMPurify from 'dompurify';
 
 import type { Announcement } from "../api/types";
 
@@ -16,6 +18,9 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
   const [title, setTitle] = useState(initialData?.title || "");
   const [body, setBody] = useState(initialData?.body || "");
   const [isPinned, setIsPinned] = useState(initialData?.is_pinned || false);
+  const [targetAudience, setTargetAudience] = useState<"ALL" | "HR" | "MANAGER" | "EMPLOYEE">(
+    (initialData?.target_audience as "ALL" | "HR" | "MANAGER" | "EMPLOYEE") || "ALL"
+  );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -78,16 +83,22 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
 
   const handleSubmit = async (e: React.FormEvent, submitStatus: "draft" | "published" = "published") => {
     e.preventDefault();
-    if (!title || !body) return;
+    const isBodyEmpty = !body || body.replace(/<[^>]*>/g, '').trim() === '';
+    if (!title || isBodyEmpty) return;
     
     setSubmitting(true);
+    
+    // Sanitize HTML before sending to backend
+    const sanitizedBody = DOMPurify.sanitize(body);
+
     const payload = {
       title,
-      body,
+      body: sanitizedBody,
       is_pinned: isPinned,
       status: submitStatus,
       image_url: initialData?.image_url || null,
-      created_by_oid: initialData?.created_by_oid || null
+      created_by_oid: initialData?.created_by_oid || null,
+      target_audience: targetAudience,
     };
 
     try {
@@ -153,18 +164,45 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
             />
           </div>
 
+          {/* Target Audience */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">
+              Target Audience <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={targetAudience}
+                onChange={e => setTargetAudience(e.target.value as typeof targetAudience)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none transition-all appearance-none bg-white font-medium text-gray-700 cursor-pointer"
+              >
+                <option value="ALL">All Company</option>
+                <option value="HR">HR</option>
+                <option value="MANAGER">Managers</option>
+                <option value="EMPLOYEE">Employees</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400">
+              {targetAudience === "ALL" && "Visible to everyone in the company"}
+              {targetAudience === "HR" && "Only visible to HR Admins"}
+              {targetAudience === "MANAGER" && "Only visible to Managers"}
+              {targetAudience === "EMPLOYEE" && "Only visible to Employees"}
+            </p>
+          </div>
+
           {/* Body Field */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor={bodyId} className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">
               Message Content <span className="text-red-500">*</span>
             </label>
-            <textarea 
-              id={bodyId}
-              rows={6} 
-              placeholder="What do people need to know?..." 
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none transition-all resize-none placeholder:text-gray-300 leading-relaxed min-h-[120px]"
-              value={body} 
-              onChange={e => setBody(e.target.value)} 
+            <RichTextEditor 
+              value={body}
+              onChange={setBody}
+              placeholder="What do people need to know?..."
             />
           </div>
 
@@ -251,7 +289,7 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
             type="button" 
             className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-all shadow-xs disabled:opacity-50"
             onClick={(e) => handleSubmit(e, "draft")}
-            disabled={submitting || !title || !body}
+            disabled={submitting || !title || !body || body.replace(/<[^>]*>/g, '').trim() === ''}
           >
             {submitting ? "..." : "Save Draft"}
           </button>
@@ -260,7 +298,7 @@ export const AnnouncementForm = ({ onSuccess, onCancel, initialData }: Props) =>
             form="announcement-form"
             className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 rounded-md hover:bg-red-700 transition-all shadow-sm focus:ring-2 focus:ring-red-500 focus:ring-offset-1 disabled:opacity-50"
             onClick={(e) => handleSubmit(e, "published")}
-            disabled={submitting || !title || !body}
+            disabled={submitting || !title || !body || body.replace(/<[^>]*>/g, '').trim() === ''}
           >
             {submitting ? "Saving..." : (initialData ? "Save Changes" : "Publish Now")}
           </button>

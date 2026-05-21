@@ -12,13 +12,43 @@ import { query } from "../../db";
 
 const router = Router();
 
-// ─── Normalize week to Monday ─────────────────────────────────────────────────
+// ─── Auto-migrate timesheet_entries schema (add leave metadata columns) ───────
+(async () => {
+  try {
+    await query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS is_system_generated BOOLEAN NOT NULL DEFAULT false
+    `);
+    await query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS leave_request_id UUID REFERENCES leave_requests(id) ON DELETE SET NULL
+    `);
+    await query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS holiday_id UUID REFERENCES holidays(id) ON DELETE SET NULL
+    `);
+  } catch (err) {
+    console.error("[TIMESHEET SETUP ERROR]:", err);
+  }
+})();
+
+// ─── Normalize week to Monday (LOCAL time, not UTC) ──────────────────────────
+// IMPORTANT: Must use local date methods (getDay, getDate), NOT UTC variants.
+// Reason: The DB stores "YYYY-MM-DD" dates. Parsing "2026-05-18" with new Date()
+// gives UTC midnight. In IST (UTC+5:30), this is Sun May 17 at 18:30 local time,
+// so getUTCDay() returns 0 (Sunday) → shifts to wrong Monday.
+// By using the plain Date constructor and local getDay(), we stay in local (IST) time.
 const normalizeToMonday = (dateStr: string): string => {
-  const d = new Date(dateStr);
-  const day = d.getUTCDay();
+  // Append T00:00:00 to force LOCAL midnight parsing (not UTC midnight)
+  const d = new Date(dateStr.length === 10 ? dateStr + "T00:00:00" : dateStr);
+  const day = d.getDay(); // local day: 0=Sun, 1=Mon...
   const diff = day === 0 ? -6 : 1 - day; // Monday = 1
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() + diff);
+  // Return as YYYY-MM-DD using local date parts
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const dayStr = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayStr}`;
 };
 
 // ─── GET /api/timesheets?week=YYYY-MM-DD — own week ───────────────────────────
@@ -101,6 +131,14 @@ router.get("/manager-export", requireAuth,
 
       const rows = await repo.getManagerExportData(directReports, monthStart, monthEnd, employeeOidFilter);
 
+      // Pre-calculate daily totals per timesheet and date to correctly apply the daily 8h threshold
+      const dailyTotals: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        dailyTotals[key] = (dailyTotals[key] || 0) + Number(r.entry_hours || 0);
+      });
+      const assignedRegular: Record<string, number> = {};
+
       // ── Build Excel workbook ──────────────────────────────────────────────
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
@@ -117,6 +155,7 @@ router.get("/manager-export", requireAuth,
         { header: "Project", key: "project_name", width: 24 },
         { header: "Task / Desc", key: "task_description", width: 36 },
         { header: "Hours", key: "entry_hours", width: 8 },
+        { header: "Extra Hours", key: "extra_hours", width: 12 },
         { header: "Total Week Hrs", key: "total_hours", width: 14 },
         { header: "Status", key: "status", width: 10 },
         { header: "Reviewed By", key: "reviewed_by_name", width: 22 },
@@ -139,13 +178,25 @@ router.get("/manager-export", requireAuth,
 
       // Data rows
       rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        const dayTotal = dailyTotals[key] || 0;
+        const entryHours = r.entry_hours != null ? Number(r.entry_hours) : 0;
+        const alreadyAssigned = assignedRegular[key] || 0;
+
+        const remainingRegular = Math.max(Math.min(dayTotal, 8) - alreadyAssigned, 0);
+        const regularHours = Math.min(entryHours, remainingRegular);
+        const extraHours = Math.max(entryHours - regularHours, 0);
+
+        assignedRegular[key] = alreadyAssigned + regularHours;
+
         const row = sheet.addRow({
           employee_name: r.employee_name,
           week_start_date: formatDate(r.week_start_date),
           work_date: formatDate(r.work_date),
           project_name: r.project_name || "",
           task_description: r.task_description || "",
-          entry_hours: r.entry_hours != null ? Number(r.entry_hours) : "",
+          entry_hours: r.entry_hours != null ? Number(regularHours) : "",
+          extra_hours: r.entry_hours != null ? Number(extraHours) : "",
           total_hours: r.total_hours != null ? Number(r.total_hours) : "",
           status: r.status,
           reviewed_by_name: r.reviewed_by_name || "",
@@ -158,8 +209,8 @@ router.get("/manager-export", requireAuth,
         }
       });
 
-      // Auto-filter on header row
-      sheet.autoFilter = { from: "A1", to: "K1" };
+      // Auto-filter on header row (A to L now that we have 12 columns)
+      sheet.autoFilter = { from: "A1", to: "L1" };
 
       // ── Send response ─────────────────────────────────────────────────────
       const empLabel = employeeOidFilter
@@ -193,6 +244,14 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
 
       const rows = await repo.getHRExportData({ employeeOid, status, month });
 
+      // Pre-calculate daily totals per timesheet and date to correctly apply the daily 8h threshold
+      const dailyTotals: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        dailyTotals[key] = (dailyTotals[key] || 0) + Number(r.entry_hours || 0);
+      });
+      const assignedRegular: Record<string, number> = {};
+
       // ── Build Excel workbook ──────────────────────────────────────────────
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
@@ -210,6 +269,7 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
         { header: "Project", key: "project_name", width: 24 },
         { header: "Task / Desc", key: "task_description", width: 36 },
         { header: "Hours", key: "entry_hours", width: 8 },
+        { header: "Extra Hours", key: "extra_hours", width: 12 },
         { header: "Total Week Hrs", key: "total_hours", width: 14 },
         { header: "Status", key: "status", width: 10 },
         { header: "Submitted At", key: "submitted_at", width: 22 },
@@ -233,6 +293,17 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
 
       // Data rows
       rows.forEach((r: any) => {
+        const key = `${r.timesheet_id}_${r.work_date}`;
+        const dayTotal = dailyTotals[key] || 0;
+        const entryHours = r.entry_hours != null ? Number(r.entry_hours) : 0;
+        const alreadyAssigned = assignedRegular[key] || 0;
+
+        const remainingRegular = Math.max(Math.min(dayTotal, 8) - alreadyAssigned, 0);
+        const regularHours = Math.min(entryHours, remainingRegular);
+        const extraHours = Math.max(entryHours - regularHours, 0);
+
+        assignedRegular[key] = alreadyAssigned + regularHours;
+
         const row = sheet.addRow({
           employee_name: r.employee_name,
           employee_email: r.employee_email,
@@ -240,7 +311,8 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
           work_date: formatDate(r.work_date),
           project_name: r.project_name || "",
           task_description: r.task_description || "",
-          entry_hours: r.entry_hours != null ? Number(r.entry_hours) : "",
+          entry_hours: r.entry_hours != null ? Number(regularHours) : "",
+          extra_hours: r.entry_hours != null ? Number(extraHours) : "",
           total_hours: r.total_hours != null ? Number(r.total_hours) : "",
           status: (r.status || "").toUpperCase(),
           submitted_at: formatDate(r.submitted_at),
@@ -253,7 +325,8 @@ router.get("/export", requireAuth, requireRole([...HR_ROLES, ...ADMIN_ROLES]),
         }
       });
 
-      sheet.autoFilter = { from: "A1", to: "M1" };
+      // Auto-filter on header row (A to N now that we have 14 columns)
+      sheet.autoFilter = { from: "A1", to: "N1" };
 
       // ── Send response ─────────────────────────────────────────────────────
       const timestamp = new Date().toISOString().slice(0, 10);
@@ -344,9 +417,22 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
 // ─── POST /api/timesheets/:id/entries — add entry (employee, draft only) ──────
 const EntrySchema = z.object({
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
-  projectName: z.string().min(1).max(100),
+  projectName: z.string().max(100).optional().nullable(),
   taskDescription: z.string().min(1),
   hours: z.number().min(0.5).max(24).multipleOf(0.5),
+  entryType: z.enum(["Work", "Leave", "Meeting"]).default("Work"),
+  jiraTaskId: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.entryType === "Work") {
+    if (!data.projectName || data.projectName.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["projectName"], message: "Project Name is required" });
+    }
+    if (!data.jiraTaskId || !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Valid Jira Task ID required (e.g. ABC-123)" });
+    }
+  } else if (data.jiraTaskId && data.jiraTaskId.trim() !== "" && !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Invalid Jira Task ID format" });
+  }
 });
 
 router.post("/:id/entries", requireAuth, validate(EntrySchema),
@@ -357,8 +443,8 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
     if (ts.employee_oid !== req.user!.entra_oid && !isAdmin(req.user!.role))
       throw forbidden("You can only edit your own timesheet");
 
-    const { workDate, projectName, taskDescription, hours } = req.body;
-    const updated = await repo.addEntry(req.params.id, workDate, projectName, taskDescription, hours);
+    const { workDate, projectName, taskDescription, hours, entryType, jiraTaskId } = req.body;
+    const updated = await repo.addEntry(req.params.id, workDate, projectName || "", taskDescription, hours, entryType, jiraTaskId || null);
     res.status(201).json({ timesheet: updated });
   }
 );
@@ -366,9 +452,11 @@ router.post("/:id/entries", requireAuth, validate(EntrySchema),
 // ─── PATCH /api/timesheets/:id/entries/:entryId — update entry ────────────────
 const UpdateEntrySchema = z.object({
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  projectName: z.string().min(1).max(100).optional(),
+  projectName: z.string().max(100).optional().nullable(),
   taskDescription: z.string().min(1).optional(),
   hours: z.number().min(0.5).max(24).multipleOf(0.5).optional(),
+  entryType: z.enum(["Work", "Leave", "Meeting"]).optional(),
+  jiraTaskId: z.string().optional().nullable(),
 });
 
 router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
@@ -379,9 +467,9 @@ router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
       throw forbidden("You can only edit your own timesheet");
     if (ts.status !== "draft") throw forbidden("Only draft timesheets can be edited");
 
-    const { workDate, projectName, taskDescription, hours } = req.body;
+    const { workDate, projectName, taskDescription, hours, entryType, jiraTaskId } = req.body;
     const updated = await repo.updateEntry(req.params.entryId, req.params.id, {
-      work_date: workDate, project_name: projectName, task_description: taskDescription, hours
+      work_date: workDate, project_name: projectName === null ? "" : projectName, task_description: taskDescription, hours, entry_type: entryType, jira_task_id: jiraTaskId
     });
     res.json({ timesheet: updated });
   }
@@ -390,9 +478,22 @@ router.patch("/:id/entries/:entryId", requireAuth, validate(UpdateEntrySchema),
 // ─── PUT /api/timesheets/entries/:entryId — update entry (new format) ──────────
 const PutEntrySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
-  project: z.string().min(1).max(100),
+  project: z.string().max(100).optional().nullable(),
   task: z.string().min(1),
   hours: z.number().min(0.5).max(24).multipleOf(0.5),
+  entryType: z.enum(["Work", "Leave", "Meeting"]).default("Work"),
+  jiraTaskId: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.entryType === "Work") {
+    if (!data.project || data.project.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["project"], message: "Project Name is required" });
+    }
+    if (!data.jiraTaskId || !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Valid Jira Task ID required (e.g. ABC-123)" });
+    }
+  } else if (data.jiraTaskId && data.jiraTaskId.trim() !== "" && !/^[A-Z]+-\d+$/.test(data.jiraTaskId)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["jiraTaskId"], message: "Invalid Jira Task ID format" });
+  }
 });
 
 router.put("/entries/:entryId", requireAuth, validate(PutEntrySchema),
@@ -406,12 +507,14 @@ router.put("/entries/:entryId", requireAuth, validate(PutEntrySchema),
     if (entry.status !== "draft")
       throw forbidden("Only entries in draft timesheets can be edited");
 
-    const { date, project, task, hours } = req.body;
+    const { date, project, task, hours, entryType, jiraTaskId } = req.body;
     const updated = await repo.updateEntry(req.params.entryId, entry.timesheet_week_id, {
       work_date: date,
-      project_name: project,
+      project_name: project || "",
       task_description: task,
-      hours
+      hours,
+      entry_type: entryType,
+      jira_task_id: jiraTaskId || null
     });
     res.json({ timesheet: updated });
   }
@@ -500,6 +603,9 @@ router.patch("/:id/status", requireAuth, validate(UpdateStatusSchema),
     const ts = await repo.getWeekWithEntries(req.params.id);
     if (!ts) throw notFound("Timesheet not found");
     if (ts.status !== "submitted") throw unprocessable("INVALID_STATUS", "Can only review submitted timesheets");
+    if (req.body.status === "reviewed" && (!ts.entries || ts.entries.length === 0)) {
+      throw unprocessable("EMPTY_TIMESHEET", "Cannot review an empty timesheet");
+    }
 
     // Check manager owns this direct report
     if (!isAdmin(role)) {

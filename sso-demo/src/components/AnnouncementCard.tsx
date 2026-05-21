@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { Announcement } from "../api/types";
 import { Pin, MessageSquare } from "lucide-react";
+import DOMPurify from 'dompurify';
 
 interface Props {
   announcement: Announcement;
@@ -9,6 +10,8 @@ interface Props {
   canEdit?: boolean;
   onEdit?: (announcement: Announcement) => void;
   onDelete?: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onUnarchive?: (id: string) => void;
   isHighlighted?: boolean;
 }
 
@@ -20,7 +23,7 @@ const REACTIONS = [
   { type: "sad", icon: "😢" },
 ];
 
-export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, onEdit, onDelete, featured, isHighlighted }: Props) => {
+export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, onEdit, onDelete, onArchive, onUnarchive, featured, isHighlighted }: Props) => {
   const [expanded, setExpanded] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -74,12 +77,12 @@ export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, on
 
             {/* Bottom section inside image */}
             <div className="flex flex-col gap-3">
-              <p 
+              <div 
                 className="text-white/90 text-sm md:text-base line-clamp-2 max-w-[90%]"
                 style={{ textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}
               >
-                {announcement.body}
-              </p>
+                {announcement.body.replace(/<[^>]*>/g, '')}
+              </div>
 
               <div className="reactions flex justify-center w-full">
                 <div 
@@ -163,6 +166,19 @@ export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, on
               <Pin size={12} fill="currentColor" /> Pinned
             </span>
           )}
+          {announcement.target_audience && announcement.target_audience !== "ALL" && (
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-md border flex items-center gap-1"
+              style={{
+                background: announcement.target_audience === "HR" ? "#eff6ff" : announcement.target_audience === "MANAGER" ? "#f0fdf4" : "#fef3c7",
+                color: announcement.target_audience === "HR" ? "#1d4ed8" : announcement.target_audience === "MANAGER" ? "#15803d" : "#92400e",
+                borderColor: announcement.target_audience === "HR" ? "#bfdbfe" : announcement.target_audience === "MANAGER" ? "#bbf7d0" : "#fde68a",
+              }}
+            >
+              {announcement.target_audience === "HR" && "HR"}
+              {announcement.target_audience === "MANAGER" && "Managers"}
+              {announcement.target_audience === "EMPLOYEE" && "Employees"}
+            </span>
+          )}
           {canEdit && (
             <>
               <button 
@@ -179,6 +195,21 @@ export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, on
                   >
                     Edit
                   </button>
+                  {announcement.is_archived ? (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onUnarchive?.(announcement.id); }}
+                      className="w-full text-left px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50"
+                    >
+                      Unarchive
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setShowMenu(false); onArchive?.(announcement.id); }}
+                      className="w-full text-left px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50"
+                    >
+                      Archive
+                    </button>
+                  )}
                   <button 
                     onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete?.(announcement.id); }}
                     className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
@@ -199,19 +230,22 @@ export const AnnouncementCard = React.memo(({ announcement, onReact, canEdit, on
         </h3>
         
         {expanded ? (
-          <div className="text-sm text-gray-600 whitespace-pre-wrap">
-            {announcement.body}
-            <button onClick={(e) => { e.stopPropagation(); setExpanded(false); }} className="text-blue-600 font-medium ml-1 hover:underline">
+          <div className="text-sm text-gray-600 flex flex-col gap-2">
+            <div 
+              className="prose prose-sm max-w-none custom-editor"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(announcement.body) }} 
+            />
+            <button onClick={(e) => { e.stopPropagation(); setExpanded(false); }} className="text-blue-600 font-medium hover:underline self-start">
               Show less
             </button>
           </div>
         ) : (
           <div className="text-sm text-gray-600 line-clamp-2">
-            {announcement.body}
+            {announcement.body.replace(/<[^>]*>/g, '')}
           </div>
         )}
         
-        {!expanded && announcement.body.length > 120 && (
+        {!expanded && announcement.body.replace(/<[^>]*>/g, '').length > 120 && (
           <button onClick={(e) => { e.stopPropagation(); setExpanded(true); }} className="text-xs text-blue-600 font-medium self-start hover:underline mt-0.5">
             Read more
           </button>

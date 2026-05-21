@@ -29,6 +29,7 @@ import { ManagerTimesheetsPage } from "./pages/manager/ManagerTimesheetsPage";
 import { ManagerEmployeesPage } from "./pages/manager/ManagerEmployeesPage";
 import { HREmployeesPage } from "./pages/hr/HREmployeesPage";
 import { HRLeavePage } from "./pages/hr/HRLeavePage";
+import { HRLeavePoliciesPage } from "./pages/hr/HRLeavePoliciesPage";
 import { HRTimeSheetsPage } from "./pages/hr/HRTimeSheetsPage";
 import { AnnouncementDetailPage } from "./pages/shared/AnnouncementDetailPage";
 import { PerformancePage } from "./pages/shared/PerformancePage";
@@ -390,9 +391,9 @@ const AppContent = () => {
                   <Route path="/hr/documents" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><DocumentsPage internalUser={internalUser} isHR={true} role="HR" /></RoleGuard>} />
                   <Route path="/hr/announcements" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><AnnouncementsPage internalUser={internalUser} isHR={true} role="HR" /></RoleGuard>} />
                   <Route path="/hr/performance" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><PerformancePage internalUser={internalUser} role="HR" /></RoleGuard>} />
-                  <Route path="/hr/leave-requests" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} defaultTab="requests" /></RoleGuard>} />
-                  <Route path="/hr/leave-policies" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} defaultTab="policies" /></RoleGuard>} />
-                  <Route path="/hr/leave-management" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} defaultTab="requests" /></RoleGuard>} />
+                  <Route path="/hr/leave-requests" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} /></RoleGuard>} />
+                  <Route path="/hr/leave-policies" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePoliciesPage internalUser={internalUser} /></RoleGuard>} />
+                  <Route path="/hr/leave-management" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRLeavePage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/hr/timesheets" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><HRTimeSheetsPage internalUser={internalUser} /></RoleGuard>} />
                   <Route path="/hr/my-leave" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeLeavePage internalUser={internalUser} role="HR" /></RoleGuard>} />
                   <Route path="/hr/my-timesheet" element={<RoleGuard internalUser={internalUser} allowed={isHRRole}><EmployeeTimesheetPage internalUser={internalUser} role="HR" /></RoleGuard>} />

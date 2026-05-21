@@ -149,6 +149,28 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
     selectedMonth 
   });
 
+  const modalExtraHours = useMemo(() => {
+    if (!selectedTs || !selectedTs.entries) return 0;
+    const dailyHours: Record<string, number> = {};
+    for (const entry of selectedTs.entries) {
+      const date = new Date(entry.work_date);
+      if (isNaN(date.getTime())) continue;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const dateStr = `${year}-${month}-${day}`;
+      dailyHours[dateStr] = (dailyHours[dateStr] || 0) + Number(entry.hours || 0);
+    }
+    let totalExtra = 0;
+    for (const dateStr in dailyHours) {
+      const dayTotal = dailyHours[dateStr];
+      if (dayTotal > 8) {
+        totalExtra += (dayTotal - 8);
+      }
+    }
+    return totalExtra;
+  }, [selectedTs]);
+
   const submittedCount = timesheets.filter(t => t.status === "submitted").length;
   const hasActiveSearch = searchInput.trim() !== "" || employeeFilter !== "all";
 
@@ -455,6 +477,10 @@ export const ManagerTimesheetsPage = ({ internalUser }: Props) => {
                 <div>
                   <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "uppercase", fontWeight: 600 }}>Total Hours</div>
                   <div style={{ fontWeight: 700, fontSize: "1.5rem", color: "var(--primary-600)" }}>{selectedTs.total_hours}h</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "uppercase", fontWeight: 600 }}>Extra Hours Worked</div>
+                  <div style={{ fontWeight: 700, fontSize: "1.5rem", color: "var(--warning-600, #d97706)" }}>{modalExtraHours.toFixed(2)}h</div>
                 </div>
                 <div>
                   <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", textTransform: "uppercase", fontWeight: 600 }}>Status</div>

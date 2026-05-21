@@ -14,7 +14,8 @@ export type ErrorCode =
   | "INVALID_ROLE"
   | "USER_DEACTIVATED"
   | "DATABASE_ERROR"
-  | "INTERNAL_SERVER_ERROR";
+  | "INTERNAL_SERVER_ERROR"
+  | "EMPTY_TIMESHEET";
 
 // ─── AppError Class ──────────────────────────────────────────────────────────
 export class AppError extends Error {

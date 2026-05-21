@@ -3,6 +3,7 @@ import { query } from "../../db";
 import { requireAuth, requireRole, AuthRequest, invalidateUserCache } from "../../middleware/auth";
 import { ADMIN_ROLES } from "../../lib/roles";
 import { initTimesheetJobs, runFridayReminder, runMondayReminder } from "../../jobs/timesheetReminders";
+import { backfillLeaveCredits } from "../../jobs/backfillLeaveCredits";
 
 const router = Router();
 
@@ -19,11 +20,12 @@ router.get("/users", requireAuth, requireRole([...ADMIN_ROLES]), async (req: Aut
         u.manager_entra_oid,
         m.name  AS manager_name,
         m.email AS manager_email,
-        u.is_active, u.created_at, u.last_login
+        u.is_active, u.date_of_joining, u.created_at, u.last_login
       FROM users u
       LEFT JOIN users m ON m.entra_oid = u.manager_entra_oid
       ORDER BY u.name ASC
     `);
+
 
     res.json({ users: rows });
   } catch (error: any) {
@@ -177,4 +179,44 @@ router.post("/settings/timesheet-reminders/trigger", requireAuth, requireRole([.
   }
 });
 
+// ─── PATCH /api/admin/users/:oid/doj  — set Date of Joining ──────────────────
+// Saves the DOJ and immediately backfills all missing past credits (idempotent).
+router.patch("/users/:oid/doj", requireAuth, requireRole([...ADMIN_ROLES]), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { oid } = req.params;
+    const { date_of_joining } = req.body;
+
+    if (!date_of_joining || !/^\d{4}-\d{2}-\d{2}$/.test(date_of_joining)) {
+      res.status(400).json({ error: "BAD_REQUEST", details: "date_of_joining must be YYYY-MM-DD format" });
+      return;
+    }
+
+    const { rowCount, rows } = await query(
+      `UPDATE users SET date_of_joining = $1 WHERE entra_oid = $2 RETURNING entra_oid, name, date_of_joining`,
+      [date_of_joining, oid]
+    );
+
+    if (rowCount === 0) {
+      res.status(404).json({ error: "NOT_FOUND", details: "User not found" });
+      return;
+    }
+
+    // ── Auto-backfill: apply all missing past credits immediately ──────────────
+    let backfill = null;
+    try {
+      backfill = await backfillLeaveCredits(oid);
+      console.log(`[DOJ] Auto-backfill for ${rows[0].name}: ${backfill.message}`);
+    } catch (bErr: any) {
+      // Non-fatal: DOJ saved successfully even if backfill fails
+      console.error(`[DOJ] Auto-backfill failed for ${oid}:`, bErr.message);
+    }
+
+    res.json({ success: true, user: rows[0], backfill });
+  } catch (error: any) {
+    console.error("[ADMIN PATCH doj] Error:", error);
+    res.status(500).json({ error: "DB_ERROR", details: error.message });
+  }
+});
+
 export default router;
+

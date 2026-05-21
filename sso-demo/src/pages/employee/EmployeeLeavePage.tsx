@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { DashboardLayout } from "../../components/DashboardLayout";
+
 import {
   Calendar,
   Plus,
   XCircle,
   AlertTriangle,
-  CheckCircle2,
   X,
   Inbox,
   ChevronRight,
@@ -13,9 +13,14 @@ import {
   Paperclip,
   Download,
   Upload,
+  TrendingUp,
+  TrendingDown,
+  RotateCcw,
+  Sliders,
+  Info,
 } from "lucide-react";
-import { getMyLeave, getLeaveBalances, submitLeave, cancelLeave } from "../../api/leave";
-import type { LeaveRequest, LeaveBalance } from "../../api/types";
+import { getMyLeave, submitLeave, cancelLeave, getPaidLeaveBalance, getLeaveTransactions } from "../../api/leave";
+import type { LeaveRequest, LeaveTransaction, PaidLeaveBalance } from "../../api/types";
 import { formatLeaveDates } from "../../utils/dateFormatter";
 
 interface Props { internalUser: any; role?: string; }
@@ -28,8 +33,25 @@ let _toastId = 0;
 
 /* ─── Helpers ───────────────────────────────────────────── */
 const LEAVE_TYPE_LABELS: Record<string, string> = {
-  annual: "Annual", sick: "Sick", casual: "Casual", unpaid: "Unpaid", other: "Other",
+  casual: "Casual Leave (CL)", sick: "Sick Leave", unpaid: "Unpaid Leave",
 };
+
+// Calculate working days between two date strings
+const calcWorkingDays = (start: string, end: string): number => {
+  if (!start || !end) return 0;
+  let count = 0;
+  const s = new Date(start);
+  const e = new Date(end);
+  if (e < s) return 0;
+  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) count++;
+  }
+  return count;
+};
+
+// Today's date string for min date
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const statusClass = (s: string) => ({
   pending: "status-badge--pending",
@@ -82,11 +104,14 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
   const isAdminRole = displayRole === "Admin";
 
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [balances, setBalances] = useState<LeaveBalance[]>([]);
+  const [paidBalance, setPaidBalance] = useState<PaidLeaveBalance | null>(null);
+  const [transactions, setTransactions] = useState<LeaveTransaction[]>([]);
+  const [txFilter, setTxFilter] = useState<string>("ALL");
+  const [showTxPanel, setShowTxPanel] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    leaveType: "annual" as "annual" | "sick" | "unpaid" | "other",
+    leaveType: "casual" as "casual" | "sick" | "unpaid",
     startDate: "", endDate: "", reason: "",
   });
   const [certFile, setCertFile] = useState<{ name: string; data: string; mime: string } | null>(null);
@@ -128,10 +153,15 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
 
   /* ─── Load data ── */
   const fetchData = useCallback(() => {
-    Promise.all([getMyLeave(selectedMonth), getLeaveBalances()])
-      .then(([lData, bData]) => {
+    Promise.all([
+      getMyLeave(selectedMonth),
+      getPaidLeaveBalance(),
+      getLeaveTransactions({ limit: 50 }),
+    ])
+      .then(([lData, pbData, txData]) => {
         setRequests(lData.requests || []);
-        setBalances(bData.balances || []);
+        setPaidBalance(pbData.balance || null);
+        setTransactions(txData.transactions || []);
       })
       .catch((err) => {
         console.error("Failed to load leave data:", err);
@@ -144,13 +174,18 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
     fetchData();
   }, [fetchData]);
 
-  /* ─── Validation ── */
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.startDate) errs.startDate = "Start date is required";
     if (!form.endDate) errs.endDate = "End date is required";
     if (form.startDate && form.endDate && form.startDate > form.endDate)
       errs.endDate = "End date must be after start date";
+    if (form.startDate && form.startDate < todayStr())
+      errs.startDate = "Start date cannot be in the past";
+    if ((form.leaveType === "sick" || form.leaveType === "unpaid") && !form.reason.trim())
+      errs.reason = "Reason is required for this leave type";
+    if (computedDays === 0 && form.startDate && form.endDate)
+      errs.endDate = "Selected dates have no working days";
     return errs;
   };
 
@@ -197,7 +232,7 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
       }
       const { request } = await submitLeave(payload);
       setRequests(prev => [request, ...prev]);
-      setForm({ leaveType: "annual", startDate: "", endDate: "", reason: "" });
+      setForm({ leaveType: "casual", startDate: "", endDate: "", reason: "" });
       setCertFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setShowForm(false);
@@ -235,8 +270,10 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
     activeTab === "all" ? true : r.status === activeTab
   );
 
-  const selectedBalance = balances.find(b => b.leave_type === form.leaveType);
-  const isLowBalance = selectedBalance && selectedBalance.remaining_days <= 2;
+  const casualBalance = Number(paidBalance?.available_balance ?? 0);
+  const isLowBalance = form.leaveType === "casual" && paidBalance && casualBalance <= 2 && casualBalance > 0;
+  const isZeroBalance = form.leaveType === "casual" && casualBalance === 0;
+  const computedDays = calcWorkingDays(form.startDate, form.endDate);
 
   const tabs: { key: typeof activeTab; label: string }[] = [
     { key: "all", label: "All" },
@@ -293,38 +330,163 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         </div>
       </header>
 
-      {/* ── KPI Grid ────────────────────────────────────────── */}
-      <section className="kpi-grid" style={{ marginBottom: "var(--space-5)" }}>
-        {loading ? (
-          [1, 2, 3].map(i => (
-            <div key={i} className="kpi-card skeleton-card">
-              <div className="skeleton" style={{ width: "40%", height: 10, marginBottom: 6 }} />
-              <div className="skeleton" style={{ width: "60%", height: 20 }} />
-            </div>
-          ))
-        ) : (
-          balances.map(b => {
-            const pct = b.total_days > 0 ? (b.used_days / b.total_days) * 100 : 0;
-            const accent = leaveTypeAccent(b.leave_type);
-            return (
-              <div key={b.id} className="kpi-card" style={{ minHeight: "90px" }}>
-                <Calendar size={28} className="kpi-card__icon" />
-                <div className="kpi-card__label">{LEAVE_TYPE_LABELS[b.leave_type] || b.leave_type}</div>
-                <div className="kpi-card__value">
-                  {b.remaining_days}
-                  <span style={{ fontSize: "0.75rem", marginLeft: "2px" }}> / {b.total_days} days</span>
+      {/* ── Paid Leave Balance Card ──────────────────────────── */}
+      <section style={{ marginBottom: "var(--space-5)" }}>
+        <div style={{
+          background: "white",
+          border: "1px solid var(--neutral-200)",
+          borderRadius: "12px",
+          boxShadow: "var(--shadow-sm)",
+          padding: "20px 24px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "var(--neutral-500)", letterSpacing: "0.04em", marginBottom: 4 }}>
+                  Casual Leave Balance
                 </div>
-                <div className="kpi-card__progress" style={{ marginTop: "auto" }}>
-                  <div className={`kpi-card__bar progress-fill--${accent}`} style={{ width: `${pct}%` }} />
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: "36px", fontWeight: 800, color: "var(--primary-500)", lineHeight: 1 }}>
+                    {loading ? "—" : Number(paidBalance?.available_balance ?? 0).toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: "14px", color: "var(--neutral-500)", fontWeight: 600 }}>days available</span>
                 </div>
-                <div style={{ fontSize: "0.625rem", color: "var(--neutral-400)", marginTop: 2 }}>
-                  {b.used_days}d used
+                <div style={{ fontSize: "11px", color: "var(--neutral-400)", marginTop: 4 }}>
+                  Casual Leave: +1 day credited on the 1st of every month · Resets Dec 31
                 </div>
               </div>
-            );
-          })
-        )}
-      </section>
+              <button
+                onClick={() => setShowTxPanel(v => !v)}
+                style={{
+                  background: showTxPanel ? "var(--primary-50, #fef2f2)" : "white",
+                  border: `1px solid ${showTxPanel ? "var(--primary-300)" : "var(--neutral-200)"}`,
+                  borderRadius: "6px", padding: "6px 12px", cursor: "pointer",
+                  fontSize: "12px", fontWeight: 600,
+                  color: showTxPanel ? "var(--primary-600)" : "var(--neutral-600)",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <FileText size={13} /> Transaction History
+              </button>
+            </div>
+
+
+
+            {/* Year-end expiry notice */}
+            {paidBalance && Number(paidBalance.available_balance) > 0 && (
+              <div style={{
+                marginTop: 12,
+                padding: "8px 12px",
+                background: "#FFFBEB",
+                border: "1px solid #FEF3C7",
+                borderRadius: "6px",
+                display: "flex", alignItems: "center", gap: 8,
+                fontSize: "11px", color: "#92400E",
+              }}>
+                <Info size={13} />
+                Your unused balance of <strong>{Number(paidBalance.available_balance).toFixed(1)} day(s)</strong> will expire on December 31st. Use it before year-end!
+              </div>
+            )}
+          </div>
+        </section>
+
+      {/* ── Transaction History Panel ─────────────────────────── */}
+      {showTxPanel && (
+        <section style={{ marginBottom: "var(--space-5)" }}>
+          <div style={{
+            background: "white",
+            border: "1px solid var(--neutral-200)",
+            borderRadius: "12px",
+            boxShadow: "var(--shadow-sm)",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              padding: "12px 20px",
+              borderBottom: "1px solid var(--neutral-100)",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: "var(--neutral-50)",
+            }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--neutral-700)" }}>Leave Transaction Ledger</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["ALL", "CREDIT", "DEBIT", "EXPIRE", "ADJUSTMENT"] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTxFilter(t)}
+                    style={{
+                      background: txFilter === t ? "var(--primary-500)" : "white",
+                      color: txFilter === t ? "white" : "var(--neutral-600)",
+                      border: `1px solid ${txFilter === t ? "transparent" : "var(--neutral-200)"}`,
+                      borderRadius: "4px", padding: "3px 8px",
+                      fontSize: "10px", fontWeight: 700, cursor: "pointer",
+                      textTransform: "uppercase",
+                    }}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: "auto" }}>
+              {transactions.filter(tx => txFilter === "ALL" || tx.transaction_type === txFilter).length === 0 ? (
+                <div style={{ padding: "32px", textAlign: "center", color: "var(--neutral-400)", fontSize: "13px" }}>
+                  <Inbox size={32} style={{ margin: "0 auto 8px", display: "block", color: "var(--neutral-200)" }} />
+                  No transactions found
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ background: "var(--neutral-50)" }}>
+                      <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 700, color: "var(--neutral-500)", fontSize: "10px", textTransform: "uppercase" }}>Date</th>
+                      <th style={{ padding: "8px 8px",  textAlign: "left", fontWeight: 700, color: "var(--neutral-500)", fontSize: "10px", textTransform: "uppercase" }}>Type</th>
+                      <th style={{ padding: "8px 8px",  textAlign: "left", fontWeight: 700, color: "var(--neutral-500)", fontSize: "10px", textTransform: "uppercase" }}>Reason</th>
+                      <th style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, color: "var(--neutral-500)", fontSize: "10px", textTransform: "uppercase" }}>Amount</th>
+                      <th style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, color: "var(--neutral-500)", fontSize: "10px", textTransform: "uppercase" }}>Balance After</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions
+                      .filter(tx => txFilter === "ALL" || tx.transaction_type === txFilter)
+                      .map(tx => {
+                        const txColors: Record<string, { bg: string; text: string }> = {
+                          CREDIT:     { bg: "var(--success-50)",  text: "var(--success-700)"  },
+                          DEBIT:      { bg: "var(--error-50)",    text: "var(--error-700)"    },
+                          EXPIRE:     { bg: "var(--neutral-100)", text: "var(--neutral-600)"  },
+                          ADJUSTMENT: { bg: "var(--info-50)",     text: "var(--info-700)"     },
+                        };
+                        const c = txColors[tx.transaction_type] ?? txColors.ADJUSTMENT;
+                        return (
+                          <tr key={tx.id} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
+                            <td style={{ padding: "8px 16px", color: "var(--neutral-500)" }}>
+                              {new Date(tx.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            </td>
+                            <td style={{ padding: "8px 8px" }}>
+                              <span style={{
+                                background: c.bg, color: c.text,
+                                padding: "2px 7px", borderRadius: "4px",
+                                fontSize: "10px", fontWeight: 700,
+                              }}>{tx.transaction_type}</span>
+                            </td>
+                            <td style={{ padding: "8px 8px", color: "var(--neutral-600)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {tx.reason || "—"}
+                            </td>
+                            <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700,
+                              color: tx.transaction_type === "CREDIT" ? "var(--success-600)" : tx.transaction_type === "DEBIT" ? "var(--error-600)" : "var(--neutral-600)"
+                            }}>
+                              {tx.transaction_type === "CREDIT" || tx.transaction_type === "ADJUSTMENT" ? "+" : "-"}{Number(tx.amount).toFixed(1)}
+                            </td>
+                            <td style={{ padding: "8px 16px", textAlign: "right", color: "var(--neutral-700)", fontWeight: 600 }}>
+                              {tx.balance_after != null ? Number(tx.balance_after).toFixed(1) : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+
+
 
       {/* ── History Section ──────────────────────────────────── */}
       <div className="card" style={{ border: "1px solid var(--neutral-100)", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
@@ -426,64 +588,96 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
               <h2 className="drawer__title">Apply for Leave</h2>
               <button className="topbar__icon-btn" onClick={() => setShowForm(false)}><X size={20} /></button>
             </div>
-            
+
             <div className="drawer__body">
+              {/* Leave Type */}
               <div className="form-field--compact">
                 <label className="form-label--compact">Leave Type</label>
-                <select 
+                <select
                   className="form-select--compact"
                   value={form.leaveType}
                   onChange={e => setForm(f => ({ ...f, leaveType: e.target.value as any }))}
                 >
-                  <option value="annual">Annual Leave</option>
+                  <option value="casual">Casual Leave (CL)</option>
                   <option value="sick">Sick Leave</option>
-                  <option value="casual">Casual Leave</option>
                   <option value="unpaid">Unpaid Leave</option>
-                  <option value="other">Other</option>
                 </select>
               </div>
 
-              {isLowBalance && (
-                <div className="alert alert--warning" style={{ marginBottom: "var(--space-4)", padding: "10px" }}>
-                  <AlertTriangle size={14} />
-                  <span style={{ fontSize: "0.75rem" }}>Low balance: {selectedBalance?.remaining_days} days left.</span>
+              {/* Casual Leave balance badge */}
+              {form.leaveType === "casual" && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 12px",
+                  background: isZeroBalance ? "#FEF2F2" : casualBalance <= 2 ? "#FFFBEB" : "#F0FDF4",
+                  border: `1px solid ${isZeroBalance ? "#FCA5A5" : casualBalance <= 2 ? "#FDE68A" : "#BBF7D0"}`,
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  color: isZeroBalance ? "#991B1B" : casualBalance <= 2 ? "#92400E" : "#166534",
+                }}>
+                  {isZeroBalance ? <AlertTriangle size={13} /> : <Info size={13} />}
+                  {isZeroBalance
+                    ? "No Casual Leave balance available. You cannot apply for Casual Leave."
+                    : `Available Casual Leave Balance: ${casualBalance.toFixed(1)} day(s)`}
                 </div>
               )}
 
+              {/* Dates */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
                 <div className="form-field--compact">
                   <label className="form-label--compact">Start Date</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     className={`form-input--compact ${fieldErrors.startDate ? "border-error" : ""}`}
                     value={form.startDate}
+                    min={todayStr()}
                     onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
                   />
                   {fieldErrors.startDate && <div className="form-error">{fieldErrors.startDate}</div>}
                 </div>
                 <div className="form-field--compact">
                   <label className="form-label--compact">End Date</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     className={`form-input--compact ${fieldErrors.endDate ? "border-error" : ""}`}
                     value={form.endDate}
+                    min={form.startDate || todayStr()}
                     onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
                   />
                   {fieldErrors.endDate && <div className="form-error">{fieldErrors.endDate}</div>}
                 </div>
               </div>
 
+              {/* Day count */}
+              {computedDays > 0 && (
+                <div style={{
+                  padding: "6px 12px",
+                  background: "var(--primary-50, #eff6ff)",
+                  border: "1px solid var(--primary-100, #dbeafe)",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  color: "var(--primary-700, #1d4ed8)",
+                  fontWeight: 600,
+                }}>
+                  Duration: {computedDays} working day{computedDays !== 1 ? "s" : ""}
+                </div>
+              )}
+
+              {/* Reason */}
               <div className="form-field--compact">
-                <label className="form-label--compact">Reason (Optional)</label>
-                <textarea 
-                  className="form-textarea--compact"
-                  placeholder="Tell us why you're taking leave..."
+                <label className="form-label--compact">
+                  Reason {(form.leaveType === "sick" || form.leaveType === "unpaid") ? <span style={{ color: "var(--error-500)" }}>*</span> : "(Optional)"}
+                </label>
+                <textarea
+                  className={`form-textarea--compact ${fieldErrors.reason ? "border-error" : ""}`}
+                  placeholder={form.leaveType === "sick" ? "Describe your illness or medical reason..." : form.leaveType === "unpaid" ? "Reason for unpaid leave..." : "Tell us why you're taking leave..."}
                   value={form.reason}
                   onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                 />
+                {fieldErrors.reason && <div className="form-error">{fieldErrors.reason}</div>}
               </div>
 
-              {/* ── Medical Certificate Upload (Sick Leave only) ── */}
+              {/* Medical Certificate (Sick Leave) */}
               {form.leaveType === "sick" && (
                 <div className="form-field--compact">
                   <label className="form-label--compact" style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -502,43 +696,46 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
                       <span style={{ flex: 1, fontSize: "0.8rem", color: "var(--neutral-700)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {certFile.name}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => { setCertFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0 }}
-                        title="Remove attachment"
-                      >
+                      <button type="button" onClick={() => { setCertFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0 }}>
                         <X size={13} color="var(--neutral-400)" />
                       </button>
                     </div>
                   ) : (
                     <label style={{
                       display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-                      padding: "8px 12px",
-                      background: "var(--neutral-50)",
-                      border: "1px dashed var(--neutral-200)",
-                      borderRadius: "var(--rounded-md)",
-                      color: "var(--neutral-500)",
-                      fontSize: "0.8rem",
+                      padding: "8px 12px", background: "var(--neutral-50)",
+                      border: "1px dashed var(--neutral-200)", borderRadius: "var(--rounded-md)",
+                      color: "var(--neutral-500)", fontSize: "0.8rem",
                     }}>
-                      <Upload size={14} />
-                      Click to upload certificate
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        style={{ display: "none" }}
-                        onChange={handleCertFileChange}
-                      />
+                      <Upload size={14} /> Click to upload certificate
+                      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display: "none" }} onChange={handleCertFileChange} />
                     </label>
                   )}
                   {certError && <div className="form-error" style={{ marginTop: 4, fontSize: "0.75rem" }}>{certError}</div>}
                 </div>
               )}
+
+              {/* Unpaid leave notice */}
+              {form.leaveType === "unpaid" && (
+                <div style={{
+                  padding: "8px 12px", background: "#FFF7ED",
+                  border: "1px solid #FED7AA", borderRadius: "6px",
+                  fontSize: "11px", color: "#9A3412",
+                }}>
+                  <strong>Unpaid Leave</strong> — This leave will be marked as unpaid in payroll. No balance deduction required.
+                </div>
+              )}
             </div>
 
             <div className="drawer__footer">
-              <button className="btn btn--primary" style={{ flex: 1 }} onClick={handleSubmit} disabled={submitting}>
+              <button
+                className="btn btn--primary"
+                style={{ flex: 1, opacity: isZeroBalance ? 0.5 : 1 }}
+                onClick={handleSubmit}
+                disabled={submitting || isZeroBalance}
+              >
                 {submitting ? "Submitting..." : "Submit Application"}
               </button>
               <button className="btn btn--secondary" onClick={() => setShowForm(false)}>Cancel</button>
@@ -547,7 +744,9 @@ export const EmployeeLeavePage = ({ internalUser, role }: Props) => {
         </div>
       )}
 
+
       {/* ── Details / Cancel Modals ── */}
+
       {/* (Preserving existing logic for these) */}
       {detailRequest && detailMode && (
         <div className="modal-overlay" onClick={() => { setDetailRequest(null); setDetailMode(null); }}>

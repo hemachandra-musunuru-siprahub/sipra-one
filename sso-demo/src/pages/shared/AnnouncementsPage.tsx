@@ -5,10 +5,10 @@ import { Plus, Search, Filter, Megaphone, Archive, ArrowLeft } from "lucide-reac
 import { useAnnouncements } from "../../components/hooks/useAnnouncements";
 import { AnnouncementCard } from "../../components/AnnouncementCard";
 import { AnnouncementForm } from "../../components/AnnouncementForm";
-import { reactToAnnouncement, deleteAnnouncement } from "../../api/announcements";
+import { reactToAnnouncement, deleteAnnouncement, archiveAnnouncement, unarchiveAnnouncement } from "../../api/announcements";
 import type { Announcement } from "../../api/types";
 
-import { normalizeRole } from "../../lib/roleHelper";
+import { normalizeRole, canViewArchives, canViewDrafts, canManageAnnouncements } from "../../lib/roleHelper";
 import type { UserRole } from "../../lib/roleHelper";
 
 interface Props { internalUser: any; isHR?: boolean; role?: string; }
@@ -16,9 +16,25 @@ interface Props { internalUser: any; isHR?: boolean; role?: string; }
 
 
 export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) => {
-  const [showDrafts, setShowDrafts] = useState(false);
+  const [viewMode, setViewMode] = useState<"published" | "draft" | "archived">("published");
 
-  // Two separate data sources — published feed and draft feed
+  // Determine layout role first so we can conditionally enable/disable hooks
+  const layoutRole: UserRole = useMemo(() => {
+    if (role) return normalizeRole(role);
+    const singleRole = internalUser?.role;
+    if (singleRole) return normalizeRole(singleRole);
+    const userRoles = internalUser?.roles || [];
+    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
+    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
+    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
+    return "Employee";
+  }, [role, internalUser, isHR]);
+
+  const hasDraftsAccess = useMemo(() => canViewDrafts(layoutRole), [layoutRole]);
+  const hasArchivesAccess = useMemo(() => canViewArchives(layoutRole), [layoutRole]);
+  const isAuthorized = useMemo(() => canManageAnnouncements(layoutRole), [layoutRole]);
+
+  // Three separate data sources — published feed, draft feed, archived feed
   const {
     announcements: published,
     loading: publishedLoading,
@@ -26,21 +42,30 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
     loadMore: loadMorePublished,
     refresh: refreshPublished,
     setAnnouncements: setPublished,
-  } = useAnnouncements(1, 20, "published");
+  } = useAnnouncements(1, 20, "published", true);
 
   const {
     announcements: drafts,
     loading: draftsLoading,
     refresh: refreshDrafts,
     setAnnouncements: setDrafts,
-  } = useAnnouncements(1, 50, "draft");
+  } = useAnnouncements(1, 50, "draft", hasDraftsAccess);
+
+  const {
+    announcements: archived,
+    loading: archivedLoading,
+    hasMore: archivedHasMore,
+    loadMore: loadMoreArchived,
+    refresh: refreshArchived,
+    setAnnouncements: setArchived,
+  } = useAnnouncements(1, 20, "archived", hasArchivesAccess);
 
   // Active list based on current view
-  const announcements = showDrafts ? drafts : published;
-  const setAnnouncements = showDrafts ? setDrafts : setPublished;
-  const loading = showDrafts ? draftsLoading : publishedLoading;
-  const hasMore = showDrafts ? false : publishedHasMore;
-  const loadMore = showDrafts ? () => {} : loadMorePublished;
+  const announcements = viewMode === "draft" ? drafts : viewMode === "archived" ? archived : published;
+  const setAnnouncements = viewMode === "draft" ? setDrafts : viewMode === "archived" ? setArchived : setPublished;
+  const loading = viewMode === "draft" ? draftsLoading : viewMode === "archived" ? archivedLoading : publishedLoading;
+  const hasMore = viewMode === "draft" ? false : viewMode === "archived" ? archivedHasMore : publishedHasMore;
+  const loadMore = viewMode === "draft" ? () => {} : viewMode === "archived" ? loadMoreArchived : loadMorePublished;
 
   const [showForm, setShowForm] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
@@ -134,22 +159,41 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
     }
   };
 
+  const handleArchive = async (id: string) => {
+    const previousPublished = [...published];
+    setPublished(prev => prev.filter(a => a.id !== id));
+    try {
+      await archiveAnnouncement(id);
+      refreshArchived();
+      refreshPublished();
+    } catch (e) {
+      console.error("Archive failed, rolling back:", e);
+      setPublished(previousPublished);
+      alert("Failed to archive announcement.");
+    }
+  };
+
+  const handleUnarchive = async (id: string) => {
+    const previousArchived = [...archived];
+    setArchived(prev => prev.filter(a => a.id !== id));
+    try {
+      await unarchiveAnnouncement(id);
+      refreshPublished();
+      refreshArchived();
+    } catch (e) {
+      console.error("Unarchive failed, rolling back:", e);
+      setArchived(previousArchived);
+      alert("Failed to unarchive announcement.");
+    }
+  };
+
   const handleFormSuccess = () => {
     setShowForm(false);
     setEditingAnnouncement(null);
-    // Refresh both lists since a draft could have been published or vice versa
     refreshPublished();
     refreshDrafts();
+    refreshArchived();
   };
-
-  const layoutRole: UserRole = useMemo(() => {
-    if (role) return normalizeRole(role);
-    const userRoles = internalUser?.roles || [];
-    if (userRoles.some((r: string) => ["Admin", "SipraHub-SystemAdmin"].includes(r))) return "Admin";
-    if (userRoles.some((r: string) => ["HR", "SipraHub-HR"].includes(r)) || isHR) return "HR";
-    if (userRoles.some((r: string) => ["Manager", "SipraHub-Manager"].includes(r))) return "Manager";
-    return "Employee";
-  }, [role, internalUser, isHR]);
 
   const filteredAnnouncements = useMemo(() => {
     return announcements
@@ -175,12 +219,13 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
       total: published.length,
       pinned: published.filter(a => a.is_pinned).length,
       draftsCount: drafts.length,
+      archiveCount: archived.length,
       thisWeek: published.filter(a => {
         const diff = new Date().getTime() - new Date(a.created_at).getTime();
         return diff < 7 * 24 * 60 * 60 * 1000;
       }).length
     };
-  }, [published, drafts]);
+  }, [published, drafts, archived]);
 
 
   return (
@@ -194,56 +239,39 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
       )}
       {/* Header Bar */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div className="flex-shrink-0">
-            <h1 className="text-2xl font-bold text-gray-900">Company Announcements</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Latest updates from HR & teams</p>
-          </div>
+        <div className="max-w-6xl mx-auto flex flex-col gap-4">
           
-          <div className="flex flex-wrap items-center justify-start md:justify-end gap-4 flex-1 w-full">
-            <div className="relative flex-1 max-w-xs min-w-[200px]">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Search updates..." 
-                className="w-full pl-9 pr-3 h-10 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          {/* Top Row: Title + Action Buttons */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Company Announcements</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Latest updates from HR & teams</p>
             </div>
 
-            {/* Overview Stats — visible only to HR */}
-            {isHR && (
-              <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
-                <div className="flex flex-col items-center justify-center min-w-[70px] px-2 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
-                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">Published</span>
-                  <span className="text-xs font-bold text-gray-900">{stats.total}</span>
-                </div>
-                <div className="flex flex-col items-center justify-center min-w-[70px] px-2 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
-                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">This Week</span>
-                  <span className="text-xs font-bold text-gray-900">{stats.thisWeek}</span>
-                </div>
-                <div className={`flex flex-col items-center justify-center min-w-[70px] px-2 py-1 rounded-lg border shadow-sm transition-colors ${
-                  stats.draftsCount > 0 ? "bg-amber-50 border-amber-100 text-amber-700" : "bg-white border-gray-100 text-gray-400"
-                }`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-tight ${stats.draftsCount > 0 ? "text-amber-600" : "text-gray-400"}`}>Drafts</span>
-                  <span className="text-xs font-bold">{stats.draftsCount}</span>
-                </div>
-              </div>
-            )}
-            
-            {isHR && (
-              <div className="flex items-center gap-2">
+            {isAuthorized && (
+              <div className="flex items-center gap-2 self-start md:self-auto">
                 <button 
-                  onClick={() => setShowDrafts(!showDrafts)}
+                  onClick={() => setViewMode(viewMode === "draft" ? "published" : "draft")}
                   className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
-                    showDrafts 
+                    viewMode === "draft" 
                       ? "bg-gray-900 text-white border-gray-900" 
                       : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                   }`}
                 >
                   <Archive size={16} strokeWidth={2.5} /> 
-                  <span>{showDrafts ? "Published" : "Drafts"}</span>
+                  <span>Drafts</span>
+                </button>
+
+                <button 
+                  onClick={() => setViewMode(viewMode === "archived" ? "published" : "archived")}
+                  className={`flex items-center justify-center gap-2 h-10 px-4 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
+                    viewMode === "archived" 
+                      ? "bg-blue-600 text-white border-blue-600" 
+                      : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <Archive size={16} strokeWidth={2.5} /> 
+                  <span>Archive</span>
                 </button>
 
                 <button 
@@ -256,6 +284,46 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
               </div>
             )}
           </div>
+
+          {/* Bottom Row: Search + Overview Stats */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-2 border-t border-gray-100">
+            <div className="relative flex-1 max-w-md min-w-[200px]">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input 
+                type="text" 
+                placeholder="Search updates..." 
+                className="w-full pl-9 pr-3 h-10 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white shadow-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {isAuthorized && (
+              <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100 self-start md:self-auto overflow-x-auto max-w-full">
+                <div className="flex flex-col items-center justify-center min-w-[70px] px-3 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">Published</span>
+                  <span className="text-xs font-bold text-gray-900">{stats.total}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center min-w-[70px] px-3 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">This Week</span>
+                  <span className="text-xs font-bold text-gray-900">{stats.thisWeek}</span>
+                </div>
+                <div className={`flex flex-col items-center justify-center min-w-[70px] px-3 py-1 rounded-lg border shadow-sm transition-colors ${
+                  stats.draftsCount > 0 ? "bg-amber-50 border-amber-100 text-amber-700" : "bg-white border-gray-100 text-gray-400"
+                }`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-tight ${stats.draftsCount > 0 ? "text-amber-600" : "text-gray-400"}`}>Drafts</span>
+                  <span className="text-xs font-bold">{stats.draftsCount}</span>
+                </div>
+                <div className={`flex flex-col items-center justify-center min-w-[70px] px-3 py-1 rounded-lg border shadow-sm transition-colors ${
+                  stats.archiveCount > 0 ? "bg-blue-50 border-blue-100 text-blue-700" : "bg-white border-gray-100 text-gray-400"
+                }`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-tight ${stats.archiveCount > 0 ? "text-blue-600" : "text-gray-400"}`}>Archived</span>
+                  <span className="text-xs font-bold">{stats.archiveCount}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
 
@@ -270,14 +338,14 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
 
             <section className="flex flex-col gap-4">
               {/* View indicator */}
-              {showDrafts && (
+              {viewMode === "draft" && (
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
                   <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg w-fit">
                     <Archive size={14} className="text-amber-600" />
                     <span className="text-sm font-medium text-amber-700">Viewing Drafts — only visible to HR</span>
                   </div>
                   <button 
-                    onClick={() => setShowDrafts(false)}
+                    onClick={() => setViewMode("published")}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm w-fit"
                   >
                     <ArrowLeft size={16} />
@@ -285,9 +353,26 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
                   </button>
                 </div>
               )}
+
+              {viewMode === "archived" && (
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg w-fit">
+                    <Archive size={14} className="text-blue-600" />
+                    <span className="text-sm font-medium text-blue-700">Viewing Archive — past company announcements</span>
+                  </div>
+                  <button 
+                    onClick={() => setViewMode("published")}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all shadow-sm w-fit"
+                  >
+                    <ArrowLeft size={16} />
+                    Back to Published
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {showDrafts ? "Draft Announcements" : searchQuery ? "Search Results" : "Recent Updates"}
+                  {viewMode === "archived" ? "Archived Announcements" : viewMode === "draft" ? "Draft Announcements" : searchQuery ? "Search Results" : "Recent Updates"}
                 </h2>
                 <span className="text-sm font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
                   {filteredAnnouncements.length}
@@ -302,12 +387,14 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
                 </div>
               ) : filteredAnnouncements.length === 0 ? (
                 <div className="bg-white p-8 rounded-xl border border-gray-200 text-center flex flex-col items-center justify-center">
-                  <Archive size={32} className={`mb-3 ${showDrafts ? "text-amber-300" : "text-gray-300"}`} />
+                  <Archive size={32} className={`mb-3 ${viewMode === "draft" ? "text-amber-300" : viewMode === "archived" ? "text-blue-300" : "text-gray-300"}`} />
                   <h3 className="text-base font-semibold text-gray-900">
-                    {showDrafts ? "No drafts found" : "No updates found"}
+                    {viewMode === "archived" ? "No archived announcements" : viewMode === "draft" ? "No drafts found" : "No updates found"}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    {showDrafts 
+                    {viewMode === "archived"
+                      ? "Announcements older than 30 days are automatically archived here."
+                      : viewMode === "draft" 
                       ? "Save a post as draft to see it here." 
                       : searchQuery ? `No results for "${searchQuery}".` : "There are currently no announcements."}
                   </p>
@@ -319,9 +406,11 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
                       key={ann.id} 
                       announcement={ann} 
                       onReact={handleReact}
-                      canEdit={isHR}
+                      canEdit={isAuthorized}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      onArchive={handleArchive}
+                      onUnarchive={handleUnarchive}
                       isHighlighted={ann.id === highlightId}
                     />
                   ))}
@@ -344,7 +433,7 @@ export const AnnouncementsPage = ({ internalUser, isHR = false, role }: Props) =
       </div>
 
       {/* Form Modal Overlay */}
-      {isHR && showForm && (
+      {isAuthorized && showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm bg-gray-900/40 transition-all">
           <div 
             className="absolute inset-0" 

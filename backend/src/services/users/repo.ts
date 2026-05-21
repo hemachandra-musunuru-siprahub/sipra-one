@@ -8,7 +8,7 @@ export const listUsers = async () => {
       u.manager_entra_oid, 
       m.name AS manager_name, 
       m.email AS manager_email, 
-      u.is_active, u.created_at, u.last_login
+      u.is_active, u.date_of_joining, u.created_at, u.last_login
     FROM users u
     LEFT JOIN users m ON m.entra_oid = u.manager_entra_oid
     ORDER BY u.name ASC
@@ -44,7 +44,7 @@ export const listManagers = async (search?: string) => {
 // ─── Get single user by entra_oid ────────────────────────────────────────────
 export const getUserByOid = async (entraOid: string) => {
   const { rows } = await query(
-    `SELECT id, entra_oid, email, name, role, manager_entra_oid, is_active, created_at, last_login
+    `SELECT id, entra_oid, email, name, role, manager_entra_oid, is_active, date_of_joining, created_at, last_login
      FROM users WHERE entra_oid = $1`,
     [entraOid]
   );

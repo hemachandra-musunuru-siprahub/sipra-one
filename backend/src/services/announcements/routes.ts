@@ -25,7 +25,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     const latest = req.query.latest === "true";
     const status = (req.query.status as string) || "published";
     console.log(`[GET /api/announcements] page=${page} limit=${limit} latest=${latest} status=${status}`);
-    const items  = await repo.getFeed(page, limit, req.user!.entra_oid, latest, status);
+    const items  = await repo.getFeed(page, limit, req.user!.entra_oid, latest, status, req.user!.role);
     console.log(`[GET /api/announcements] Fetched ${items.length} announcements with status=${status}`);
     res.json({ announcements: items, page, limit });
   } catch (err: any) {
@@ -39,23 +39,37 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ─── GET /api/announcements/archived — archived feed (hr_admin only) ────────────
+router.get("/archived", requireAuth, requireRole([...HR_ROLES]), async (req: AuthRequest, res: Response) => {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
+    const items = await repo.getArchivedFeed(page, limit, req.user!.entra_oid, req.user!.role);
+    res.json({ announcements: items, page, limit });
+  } catch (err: any) {
+    logger.error({ err, path: "/api/announcements/archived" }, "Failed to fetch archived announcements");
+    res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to load archived announcements" });
+  }
+});
+
 // ─── GET /api/announcements/:id — single item ─────────────────────────────────
 router.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
-  const item = await repo.findById(req.params.id, req.user!.entra_oid);
+  const item = await repo.findById(req.params.id, req.user!.entra_oid, req.user!.role);
   if (!item) throw notFound("Announcement not found");
   res.json({ announcement: item });
 });
 
 // ─── POST /api/announcements — create (hr_admin only) ────────────────────────
 const CreateSchema = z.object({
-  title:     z.string().min(1, "Title is required").max(255),
-  body:      z.string().min(1, "Body is required"),
-  category:  z.enum(ALLOWED_CATEGORIES).nullable().optional(),
-  type:      z.enum(["GENERAL", "IMPORTANT"]).default("GENERAL"),
-  priority:  z.enum(["low", "medium", "high"]).optional(), // backward compat
-  is_pinned: z.preprocess((val) => val === "true" || val === true, z.boolean()).default(false),
-  image_url: z.string().nullable().optional(),
-  status:    z.enum(["draft", "published"]).default("published"),
+  title:           z.string().min(1, "Title is required").max(255),
+  body:            z.string().min(1, "Body is required"),
+  category:        z.enum(ALLOWED_CATEGORIES).nullable().optional(),
+  type:            z.enum(["GENERAL", "IMPORTANT"]).default("GENERAL"),
+  priority:        z.enum(["low", "medium", "high"]).optional(),
+  is_pinned:       z.preprocess((val) => val === "true" || val === true, z.boolean()).default(false),
+  image_url:       z.string().nullable().optional(),
+  status:          z.enum(["draft", "published"]).default("published"),
+  target_audience: z.enum(["ALL", "HR", "MANAGER", "EMPLOYEE"]).default("ALL"),
 });
 
 router.post("/", requireAuth, requireRole([...HR_ROLES]),
@@ -63,13 +77,14 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
   async (req: AuthRequest, res: Response) => {
     try {
       logger.info({ user: req.user?.entra_oid }, "Creating announcement");
-      let { title, body, category, is_pinned, type, priority, image_url, status } = req.body;
+      let { title, body, category, is_pinned, type, priority, image_url, status, target_audience } = req.body;
       
       // Backward compatibility mapping
       if (!type && priority) {
         type = priority === "high" ? "IMPORTANT" : "GENERAL";
       }
       if (!type) type = "GENERAL";
+      if (!target_audience) target_audience = "ALL";
       
       // Process image safely
       if (image_url) {
@@ -88,7 +103,7 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
       // Map back to DB priority format to satisfy existing constraints
       const dbPriority = type === "IMPORTANT" ? "high" : "low";
 
-      console.log(`[POST /api/announcements] Submitting: title=${title} status=${status}`);
+      console.log(`[POST /api/announcements] Submitting: title=${title} status=${status} audience=${target_audience}`);
       
       const item = await repo.createAnnouncement(
         title, 
@@ -98,19 +113,28 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
         dbPriority, 
         image_url, 
         req.user!.entra_oid,
-        status || "published"
+        status || "published",
+        target_audience
       );
       
       res.status(201).json({ announcement: item });
 
-      // ── Fan-out notification to all active users (fire-and-forget) ─────
+      // ── Fan-out notification — only to users in target audience ────────
       try {
         if (item.status === "published" || item.status === "pinned") {
-          const { rows } = await query(`SELECT entra_oid FROM users WHERE is_active = true`);
-          let recipientOids: string[] = rows.map((r: any) => r.entra_oid);
-          
-          // Filter out the HR user who created it
-          recipientOids = recipientOids.filter(oid => oid !== req.user!.entra_oid);
+          let userQuery = `SELECT entra_oid, role FROM users WHERE is_active = true`;
+          const { rows } = await query(userQuery);
+          let recipientOids: string[] = rows
+            .filter((r: any) => {
+              if (item.target_audience === "ALL") return true;
+              const ur = (r.role || "").toUpperCase();
+              if (item.target_audience === "HR") return ur.includes("HR") || ur.includes("ADMIN");
+              if (item.target_audience === "MANAGER") return ur.includes("MANAGER");
+              if (item.target_audience === "EMPLOYEE") return !ur.includes("HR") && !ur.includes("ADMIN") && !ur.includes("MANAGER");
+              return true;
+            })
+            .map((r: any) => r.entra_oid)
+            .filter((oid: string) => oid !== req.user!.entra_oid);
 
           if (recipientOids.length > 0) {
             const notifTitle = type === "IMPORTANT" ? `🚨 ${title}` : `📢 ${title}`;
@@ -145,21 +169,22 @@ router.post("/", requireAuth, requireRole([...HR_ROLES]),
 
 // ─── PATCH /api/announcements/:id — edit (hr_admin only) ──────────────────────
 const UpdateSchema = z.object({
-  title:     z.string().min(1).max(255).optional(),
-  body:      z.string().min(1).optional(),
-  category:  z.enum(ALLOWED_CATEGORIES).nullable().optional(),
-  type:      z.enum(["GENERAL", "IMPORTANT"]).optional(),
-  priority:  z.enum(["low", "medium", "high"]).optional(), // backward compat
-  is_pinned: z.preprocess((val) => val === "true" || val === true, z.boolean()).optional(),
-  image_url: z.string().nullable().optional(),
-  status:    z.enum(["draft", "published"]).optional(),
+  title:           z.string().min(1).max(255).optional(),
+  body:            z.string().min(1).optional(),
+  category:        z.enum(ALLOWED_CATEGORIES).nullable().optional(),
+  type:            z.enum(["GENERAL", "IMPORTANT"]).optional(),
+  priority:        z.enum(["low", "medium", "high"]).optional(),
+  is_pinned:       z.preprocess((val) => val === "true" || val === true, z.boolean()).optional(),
+  image_url:       z.string().nullable().optional(),
+  status:          z.enum(["draft", "published"]).optional(),
+  target_audience: z.enum(["ALL", "HR", "MANAGER", "EMPLOYEE"]).optional(),
 });
 
 router.patch("/:id", requireAuth, requireRole([...HR_ROLES]),
   validate(UpdateSchema),
   async (req: AuthRequest, res: Response) => {
     try {
-      let { title, body, category, is_pinned, type, priority, image_url, status } = req.body;
+      let { title, body, category, is_pinned, type, priority, image_url, status, target_audience } = req.body;
       
       // Backward compatibility mapping
       if (!type && priority) {
@@ -169,13 +194,13 @@ router.patch("/:id", requireAuth, requireRole([...HR_ROLES]),
       // Map back to DB priority format
       const dbPriority = type === "IMPORTANT" ? "high" : "low";
 
-      const fields: any = { title, body, category, is_pinned, priority: dbPriority, image_url, status };
+      const fields: Record<string, unknown> = { title, body, category, is_pinned, priority: dbPriority, image_url, status, target_audience };
       // Remove undefined fields
       Object.keys(fields).forEach(key => fields[key] === undefined && delete fields[key]);
       
       if (fields.image_url) {
         try {
-          fields.image_url = processBase64Image(fields.image_url);
+          fields.image_url = processBase64Image(fields.image_url as string);
         } catch (imgError: any) {
           logger.error({ err: imgError }, "Image processing failed");
           return res.status(400).json({ 
@@ -186,7 +211,7 @@ router.patch("/:id", requireAuth, requireRole([...HR_ROLES]),
         }
       }
 
-      const oldItem = await repo.findById(req.params.id);
+      const oldItem = await repo.findById(req.params.id, req.user!.entra_oid, req.user!.role);
       if (!oldItem) throw notFound("Announcement not found");
 
       const item = await repo.updateAnnouncement(req.params.id, fields);
@@ -243,6 +268,24 @@ router.delete("/:id", requireAuth, requireRole([...HR_ROLES]),
   }
 );
 
+// ─── PATCH /api/announcements/:id/archive — archive (hr_admin only) ───────────
+router.patch("/:id/archive", requireAuth, requireRole([...HR_ROLES]),
+  async (req: AuthRequest, res: Response) => {
+    const item = await repo.archiveAnnouncement(req.params.id);
+    if (!item) throw notFound("Announcement not found");
+    res.json({ announcement: item });
+  }
+);
+
+// ─── PATCH /api/announcements/:id/unarchive — unarchive (hr_admin only) ───────
+router.patch("/:id/unarchive", requireAuth, requireRole([...HR_ROLES]),
+  async (req: AuthRequest, res: Response) => {
+    const item = await repo.unarchiveAnnouncement(req.params.id);
+    if (!item) throw notFound("Announcement not found");
+    res.json({ announcement: item });
+  }
+);
+
 // ─── POST /api/announcements/:id/reactions — toggle/replace (all auth) ────────
 const ReactionSchema = z.object({
   reactionType: z.enum(ALLOWED_REACTIONS),
@@ -252,7 +295,7 @@ router.post("/:id/reactions", requireAuth,
   validate(ReactionSchema),
   async (req: AuthRequest, res: Response) => {
     try {
-      const post = await repo.findById(req.params.id);
+      const post = await repo.findById(req.params.id, req.user!.entra_oid, req.user!.role);
       if (!post) throw notFound("Announcement not found");
       
       // Check if we already have this reaction
@@ -291,7 +334,7 @@ router.post("/:id/reactions", requireAuth,
 // ─── DELETE /api/announcements/:id/reactions — remove (all auth) ──────────────
 router.delete("/:id/reactions", requireAuth,
   async (req: AuthRequest, res: Response) => {
-    const post = await repo.findById(req.params.id);
+    const post = await repo.findById(req.params.id, req.user!.entra_oid, req.user!.role);
     if (!post) throw notFound("Announcement not found");
     
     await repo.removeReaction(req.params.id, req.user!.entra_oid);

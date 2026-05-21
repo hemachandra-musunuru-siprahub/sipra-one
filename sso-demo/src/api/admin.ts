@@ -67,3 +67,18 @@ export async function triggerTimesheetReminder(type: "friday" | "monday") {
   }
   return res.json();
 }
+
+export async function updateEmployeeDOJ(oid: string, date_of_joining: string) {
+  const res = await fetch(`${API}/api/admin/users/${oid}/doj`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date_of_joining }),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.details || "Failed to update Date of Joining");
+  }
+  return res.json();
+}
+

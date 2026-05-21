@@ -62,9 +62,9 @@ export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWi
   if (isLoading) {
     return (
       <div className="stats-grid stats-grid--6">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="stat-card">
-            <div className="hc-skeleton" style={{ height: 80 }} />
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="stat-card" style={{ padding: "16px", minHeight: "116px" }}>
+            <div className="hc-skeleton" style={{ height: "100%" }} />
           </div>
         ))}
       </div>
@@ -74,17 +74,17 @@ export const HolidayDashboardWidgets = ({ stats, isLoading }: HolidayDashboardWi
   return (
     <div className="stats-grid stats-grid--6">
       {widgets.map((w, i) => (
-        <div key={i} className="stat-card" style={{ gap: "var(--space-3)" }}>
-          <div className="stat-card__header">
-            <span className="stat-card__label">{w.label}</span>
-            <div className="stat-card__icon" style={{ background: w.bg }}>
-              <span style={{ color: w.color }}>{w.icon}</span>
+        <div key={i} className="stat-card" style={{ gap: "8px", padding: "16px", minHeight: "116px" }}>
+          <div className="stat-card__header" style={{ marginBottom: "4px" }}>
+            <span className="stat-card__label" style={{ fontSize: "0.8125rem" }}>{w.label}</span>
+            <div className="stat-card__icon" style={{ background: w.bg, width: "36px", height: "36px", borderRadius: "8px" }}>
+              <span style={{ color: w.color, display: "flex", alignItems: "center", justifyContent: "center" }}>{w.icon}</span>
             </div>
           </div>
-          <div className="stat-card__value" style={{ color: w.color, fontSize: "1.75rem" }}>
+          <div className="stat-card__value" style={{ color: w.color, fontSize: "1.75rem", lineHeight: 1 }}>
             {w.value}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)" }}>{w.sub}</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--neutral-500)", marginTop: "auto" }}>{w.sub}</div>
         </div>
       ))}
     </div>

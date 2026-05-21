@@ -21,6 +21,62 @@ const jwksSingleton = jwksClient({
   rateLimit: true,
 });
 
+router.get("/dev-login", async (req: Request, res: Response): Promise<void> => {
+  if (process.env.NODE_ENV !== "development") {
+    res.status(403).json({ error: "FORBIDDEN", details: "Dev login is only allowed in development mode" });
+    return;
+  }
+
+  const { email } = req.query;
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "MISSING_EMAIL", details: "Email query parameter is required" });
+    return;
+  }
+
+  try {
+    const { rows } = await query(
+      "SELECT id, entra_oid, email, name, role, is_active FROM users WHERE email = $1 AND is_active = true",
+      [email]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "USER_NOT_FOUND", details: `Active user with email ${email} not found in database` });
+      return;
+    }
+
+    const user = rows[0];
+    const sessionToken = jwt.sign(
+      { entra_oid: user.entra_oid, id: user.id },
+      JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    const isProd = (process.env.NODE_ENV as string) === "production";
+    res.cookie("session_token", sessionToken, {
+      httpOnly: true,
+      secure:   isProd,
+      sameSite: isProd ? "strict" : "lax",
+      path:     "/",
+      maxAge:   24 * 60 * 60 * 1000
+    });
+
+    invalidateUserCache(user.entra_oid);
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const queryParams = new URLSearchParams({
+      sync_dev: "true",
+      id: String(user.id),
+      entra_oid: user.entra_oid,
+      email: user.email,
+      name: user.name,
+      role: user.role
+    }).toString();
+    res.redirect(`${frontendUrl}/login?${queryParams}`);
+  } catch (err: any) {
+    res.status(500).json({ error: "SERVER_ERROR", details: err.message });
+  }
+});
+
 router.get("/debug-config", (req: Request, res: Response) => {
   res.json({
     tenantId: process.env.ENTRA_TENANT_ID,
