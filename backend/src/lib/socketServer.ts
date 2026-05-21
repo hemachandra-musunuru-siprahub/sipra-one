@@ -8,9 +8,33 @@ let io: SocketIOServer | null = null;
  * Must be called once during app startup before any routes try to emit events.
  */
 export function initSocketServer(httpServer: HttpServer, frontendUrl: string): SocketIOServer {
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "https://deployment-testing-production-3314.up.railway.app"
+  ];
+
+  if (frontendUrl) {
+    const originClean = frontendUrl.replace(/\/$/, "");
+    if (!allowedOrigins.includes(originClean)) {
+      allowedOrigins.push(originClean);
+    }
+  }
+
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: frontendUrl,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const cleanOrigin = origin.replace(/\/$/, "");
+        if (
+          allowedOrigins.includes(origin) ||
+          allowedOrigins.includes(cleanOrigin) ||
+          origin.endsWith(".up.railway.app") ||
+          origin.includes("railway.app")
+        ) {
+          return callback(null, true);
+        }
+        return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      },
       credentials: true,
     },
   });
