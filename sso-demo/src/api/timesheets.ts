@@ -73,7 +73,7 @@ export const exportManagerTimesheets = async (
   employeeId: string,
   month: string  // YYYY-MM
 ): Promise<void> => {
-  const BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+  const BASE = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   const params = new URLSearchParams({ month });
   if (employeeId && employeeId !== "all") params.append("employeeId", employeeId);
 
@@ -104,7 +104,7 @@ export const exportManagerTimesheets = async (
 
 /** HR/Admin CSV export — kept for HR dashboard use */
 export const exportTimesheets = (startDate: string, endDate: string) => {
-  const BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+  const BASE = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   window.open(`${BASE}/api/timesheets/export?startDate=${startDate}&endDate=${endDate}`, "_blank");
 };
 
@@ -128,7 +128,7 @@ export const exportHRTimesheets = async (options?: {
   status?: string;
   month?: string;
 }): Promise<void> => {
-  const BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+  const BASE = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   const params = new URLSearchParams();
   if (options?.employeeOid && options.employeeOid !== "all") params.append("employeeOid", options.employeeOid);
   if (options?.status && options.status !== "all") params.append("status", options.status);
