@@ -27,7 +27,7 @@ import { useState, useRef, useEffect } from "react";
 import { socket } from "../lib/socket";
 import { normalizeRole } from "../lib/roleHelper";
 
-const API = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 
 interface DashboardLayoutProps {
   children: React.ReactNode;

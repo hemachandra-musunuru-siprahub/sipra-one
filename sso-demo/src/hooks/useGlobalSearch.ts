@@ -45,7 +45,7 @@ export const useGlobalSearch = (query: string) => {
       abortControllerRef.current = controller;
 
       try {
-        const API = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const API = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
         const response = await fetch(`${API}/api/search?q=${encodeURIComponent(query)}`, {
           signal: controller.signal,
           headers: {
